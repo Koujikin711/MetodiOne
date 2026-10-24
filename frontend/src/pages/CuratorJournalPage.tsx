@@ -19,8 +19,9 @@ import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import { readJournalSection, rememberJournalSection, type JournalSection } from "@/lib/leadReturn";
 import { Course15QueuePanel } from "@/components/Course15QueuePanel";
 import { PrintButton } from "@/components/PrintButton";
+import { PrintMasthead, PrintSign } from "@/components/PrintMasthead";
 import { DateField } from "@/components/DateField";
-import { Pencil, Search, Trash2 } from "@/components/icons";
+import { ClipboardList, Import, Pencil, Plus, Printer, Search, Trash2 } from "@/components/icons";
 
 type DiaryStatus = "pending" | "done" | "missed";
 type PhotoStatus = "pending" | "done" | "missed";
@@ -312,6 +313,30 @@ function flowTitle(f: Flow) {
   return f.title?.trim() || `Поток №${f.flow_number}`;
 }
 
+function JournalIconButton({
+  label,
+  onClick,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      onClick={onClick}
+      className="journal-icon-btn print-hide inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] text-[var(--mo-text)]"
+    >
+      {children}
+      <span className="journal-icon-btn__tip" role="tooltip">
+        {label}
+      </span>
+    </button>
+  );
+}
+
 export function CuratorJournalPage() {
   const role = decodeRoleFromToken(getStoredToken());
   const meQuery = useCurrentUserMe();
@@ -485,6 +510,26 @@ export function CuratorJournalPage() {
     onError: (err: Error) => toast.error(err.message || "Не удалось изменить паузу"),
   });
 
+  const leaveMut = useMutation({
+    mutationFn: (id: number) =>
+      apiFetch<Membership>(`/api/curator-journal/memberships/${id}/leave`, { method: "POST" }),
+    onSuccess: () => {
+      toast.success("Убран из потока");
+      void qc.invalidateQueries({ queryKey: ["curator-journal", "month", selectedFlowId] });
+      void qc.invalidateQueries({ queryKey: ["curator-journal", "day-summary", selectedFlowId] });
+      void qc.invalidateQueries({ queryKey: ["curator-journal", "flows"] });
+    },
+    onError: (err: Error) => toast.error(err.message || "Не удалось убрать из потока"),
+  });
+
+  function removeFromFlow(p: Membership) {
+    const day = p.program_day_index != null ? `, день ${p.program_day_index}` : "";
+    const start = p.program_started_on ? `, старт ${formatRuDate(p.program_started_on)}` : "";
+    const ok = window.confirm(`Убрать «${p.display_name}»${day}${start} из этого потока?`);
+    if (!ok) return;
+    leaveMut.mutate(p.id);
+  }
+
   if (role === "expert" && meQuery.isLoading) {
     return <p className="px-4 py-10 text-sm lux-caption">Загрузка…</p>;
   }
@@ -509,8 +554,16 @@ export function CuratorJournalPage() {
   const flow = monthQuery.data?.flow || flowsQuery.data?.find((f) => f.id === selectedFlowId);
 
   return (
-    <div className="curator-journal-page mo-page">
-      <header className="flex flex-wrap items-end justify-between gap-3">
+    <div className="curator-journal-page mo-print-doc mo-print-wide mo-page">
+      <PrintMasthead
+        title={section === "course15" ? "Очередь курса 15" : "Журнал куратора"}
+        meta={
+          section === "course15"
+            ? undefined
+            : [flow ? flowTitle(flow) : "Курс", `${MONTHS_RU[month - 1]} ${year}`].filter(Boolean).join(" · ")
+        }
+      />
+      <header className="print-screen-only flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="mo-page-title">Журнал куратора</h1>
           <p className="mo-page-sub">
@@ -520,26 +573,28 @@ export function CuratorJournalPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <PrintButton />
+          <JournalIconButton label="Печать" onClick={() => window.print()}>
+            <Printer className="h-5 w-5" />
+          </JournalIconButton>
           {section === "course" && canManageFlows ? (
-            <button type="button" className="btn-secondary text-sm" onClick={() => setShowCreate(true)}>
-              Новый поток
-            </button>
+            <JournalIconButton label="Новый поток" onClick={() => setShowCreate(true)}>
+              <Plus className="h-5 w-5" />
+            </JournalIconButton>
           ) : null}
           {section === "course" && selectedFlowId ? (
             <>
-              <button type="button" className="btn-secondary text-sm" onClick={() => setShowImport(true)}>
-                Импорт
-              </button>
-              <button type="button" className="btn-secondary text-sm" onClick={() => setShowReport(true)}>
-                Отчёт по жалобам
-              </button>
+              <JournalIconButton label="Импорт" onClick={() => setShowImport(true)}>
+                <Import className="h-5 w-5" />
+              </JournalIconButton>
+              <JournalIconButton label="Отчёт по жалобам" onClick={() => setShowReport(true)}>
+                <ClipboardList className="h-5 w-5" />
+              </JournalIconButton>
             </>
           ) : null}
         </div>
       </header>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="print-screen-only flex flex-wrap gap-2">
         {(
           [
             ["course15", "Курс 15"],
@@ -567,7 +622,7 @@ export function CuratorJournalPage() {
       {section === "course" ? (
         <>
       {/* Flow picker */}
-      <div className="flex flex-wrap gap-2">
+      <div className="print-screen-only flex flex-wrap gap-2">
         {(flowsQuery.data || []).map((f) => (
           <button
             key={f.id}
@@ -671,7 +726,7 @@ export function CuratorJournalPage() {
             </div>
           </div>
 
-          <div className="cj-toolbar mt-3">
+          <div className="cj-toolbar print-screen-only mt-3">
             <div className="cj-search-wrap">
               <Search className="cj-search-icon" />
               <input
@@ -782,16 +837,26 @@ export function CuratorJournalPage() {
                       </button>
                       <ProgramPeriodHint m={p} />
                       {p.left_on ? null : (
-                        <button
-                          type="button"
-                          className="mt-1 block text-[10px] font-medium text-[var(--mo-accent)] hover:underline"
-                          onClick={() => {
-                            if (p.is_paused) pauseMut.mutate({ id: p.id, resume: true });
-                            else setPauseDraft({ id: p.id, name: p.display_name, comment: "" });
-                          }}
-                        >
-                          {p.is_paused ? "Продолжить" : "Пауза"}
-                        </button>
+                        <span className="print-omit mt-1 flex gap-2">
+                          <button
+                            type="button"
+                            className="text-[10px] font-medium text-[var(--mo-accent)] hover:underline"
+                            onClick={() => {
+                              if (p.is_paused) pauseMut.mutate({ id: p.id, resume: true });
+                              else setPauseDraft({ id: p.id, name: p.display_name, comment: "" });
+                            }}
+                          >
+                            {p.is_paused ? "Продолжить" : "Пауза"}
+                          </button>
+                          <button
+                            type="button"
+                            className="text-[10px] font-medium text-[var(--mo-muted)] hover:underline"
+                            disabled={leaveMut.isPending}
+                            onClick={() => removeFromFlow(p)}
+                          >
+                            Убрать
+                          </button>
+                        </span>
                       )}
                       {openPauseComment(p) ? (
                         <div className="mt-0.5 text-[10px] font-normal leading-tight text-[var(--mo-muted)]">
@@ -873,7 +938,7 @@ export function CuratorJournalPage() {
           </div>
 
           {/* Mobile day cards */}
-          <div className="flex flex-col gap-3 md:hidden">
+          <div className="print-screen-only flex flex-col gap-3 md:hidden">
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -929,16 +994,26 @@ export function CuratorJournalPage() {
                   </button>
                   <ProgramPeriodHint m={p} />
                   {p.left_on ? null : (
-                    <button
-                      type="button"
-                      className="mt-1 block text-xs font-medium text-[var(--mo-accent)] hover:underline"
-                      onClick={() => {
-                        if (p.is_paused) pauseMut.mutate({ id: p.id, resume: true });
-                        else setPauseDraft({ id: p.id, name: p.display_name, comment: "" });
-                      }}
-                    >
-                      {p.is_paused ? "Продолжить" : "Пауза"}
-                    </button>
+                    <span className="mt-1 flex gap-3">
+                      <button
+                        type="button"
+                        className="text-xs font-medium text-[var(--mo-accent)] hover:underline"
+                        onClick={() => {
+                          if (p.is_paused) pauseMut.mutate({ id: p.id, resume: true });
+                          else setPauseDraft({ id: p.id, name: p.display_name, comment: "" });
+                        }}
+                      >
+                        {p.is_paused ? "Продолжить" : "Пауза"}
+                      </button>
+                      <button
+                        type="button"
+                        className="text-xs font-medium text-[var(--mo-muted)] hover:underline"
+                        disabled={leaveMut.isPending}
+                        onClick={() => removeFromFlow(p)}
+                      >
+                        Убрать
+                      </button>
+                    </span>
                   )}
                   {openPauseComment(p) ? (
                     <p className="mt-1 text-xs text-[var(--mo-muted)]">{openPauseComment(p)}</p>
@@ -1104,6 +1179,7 @@ export function CuratorJournalPage() {
           onClose={() => setShowReport(false)}
         />
       ) : null}
+      <PrintSign />
     </div>
   );
 }
@@ -2005,7 +2081,8 @@ function Modal({
         ].join(" ")}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-3 flex items-center justify-between gap-2">
+        {printable ? <PrintMasthead title={title} /> : null}
+        <div className="print-screen-only mb-3 flex items-center justify-between gap-2">
           <h2 className="text-lg font-semibold">{title}</h2>
           <div className="flex items-center gap-2 print-hide">
             {printable ? <PrintButton /> : null}
@@ -2015,6 +2092,7 @@ function Modal({
           </div>
         </div>
         {children}
+        {printable ? <PrintSign /> : null}
       </div>
     </div>
   );

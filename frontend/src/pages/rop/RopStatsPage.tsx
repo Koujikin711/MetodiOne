@@ -70,12 +70,12 @@ export function RopStatsPage() {
               </div>
               {m.stages.length > 0 && (
                 <div className="mt-3 overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm md:w-auto md:min-w-[22rem]">
                     <thead className="text-xs mo-muted">
                       <tr>
-                        <th className="py-1 text-left">Стадия</th>
-                        <th className="py-1 text-right">Кол-во</th>
-                        <th className="py-1 text-right">%</th>
+                        <th className="py-1 pr-8 text-left font-normal">Стадия</th>
+                        <th className="w-20 py-1 text-right font-normal">Кол-во</th>
+                        <th className="w-16 py-1 pl-4 text-right font-normal">%</th>
                       </tr>
                     </thead>
                     <tbody>

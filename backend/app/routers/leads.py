@@ -49,7 +49,7 @@ from app.services.audit import write_audit_event
 from app.services.patient_phone_visibility import resolve_phone_fields
 from app.services.automation import process_lead_automation
 from app.services.lead_assignment import assign_manager_for_new_lead
-from app.services.lead_extra_phones import find_lead_by_any_phone, norm_phone
+from app.services.lead_extra_phones import find_lead_by_any_phone, lead_has_contact_phone, norm_phone
 from app.services.phone_match import whatsapp_e164_digits
 from app.services.lead_redistribution_undo import (
     REDISTRIBUTE_ACTIONS,
@@ -693,6 +693,7 @@ async def list_leads(
             .join(PipelineStage, PipelineStage.id == Lead.status_id)
             .where(PipelineStage.pipeline_id == pipeline_id, Lead.company_id == company_id, PipelineStage.company_id == company_id)
         )
+        ranked = ranked.where(lead_has_contact_phone())
         if is_manager_like(current_user.role):
             ranked = ranked.where(manager_lead_visibility(current_user.id))
         ranked_sq = ranked.subquery()
@@ -725,6 +726,7 @@ async def list_leads(
             PipelineStage.company_id == company_id,
             PipelineStage.pipeline_id.in_(allowed),
         )
+    stmt = stmt.where(lead_has_contact_phone())
     term = (q or "").strip()
     if term:
         like = f"%{term}%"
@@ -767,7 +769,12 @@ async def list_leads_table(
                 detail="Стадия не принадлежит выбранной воронке",
             )
 
-    filters = [PipelineStage.pipeline_id == pipeline_id, PipelineStage.company_id == company_id, Lead.company_id == company_id]
+    filters = [
+        PipelineStage.pipeline_id == pipeline_id,
+        PipelineStage.company_id == company_id,
+        Lead.company_id == company_id,
+        lead_has_contact_phone(),
+    ]
     if is_manager_like(current_user.role):
         filters.append(manager_lead_visibility(current_user.id))
     if status_id is not None:
@@ -852,6 +859,7 @@ async def lead_stage_counts(
             PipelineStage.pipeline_id == pipeline_id,
             PipelineStage.company_id == company_id,
             Lead.company_id == company_id,
+            lead_has_contact_phone(),
         )
         .group_by(Lead.status_id)
     )
@@ -973,6 +981,7 @@ async def lead_column_page(
         Lead.status_id == status_id,
         PipelineStage.pipeline_id == pipeline_id,
         PipelineStage.company_id == company_id,
+        lead_has_contact_phone(),
     ]
     if before_id is not None:
         filters.append(Lead.id < before_id)

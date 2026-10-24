@@ -120,7 +120,7 @@ export function Course15QueuePanel({ enabled }: { enabled: boolean }) {
           </div>
         </div>
 
-        <div className="mt-3 flex flex-wrap items-end gap-3">
+        <div className="print-screen-only mt-3 flex flex-wrap items-end gap-3">
           <label className="text-xs mo-muted">
             Поиск
             <input

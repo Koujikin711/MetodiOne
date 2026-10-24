@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
 import { PrintButton } from "@/components/PrintButton";
+import { PrintMasthead, PrintSign } from "@/components/PrintMasthead";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { apiFetch } from "@/lib/api";
 import {
@@ -38,8 +39,12 @@ export function AuditPage() {
   });
 
   return (
-    <div className="mo-fill-page relative">
-      <div className="mo-admin-page-head">
+    <div className="mo-print-doc mo-print-wide mo-fill-page relative">
+      <PrintMasthead
+        title="Журнал аудита"
+        meta={[selectedSection.label, entityId.trim() ? `запись №${entityId.trim()}` : ""].filter(Boolean).join(" · ")}
+      />
+      <div className="mo-admin-page-head print-screen-only">
         <PageHeader
           className="mb-0"
           title="Системный аудит"
@@ -49,7 +54,7 @@ export function AuditPage() {
       </div>
 
       <div className="mo-fill-page-scroll space-y-4 pt-4">
-        <section className="mo-section p-4 sm:p-5">
+        <section className="print-screen-only mo-section p-4 sm:p-5">
           <div className="grid gap-3 md:grid-cols-[1fr_160px_auto]">
             <label className="block">
               <span className="mo-admin-toolbar-label">Раздел</span>
@@ -115,6 +120,7 @@ export function AuditPage() {
             })}
           </ul>
         </section>
+        <PrintSign />
       </div>
     </div>
   );

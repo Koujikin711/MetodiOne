@@ -47,7 +47,7 @@ export function RopLayout() {
 
   return (
     <div className="mo-page">
-      <div className="mo-admin-page-head flex flex-wrap items-end justify-between gap-3">
+      <div className="mo-admin-page-head print-screen-only flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="mo-page-title">Кабинет РОП</h1>
           <p className="mo-page-sub">Отдел продаж: менеджеры, лиды, выручка</p>
@@ -69,7 +69,7 @@ export function RopLayout() {
         </label>
       </div>
 
-      <nav className="flex flex-wrap gap-1 border-b border-[var(--mo-border)] pb-1">
+      <nav className="print-screen-only flex flex-wrap gap-1 border-b border-[var(--mo-border)] pb-1">
         {TABS.map((t) => (
           <NavLink
             key={t.to}

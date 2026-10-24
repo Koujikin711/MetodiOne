@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
 
 import { PrintButton } from "@/components/PrintButton";
+import { PrintMasthead, PrintSign } from "@/components/PrintMasthead";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
@@ -130,8 +131,12 @@ function FinancePageInner() {
   const formName = sheetName || settingsTab;
 
   return (
-    <div className="mo-fill-page">
-      <div className="mo-admin-page-head">
+    <div className="mo-print-doc mo-print-wide mo-fill-page">
+      <PrintMasthead
+        title={TABS.find((t) => t.id === tab)?.hint || "Финансы"}
+        meta={`${TABS.find((t) => t.id === tab)?.label || ""} · ${selectedYear}`.replace(/^ · /, "")}
+      />
+      <div className="mo-admin-page-head print-screen-only">
         <PageHeader
           className="mb-0"
           title="Финансы"
@@ -157,7 +162,7 @@ function FinancePageInner() {
 
       <div className="mo-fill-page-scroll space-y-4 pt-4">
       {canIntegrate ? (
-            <div className="flex justify-end">
+            <div className="print-screen-only flex justify-end">
               <button
                 type="button"
                 onClick={() => integrateMutation.mutate()}
@@ -170,7 +175,7 @@ function FinancePageInner() {
           ) : null}
 
       {canIntegrate ? (
-        <div className="finance-panel">
+        <div className="finance-panel print-screen-only">
           <h2 className="lux-subheading">Google Таблица ОСВ</h2>
           <p className="mt-1 text-xs mo-muted">
             Вставьте ссылку на таблицу ОСВ. Новые оплаты и расходы дописываются в конец листа. Расшарьте таблицу
@@ -225,7 +230,7 @@ function FinancePageInner() {
         </div>
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="print-screen-only grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="finance-stat-card finance-stat-card--emerald">
           <div className="finance-stat-label">Строк в ОСВ</div>
           <div className="mt-1 text-2xl font-semibold tabular-nums text-[var(--mo-text)]">
@@ -268,7 +273,7 @@ function FinancePageInner() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 border-b border-[var(--mo-border)] pb-2">
+      <div className="print-screen-only flex flex-wrap gap-2 border-b border-[var(--mo-border)] pb-2">
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -291,6 +296,7 @@ function FinancePageInner() {
       {tab === "opiu" && (
         <OpiuTable loading={opiuQuery.isLoading} data={opiuQuery.data} />
       )}
+      <PrintSign />
       </div>
     </div>
   );

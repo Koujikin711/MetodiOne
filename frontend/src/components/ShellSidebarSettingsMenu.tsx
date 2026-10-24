@@ -43,7 +43,6 @@ function SettingsSubLink({
       to={item.to}
       end={item.end}
       preventScrollReset
-      title={item.title}
       className={({ isActive }) =>
         ["shell-settings-text-link", isActive ? "is-active" : ""].filter(Boolean).join(" ")
       }

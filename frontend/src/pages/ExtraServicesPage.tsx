@@ -5,6 +5,7 @@ import { Link, Navigate } from "react-router-dom";
 
 import { DateField } from "@/components/DateField";
 import { PrintButton } from "@/components/PrintButton";
+import { PrintMasthead, PrintSign, printMonthLabel } from "@/components/PrintMasthead";
 import { MonthYearPicker } from "@/components/MonthYearPicker";
 import { Settings } from "@/components/icons";
 import { apiFetch, getStoredToken } from "@/lib/api";
@@ -318,8 +319,12 @@ export function ExtraServicesPage() {
   }
 
   return (
-    <div className="extra-services-page mo-fill-page relative w-full min-w-0">
-      <div className="mo-admin-page-head expenses-page__head">
+    <div className="extra-services-page mo-print-doc mo-print-wide mo-fill-page relative w-full min-w-0">
+      <PrintMasthead
+        title={tab === "journal" ? "Журнал доп. услуг" : tab === "report" ? "Отчёт доп. услуг" : "Доп. услуги"}
+        meta={printMonthLabel(yearMonth)}
+      />
+      <div className="mo-admin-page-head expenses-page__head print-screen-only">
         <div className="min-w-0 flex-1">
           <h1 className="mo-page-title">Доп услуги</h1>
           <Link
@@ -843,7 +848,7 @@ export function ExtraServicesPage() {
 
       {tab === "journal" ? (
         <div className="extra-services-journal">
-          <div className="extra-services-journal__toolbar">
+          <div className="extra-services-journal__toolbar print-screen-only">
             <input
               className="mo-input extra-services-journal__search"
               placeholder="Поиск: ФИО, телефон…"
@@ -903,6 +908,7 @@ export function ExtraServicesPage() {
           </div>
         </div>
       ) : null}
+      <PrintSign />
       </div>
       </div>
     </div>

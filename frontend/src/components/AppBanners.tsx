@@ -7,7 +7,6 @@ import { decodeImpersonatorFromToken, decodeRoleFromToken } from "@/lib/auth";
 import { isOnboardingDone } from "@/lib/onboarding";
 import type { BillingStatusRead } from "@/lib/types";
 import { ArchiveEveningAdminBadge } from "@/components/ArchiveEveningAdminBadge";
-import { TaskDueBanner } from "@/components/TaskDueBanner";
 
 function trialDaysLeft(trialEndsAt: string | null): number | null {
   if (!trialEndsAt) return null;
@@ -63,7 +62,6 @@ export function AppBanners() {
 
   return (
     <>
-      <TaskDueBanner />
       {showOther ? <div className="mb-4 space-y-2 print:hidden">
       {showArchiveEveningBadge ? <ArchiveEveningAdminBadge /> : null}
       {impersonatorId != null ? (

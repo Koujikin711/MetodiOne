@@ -43,6 +43,13 @@ function money(v: number | string) {
   return Number(v || 0).toLocaleString("ru-RU", { maximumFractionDigits: 0 });
 }
 
+function formatIsoDate(iso: string | undefined) {
+  if (!iso || iso.length < 10) return iso ?? "";
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  if (!y || !m || !d) return iso;
+  return `${d}.${m}.${y}`;
+}
+
 function formatOnline(seconds: number | undefined): string {
   const sec = Math.max(0, Math.floor(seconds || 0));
   if (sec < 60) return sec > 0 ? "< 1 мин" : "—";
@@ -87,7 +94,7 @@ export function RopDashboardPage() {
         <p className="text-sm mo-muted">
           В сети: <strong className="text-[var(--mo-text)]">{dashQuery.data?.online_count ?? 0}</strong>
           {" · "}
-          {dashQuery.data?.date}
+          {formatIsoDate(dashQuery.data?.date)}
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -120,9 +127,9 @@ export function RopDashboardPage() {
                 <th className="px-3 py-2">Статус</th>
                 <th className="px-3 py-2">Время в сети</th>
                 <th className="px-3 py-2">Активные</th>
-                <th className="px-3 py-2">Новые</th>
-                <th className="px-3 py-2">Удачно</th>
-                <th className="px-3 py-2">Принёс</th>
+                <th className="px-3 py-2">Новые сегодня</th>
+                <th className="px-3 py-2">Удачно сегодня</th>
+                <th className="px-3 py-2">Принёс сегодня</th>
               </tr>
             </thead>
             <tbody>

@@ -98,7 +98,7 @@ export function ShellNavLink({
       to={to}
       end={end}
       preventScrollReset
-      title={expanded ? title : `${title} — удерживайте для перемещения`}
+      title={expanded ? undefined : title}
       className={({ isActive }) => ["shell-nav-link group", isActive ? "is-active" : ""].filter(Boolean).join(" ")}
     >
       <GradientIconBox variant={variant} className="shell-nav-icon-box" {...collapsedDragProps}>

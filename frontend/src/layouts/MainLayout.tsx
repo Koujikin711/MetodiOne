@@ -13,6 +13,7 @@ import {
   Wallet,
 } from "@/components/icons";
 import { AppBanners } from "@/components/AppBanners";
+import { TaskDueBanner } from "@/components/TaskDueBanner";
 import { ShellSidebarNav } from "@/components/ShellSidebarNav";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { TariffFeatureOutletGate } from "@/components/TariffFeatureOutletGate";
@@ -320,15 +321,9 @@ export function MainLayout() {
               : "",
           ].join(" ")}
         >
-          <div
-            className={[
-              "pointer-events-none fixed right-3 top-3 z-40 sm:hidden",
-              location.pathname.startsWith("/chat") ? "hidden" : "",
-            ].join(" ")}
-          >
-            <div className="pointer-events-auto">
-              <ThemeToggle compact />
-            </div>
+          <div className="shell-tools relative z-40 flex shrink-0 items-center justify-end gap-2 print:hidden">
+            <TaskDueBanner />
+            <ThemeToggle compact className="shell-tools__theme" />
           </div>
           <AppBanners />
           <div
@@ -737,7 +732,7 @@ export function MainLayout() {
                     <ClipboardList className={managerChatFirst ? "h-3.5 w-3.5" : "h-4 w-4"} />
                   </GradientIconBox>
                   <span className={managerChatFirst ? "max-w-full truncate text-[9px] leading-tight" : "text-[9px]"}>
-                    Контроль продаж
+                    {managerChatFirst ? "Контроль" : "Контроль продаж"}
                   </span>
                 </NavLink>
               ) : (
@@ -809,7 +804,7 @@ export function MainLayout() {
                   <Users className={managerChatFirst ? "h-3.5 w-3.5" : "h-4 w-4"} />
                 </GradientIconBox>
                 <span className={managerChatFirst ? "max-w-full truncate text-[9px] leading-tight" : "text-[9px]"}>
-                  Мессенджер
+                  {managerChatFirst ? "Команда" : "Мессенджер"}
                 </span>
               </NavLink>
               {showKpi ? (

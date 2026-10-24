@@ -70,6 +70,7 @@ from app.schemas.sales_kpi import (
     SalesKpiManualSaleOut,
     SalesKpiManualSalePaymentOut,
     SalesKpiManualSalePaymentPatch,
+    SalesKpiOwnerPaidAdjust,
     SalesKpiPaymentConfirmIn,
     SalesKpiManualPaymentJournalRow,
     SalesKpiManualSaleSoldAtPatch,
@@ -145,6 +146,15 @@ def _assert_kpi_access(current_user: CurrentUser) -> None:
 def _assert_owner(current_user: CurrentUser) -> None:
     if current_user.role not in (UserRole.owner, UserRole.super_owner, UserRole.rop):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец компании")
+
+
+def _assert_company_owner(current_user: CurrentUser) -> None:
+    """Правка уже внесённой оплаты — только владелец, не РОП и не админ."""
+    if current_user.role not in (UserRole.owner, UserRole.super_owner):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Сумму оплаты может править только владелец",
+        )
 
 
 def _assert_can_record_own_payment(current_user: CurrentUser, sale: SalesKpiManualSale) -> None:
@@ -1655,6 +1665,164 @@ async def patch_manual_sale_payment(
         manager_name=str(
             (manager.full_name if manager else None)
             or (manager.email if manager else None)
+            or f"#{sale.manager_user_id}"
+        ),
+        payments=payments,
+    )
+
+
+def _audit_plain(value: str | None) -> str:
+    return " ".join((value or "").replace(",", " ").split())
+
+
+@router.patch("/manual-sales/{sale_id}/paid", response_model=SalesKpiManualSaleOut)
+async def adjust_manual_sale_paid(
+    sale_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    body: SalesKpiOwnerPaidAdjust,
+) -> SalesKpiManualSaleOut:
+    """Владелец ставит оплату или снимает лишнее. Старые строки листа не переписываются."""
+    _assert_kpi_access(current_user)
+    _assert_company_owner(current_user)
+    sale = await db.get(SalesKpiManualSale, sale_id)
+    if sale is None or sale.company_id != company_id:
+        raise HTTPException(status_code=404, detail="Продажа не найдена")
+    if sale.status == "returned":
+        raise HTTPException(status_code=400, detail="По возвращённой продаже оплату не правят")
+    if sale.status != "active":
+        raise HTTPException(status_code=400, detail="Оплату правят только у открытой продажи")
+
+    from uuid import uuid4
+
+    from app.services.audit import write_audit_event
+    from app.services.google_sheets_osv_push import bank_label, save_osv_movement
+    from app.services.kpi_paid_adjust import PaidAdjustError, PaidAdjustLine, plan_paid_adjustment
+
+    payments = (await _load_sale_payments(db, [int(sale.id)])).get(int(sale.id), [])
+    confirmed = [
+        PaidAdjustLine(
+            id=int(row.id),
+            amount=Decimal(str(row.amount or 0)),
+            is_first=bool(row.is_first),
+        )
+        for row in payments
+        if _payment_confirmation(row) == "confirmed"
+    ]
+    try:
+        plan = plan_paid_adjustment(
+            paid=Decimal(str(sale.paid_amount or 0)),
+            service=Decimal(str(sale.service_amount or 0)),
+            lines=confirmed,
+            mode=body.mode,
+            amount=Decimal(str(body.amount)),
+        )
+    except PaidAdjustError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    reason = " ".join((body.reason or "").split())
+    prev_paid = Decimal(str(sale.paid_amount or 0)).quantize(Decimal("0.01"))
+    by_id = {int(row.id): row for row in payments}
+    for change in plan.changes:
+        row = by_id.get(change.id)
+        if row is None:
+            raise HTTPException(status_code=400, detail="Строка оплаты не найдена")
+        row.amount = change.new
+    new_pay: SalesKpiManualSalePayment | None = None
+    if plan.add_amount > 0:
+        new_pay = SalesKpiManualSalePayment(
+            company_id=company_id,
+            sale_id=int(sale.id),
+            amount=plan.add_amount,
+            is_first=False,
+            note=f"правка владельца: {reason}",
+            paid_at=datetime.now(UTC),
+            created_by_user_id=current_user.id,
+            manager_user_id=int(sale.manager_user_id),
+            confirmed_at=datetime.now(UTC),
+            confirmed_by_user_id=int(current_user.id),
+        )
+        db.add(new_pay)
+        await db.flush()
+
+    sale.paid_amount = plan.target
+    first_row = next((row for row in payments if row.is_first and _payment_confirmation(row) == "confirmed"), None)
+    if first_row is not None:
+        sale.first_paid_amount = Decimal(str(first_row.amount or 0))
+    elif Decimal(str(sale.first_paid_amount or 0)) > plan.target:
+        sale.first_paid_amount = plan.target
+    sale.updated_at = datetime.now(UTC)
+
+    item = await db.get(SalesKpiPlanItem, sale.plan_item_id)
+    sale_manager = await db.get(User, sale.manager_user_id)
+    manager_name = ((sale_manager.full_name or "").strip() if sale_manager else "") or None
+    owner_name = (current_user.full_name or current_user.email or "").strip() or None
+    delta = (plan.target - prev_paid).quantize(Decimal("0.01"))
+    price = Decimal(str(sale.service_amount or 0)).quantize(Decimal("0.01"))
+    if delta > 0 and new_pay is not None:
+        await save_osv_movement(
+            db,
+            company_id=company_id,
+            external_key=f"crm:kpi_pay:{new_pay.id}",
+            source="kpi_payment",
+            txn_date=datetime.now(ZoneInfo(settings.booking_timezone)).date(),
+            revenue=delta,
+            partner_amount=price if price > 0 else None,
+            bank=bank_label(None),
+            basis=owner_name,
+            counterparty=sale.client_name,
+            phone=sale.client_phone,
+            via_person=manager_name,
+            product_service=item.name if item else None,
+            article="Поступления",
+            detail_category="Медицина",
+            brief_category="Выручка",
+        )
+    elif delta < 0:
+        await save_osv_movement(
+            db,
+            company_id=company_id,
+            external_key=f"crm:kpi_pay:adjust:{sale.id}:{uuid4().hex[:12]}",
+            source="kpi_payment_adjust",
+            txn_date=datetime.now(ZoneInfo(settings.booking_timezone)).date(),
+            revenue=Decimal("0"),
+            expense=delta,
+            partner_amount=price if price > 0 else None,
+            bank=bank_label(None),
+            basis=owner_name,
+            counterparty=sale.client_name,
+            phone=sale.client_phone,
+            via_person=manager_name,
+            product_service=item.name if item else "Курс",
+            article="Поступления",
+            detail_category="Медицина",
+            brief_category="Выручка",
+        )
+
+    line_bits = " ".join(f"#{change.id}:{change.old}->{change.new}" for change in plan.changes)
+    await write_audit_event(
+        db,
+        entity_type="kpi_manual_sale",
+        entity_id=int(sale.id),
+        action="payment_adjusted",
+        current_user=current_user,
+        details=(
+            f"prev_paid={prev_paid}, new_paid={plan.target}, service_amount={price}, "
+            f"client={_audit_plain(sale.client_name)}, phone={_audit_plain(sale.client_phone)}, "
+            f"reason={_audit_plain(reason)}"
+            + (f", lines={line_bits}" if line_bits else "")
+        ),
+    )
+    await db.commit()
+    await db.refresh(sale)
+    payments = (await _load_sale_payments(db, [int(sale.id)])).get(int(sale.id), [])
+    return _manual_sale_out(
+        sale,
+        plan_item_name=item.name if item else "",
+        manager_name=str(
+            (sale_manager.full_name if sale_manager else None)
+            or (sale_manager.email if sale_manager else None)
             or f"#{sale.manager_user_id}"
         ),
         payments=payments,

@@ -9,8 +9,11 @@ import { DebtorPatientCard } from "@/components/DebtorPatientCard";
 import { DateField } from "@/components/DateField";
 import { KpiLeadPicker, type KpiLeadPick } from "@/components/KpiLeadPicker";
 import { MonthYearPicker } from "@/components/MonthYearPicker";
+import { CompanyMonthCompare } from "@/components/CompanyMonthCompare";
 import { ServiceRevenueCharts } from "@/components/ServiceRevenueCharts";
+import { OwnerPaidAdjust } from "@/components/OwnerPaidAdjust";
 import { PrintButton } from "@/components/PrintButton";
+import { PrintMasthead, PrintSign, printMonthLabel } from "@/components/PrintMasthead";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import { apiFetch, getStoredToken } from "@/lib/api";
@@ -623,6 +626,7 @@ export function KpiPage() {
   const queryClient = useQueryClient();
   const role = decodeRoleFromToken(getStoredToken());
   const isOwner = role === "owner" || role === "super_owner" || role === "rop";
+  const isCompanyOwner = role === "owner" || role === "super_owner";
   const isAdminOrOwner = isOwner || role === "admin" || role === "administrator";
   const isManager = role === "manager";
   const meQuery = useCurrentUserMe();
@@ -1063,6 +1067,25 @@ export function KpiPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const adjustPaidMutation = useMutation({
+    mutationFn: async (body: { id: number; mode: "set" | "subtract"; amount: number; reason: string }) => {
+      await apiFetch<SalesKpiManualSale>(`/api/sales-kpi/manual-sales/${body.id}/paid`, {
+        method: "PATCH",
+        body: JSON.stringify({ mode: body.mode, amount: body.amount, reason: body.reason }),
+      });
+    },
+    onSuccess: () => {
+      toast.success("Оплата исправлена. Запись есть в аудите.");
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-manual-sales"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-debtors"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-payment-journal"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-sales-report"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-company-report"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-service-earnings"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const confirmPayMutation = useMutation({
     mutationFn: async ({
       saleId,
@@ -1229,17 +1252,31 @@ export function KpiPage() {
 
   const clinicToday = clinicTodayYmd();
   const callTodayCount = filteredDebtors.filter((r) => Boolean(r.promised_on) && (r.promised_on as string) <= clinicToday).length;
+  const debtorCourseTotal = filteredDebtors.reduce((sum, r) => sum + num(r.service_amount), 0);
+  const debtorPriceTotal = filteredDebtors.reduce((sum, r) => sum + num(r.debt_amount), 0);
   const debtorsScoped = Boolean(listQuery.trim() || debtorManager);
   const visibleTabs = tabs.filter((t) => t.show);
 
   return (
     <div
       className={[
-        "sales-space-page relative mx-auto w-full max-w-none space-y-2 sm:space-y-5 sm:pb-10",
+        "sales-space-page mo-print-doc mo-print-wide relative mx-auto w-full max-w-none space-y-2 sm:space-y-5 sm:pb-10",
         tab === "plan" && isOwner ? "pb-[6.5rem]" : "pb-4",
       ].join(" ")}
     >
-      <header className="mo-admin-page-head !border-b-0 pb-0 sm:border-b sm:pb-3">
+      <PrintMasthead
+        title={tab === "debtors" ? "Дебиторка" : "KPI продаж"}
+        meta={[
+          tab === "debtors" ? "" : visibleTabs.find((t) => t.id === tab)?.label,
+          printMonthLabel(yearMonth),
+          tab === "debtors"
+            ? `стоимость курсов ${formatMoney(debtorCourseTotal)} · дебиторка ${formatMoney(debtorPriceTotal)}`
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" · ")}
+      />
+      <header className="print-screen-only mo-admin-page-head !border-b-0 pb-0 sm:border-b sm:pb-3">
         <PageHeader
           className="mb-0"
           title="KPI продаж"
@@ -1378,21 +1415,21 @@ export function KpiPage() {
         <section className="mo-section space-y-3 p-3 sm:space-y-4 sm:p-4">
           <div>
             <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Продажа курса / протокола</h2>
-            <p className="mt-1 text-[11px] leading-snug text-[var(--mo-text-muted)] sm:text-sm">
-              {isManager
-                ? "Заполните карточку так же, как раньше это делал админ. Оплата попадёт в выручку только после его подтверждения."
-                : "Карточку можно заполнить самим — оплата сразу идёт в выручку. Если её заполнил менеджер, подтвердите, прошла оплата или нет."}
-            </p>
+            {isManager ? null : (
+              <p className="mt-1 text-[11px] leading-snug text-[var(--mo-text-muted)] sm:text-sm">
+                Карточку можно заполнить самим — оплата сразу идёт в выручку. Если её заполнил менеджер, подтвердите, прошла оплата или нет.
+              </p>
+            )}
           </div>
 
           {(programRequestsQuery.data ?? []).length > 0 ? (
             <div className="space-y-2 rounded-xl border border-[var(--mo-border)] p-3">
               <p className="text-sm font-semibold text-[var(--mo-text)]">От куратора — подтвердить и принять оплату</p>
-              <p className="text-[11px] mo-muted">
-                {isManager
-                  ? "Заполните продукт, поток, этап и сумму. Админ только подтвердит, прошла ли оплата."
-                  : "Можно заполнить заявку самим. Если её уже заполнил менеджер — подтвердите оплату."}
-              </p>
+              {isManager ? null : (
+                <p className="text-[11px] mo-muted">
+                  Можно заполнить заявку самим. Если её уже заполнил менеджер — подтвердите оплату.
+                </p>
+              )}
               <ul className="space-y-2">
                 {(programRequestsQuery.data ?? []).map((req) => (
                   <li
@@ -1621,11 +1658,11 @@ export function KpiPage() {
                     aria-label="Дата второго платежа"
                   />
                 </label>
-                <p className="kpi-sale-pays__hint">
-                  {isManager
-                    ? "Сумму заполняете вы. В выручку и KPI она попадёт после подтверждения админа."
-                    : "пусто → сегодня; выручка по месяцу даты, KPI менеджера — только 1-й платёж"}
-                </p>
+                {isManager ? null : (
+                  <p className="kpi-sale-pays__hint">
+                    пусто → сегодня; выручка по месяцу даты, KPI менеджера — только 1-й платёж
+                  </p>
+                )}
               </div>
               <label className="col-span-2 flex flex-col gap-1 text-[11px] mo-muted sm:text-sm lg:col-span-4">
                 Комментарий
@@ -1665,13 +1702,14 @@ export function KpiPage() {
                   onClick={() => setJournalOpen(false)}
                 >
                   <div
-                    className="print-sheet flex max-h-[94dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] shadow-2xl sm:rounded-2xl"
+                    className="print-sheet mo-print-doc mo-print-wide flex max-h-[94dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] shadow-2xl sm:rounded-2xl"
                     role="dialog"
                     aria-modal
                     aria-label="Журнал платежей"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <header className="flex items-start justify-between gap-3 border-b border-[var(--mo-border)] px-4 py-3">
+                    <PrintMasthead title="Журнал платежей" meta={printMonthLabel(yearMonth)} />
+                    <header className="print-screen-only flex items-start justify-between gap-3 border-b border-[var(--mo-border)] px-4 py-3">
                       <div>
                         <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Журнал платежей</h2>
                         <p className="mt-0.5 text-xs mo-muted">Когда, кто внёс и сколько.</p>
@@ -1687,7 +1725,7 @@ export function KpiPage() {
                         </button>
                       </div>
                     </header>
-                    <div className="border-b border-[var(--mo-border)] px-4 py-3">
+                    <div className="print-screen-only border-b border-[var(--mo-border)] px-4 py-3">
                       <label className="flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
                         Поиск
                         <input
@@ -1756,6 +1794,7 @@ export function KpiPage() {
                         <p className="text-sm lux-caption">В журнале ничего не найдено.</p>
                       ) : null}
                     </div>
+                    <PrintSign />
                   </div>
                 </div>,
                 document.body,
@@ -1935,8 +1974,8 @@ export function KpiPage() {
                 <col className="kpi-course-col-client" />
                 <col className="kpi-course-col-phone" />
                 <col className="kpi-course-col-sum" />
-                <col className="kpi-course-col-money" />
-                <col className="kpi-course-col-money" />
+                <col className="kpi-course-col-paid" />
+                <col className="kpi-course-col-debt" />
               </colgroup>
               <thead>
                 <tr>
@@ -2037,6 +2076,14 @@ export function KpiPage() {
                     </td>
                     <td className="tabular-nums">
                       {sheetMoney(s.paid_amount)}
+                      {isCompanyOwner && s.status === "active" ? (
+                        <OwnerPaidAdjust
+                          paid={num(s.paid_amount)}
+                          serviceAmount={num(s.service_amount)}
+                          pending={adjustPaidMutation.isPending}
+                          onApply={(body) => adjustPaidMutation.mutate({ id: s.id, ...body })}
+                        />
+                      ) : null}
                       <PaymentDecisions
                         dense
                         sale={s}
@@ -2066,7 +2113,7 @@ export function KpiPage() {
 
       {tab === "debtors" && (isAdminOrOwner || isCurator) ? (
         <section className="mo-section space-y-3 p-3 sm:p-4">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <div className="print-screen-only flex flex-wrap items-baseline justify-between gap-2">
             <div className="min-w-0">
               <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Дебиторка</h2>
               <p className="mt-1 text-sm text-[var(--mo-text)]">
@@ -2244,6 +2291,14 @@ export function KpiPage() {
                         }
                       />
                     ) : null}
+                    {isCompanyOwner && r.source === "manual" ? (
+                      <OwnerPaidAdjust
+                        paid={num(r.paid_amount)}
+                        serviceAmount={num(r.service_amount)}
+                        pending={adjustPaidMutation.isPending}
+                        onApply={(body) => adjustPaidMutation.mutate({ id: r.source_id, ...body })}
+                      />
+                    ) : null}
                   </div>
                 </li>
               );
@@ -2260,10 +2315,16 @@ export function KpiPage() {
                   <th className="py-2 pr-3">Телефон</th>
                   <th className="py-2 pr-3">Услуга</th>
                   <th className="py-2 pr-3">Менеджер</th>
-                  <th className="py-2 pr-3">Сумма</th>
+                  <th className="py-2 pr-3">
+                    <span className="print-screen-only">Сумма</span>
+                    <span className="mo-print-only">Стоимость курса</span>
+                  </th>
                   <th className="py-2 pr-3">Оплачено</th>
-                  <th className="py-2 pr-3">Долг</th>
-                  <th className="py-2 pr-3">Сбор</th>
+                  <th className="py-2 pr-3">
+                    <span className="print-screen-only">Долг</span>
+                    <span className="mo-print-only">Цена дебиторки</span>
+                  </th>
+                  <th className="print-omit py-2 pr-3">Сбор</th>
                 </tr>
               </thead>
               <tbody>
@@ -2300,7 +2361,7 @@ export function KpiPage() {
                     <td className="py-2 pr-3 whitespace-nowrap">{formatMoney(num(r.service_amount))}</td>
                     <td className="py-2 pr-3 whitespace-nowrap">{formatMoney(num(r.paid_amount))}</td>
                     <td className="py-2 pr-3 whitespace-nowrap kpi-actual-value">{formatMoney(num(r.debt_amount))}</td>
-                    <td className="py-2 pr-3 whitespace-nowrap">
+                    <td className="print-omit py-2 pr-3 whitespace-nowrap">
                       {r.promise_overdue ? (
                         <span className="mr-2 text-[11px] font-semibold text-red-400">Просрочено</span>
                       ) : null}
@@ -2318,7 +2379,7 @@ export function KpiPage() {
                     </td>
                   </tr>
                   {open ? (
-                    <tr>
+                    <tr className="print-screen-only">
                       <td colSpan={10} className="bg-[var(--mo-surface)]/50 px-3 py-3">
                         <div className="debtor-row-panel">
                           <div className="min-w-[16rem] flex-1">
@@ -2353,6 +2414,16 @@ export function KpiPage() {
                                 }
                               />
                             ) : null}
+                            {isCompanyOwner && r.source === "manual" ? (
+                              <OwnerPaidAdjust
+                                paid={num(r.paid_amount)}
+                                serviceAmount={num(r.service_amount)}
+                                pending={adjustPaidMutation.isPending}
+                                onApply={(body) =>
+                                  adjustPaidMutation.mutate({ id: r.source_id, ...body })
+                                }
+                              />
+                            ) : null}
                           </div>
                         </div>
                       </td>
@@ -2362,6 +2433,14 @@ export function KpiPage() {
                   );
                 })}
               </tbody>
+              <tfoot className="debtors-print-total">
+                <tr>
+                  <td colSpan={6}>Итого</td>
+                  <td>{formatMoney(debtorCourseTotal)}</td>
+                  <td />
+                  <td>{formatMoney(debtorPriceTotal)}</td>
+                </tr>
+              </tfoot>
             </table>
           </div>
           {!debtorsQuery.isLoading && listQuery.trim() && filteredDebtors.length === 0 ? (
@@ -2668,6 +2747,8 @@ function CompanyReportSection({
         </p>
       </section>
 
+      {import.meta.env.DEV ? <CompanyMonthCompare yearMonth={data.year_month} /> : null}
+
       <section className="mo-section p-4">
         <h3 className="mb-1 text-lg font-semibold text-[var(--mo-text)]">План компании по продуктам</h3>
         <p className="mb-3 text-xs mo-muted">
@@ -2870,6 +2951,7 @@ function CompanyReportSection({
       </section>
       </>
       ) : null}
+      <PrintSign />
     </div>
   );
 }

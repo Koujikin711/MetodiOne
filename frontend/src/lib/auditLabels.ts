@@ -17,6 +17,7 @@ export const AUDIT_SECTIONS: AuditSection[] = [
   { value: "pipeline", label: "Воронки", hint: "Создание, закрытие, раздача лидов" },
   { value: "stage", label: "Этапы воронки", hint: "Добавление и удаление этапов" },
   { value: "company", label: "Компании", hint: "Тарифы и контекст (super)" },
+  { value: "kpi_manual_sale", label: "KPI · оплаты курсов", hint: "Правка суммы владельцем" },
 ];
 
 const ENTITY_PLACE: Record<string, { place: string; object: string }> = {
@@ -28,6 +29,7 @@ const ENTITY_PLACE: Record<string, { place: string; object: string }> = {
   pipeline: { place: "Воронки", object: "воронка" },
   stage: { place: "Воронки", object: "этап" },
   company: { place: "Компании", object: "компания" },
+  kpi_manual_sale: { place: "KPI", object: "оплата курса" },
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -89,6 +91,8 @@ const ACTION_LABELS: Record<string, string> = {
   company_scheduled_tariff: "Запланировал(а) смену тарифа",
   company_switch_context: "Переключил(а) контекст компании",
   impersonate_owner: "Вошёл(а) от имени владельца",
+
+  payment_adjusted: "Исправил(а) оплату курса",
 };
 
 const DETAIL_KEYS: Record<string, string> = {
@@ -106,7 +110,13 @@ const DETAIL_KEYS: Record<string, string> = {
   to_manager_ids: "менеджерам",
   reassigned: "перенесено",
   paid_amount: "оплата",
+  prev_paid: "было оплачено",
+  new_paid: "стало оплачено",
   service_amount: "стоимость",
+  client: "клиент",
+  phone: "телефон",
+  reason: "причина",
+  lines: "строки",
   comment: "заметка",
 };
 

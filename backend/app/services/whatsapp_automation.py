@@ -129,6 +129,30 @@ async def _log_outgoing_message(
     await db.flush()
 
 
+def booking_message_manager_name(responsible_name: str | None, lead_manager_name: str | None) -> str | None:
+    """Имя в WhatsApp: кто стоит на записи, иначе менеджер карточки клиента."""
+    for raw in (responsible_name, lead_manager_name):
+        name = (raw or "").strip()
+        if name:
+            return name
+    return None
+
+
+async def _booking_message_manager_name(
+    db: AsyncSession,
+    appointment: BookingAppointment,
+    lead: Lead,
+) -> str | None:
+    responsible = (
+        await db.get(User, appointment.responsible_manager_id) if appointment.responsible_manager_id else None
+    )
+    card_manager = await db.get(User, lead.manager_id) if lead.manager_id else None
+    return booking_message_manager_name(
+        responsible.full_name if responsible else None,
+        card_manager.full_name if card_manager else None,
+    )
+
+
 def _booking_ctx(appt: BookingAppointment, manager_name: str | None) -> dict[str, str]:
     tz = ZoneInfo(settings.booking_timezone)
     local_start = appt.start_at.astimezone(tz)
@@ -211,10 +235,10 @@ async def send_booking_confirmation_if_needed(
     if integ is None:
         return False
     thread = await _thread_for_lead_green(db, lead)
-    manager = await db.get(User, appointment.responsible_manager_id) if appointment.responsible_manager_id else None
+    manager_name = await _booking_message_manager_name(db, appointment, lead)
     text = _render_template(
         _templates_from_integration_config(integ.config).get("confirm", _DEFAULT_TEMPLATES["confirm"]),
-        _booking_ctx(appointment, manager.full_name if manager else None),
+        _booking_ctx(appointment, manager_name),
     ).strip()
     if not text:
         return False
@@ -300,10 +324,10 @@ async def run_whatsapp_reminder_tick(db: AsyncSession) -> int:
         thread = await _thread_for_lead_green(db, lead)
         if thread is None:
             continue
-        manager = await db.get(User, appt.responsible_manager_id) if appt.responsible_manager_id else None
+        manager_name = await _booking_message_manager_name(db, appt, lead)
         text = _render_template(
             _templates_from_integration_config(integ.config).get(template_key, _DEFAULT_TEMPLATES[template_key]),
-            _booking_ctx(appt, manager.full_name if manager else None),
+            _booking_ctx(appt, manager_name),
         ).strip()
         if not text:
             continue

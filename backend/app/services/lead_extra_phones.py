@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from sqlalchemy import delete, select
+from sqlalchemy import and_, delete, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Lead, LeadExtraPhone, PipelineStage
@@ -15,6 +15,28 @@ def norm_phone(raw: str | None) -> str | None:
         return None
     digits = re.sub(r"\D+", "", raw)
     return digits or None
+
+
+def _contact_phone_len(column):
+    """Номер есть, если после знаков осталось не меньше 9 символов и среди них есть цифра."""
+    expr = func.coalesce(column, "")
+    for ch in (" ", "+", "-", "(", ")", "."):
+        expr = func.replace(expr, ch, "")
+    without_digits = expr
+    for digit in "0123456789":
+        without_digits = func.replace(without_digits, digit, "")
+    return and_(func.length(expr) >= 9, func.length(without_digits) < func.length(expr))
+
+
+def lead_has_contact_phone():
+    """Лид виден в списке лидов, только если есть основной или дополнительный номер."""
+    extra = exists(
+        select(LeadExtraPhone.id).where(
+            LeadExtraPhone.lead_id == Lead.id,
+            _contact_phone_len(LeadExtraPhone.phone),
+        ),
+    )
+    return or_(_contact_phone_len(Lead.phone), extra)
 
 
 def phones_match(a: str | None, b: str | None) -> bool:

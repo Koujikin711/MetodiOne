@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { DateField } from "@/components/DateField";
 import { PrintButton } from "@/components/PrintButton";
+import { PrintMasthead, PrintSign, printPeriod } from "@/components/PrintMasthead";
 import { useRopContext } from "@/pages/rop/RopLayout";
 
 type ReportRow = {
@@ -101,8 +102,9 @@ export function RopReportPage() {
   const conv = soldTotal > 0 ? (fullTotal / soldTotal) * 100 : 0;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-end gap-3">
+    <div className="mo-print-doc flex flex-col gap-4">
+      <PrintMasthead title="Отчёт отдела продаж" meta={printPeriod(from, to)} />
+      <div className="print-screen-only flex flex-wrap items-end gap-3">
         <PrintButton />
         <label className="text-sm mo-muted">
           С
@@ -116,7 +118,7 @@ export function RopReportPage() {
 
       <div className="rounded-xl border border-[var(--mo-border)] p-4">
         <h3 className="font-medium">Выручка отдела продаж</h3>
-        <p className="mt-2 text-sm mo-muted">
+        <p className="print-screen-only mt-2 text-sm mo-muted">
           Только услуги из плана KPI за месяцы периода. KPI «Факт» — визиты с оплатой 100%. Здесь
           суммы: продали (цена услуги) и полностью оплатили. Конверсия = полностью / продано.
         </p>
@@ -141,20 +143,23 @@ export function RopReportPage() {
             {groups.map((g) => {
               const open = openId === g.id;
               const gConv = g.sold > 0 ? (g.fullPaid / g.sold) * 100 : 0;
+              const visitConv = g.soldCount > 0 ? (g.fullCount / g.soldCount) * 100 : 0;
               return (
                 <div key={g.id} className="rounded-lg border border-[var(--mo-border)]">
                   <button
                     type="button"
-                    className="flex w-full flex-col gap-1 px-3 py-2 text-left text-sm sm:flex-row sm:items-center sm:justify-between"
+                    className="print-keep flex w-full flex-col gap-1 px-3 py-2 text-left text-sm sm:flex-row sm:items-center sm:justify-between"
                     onClick={() => setOpenId(open ? null : g.id)}
                   >
                     <span className="font-medium">{g.name}</span>
                     <span className="tabular-nums mo-muted">
-                      продали {money(g.sold)} · полностью {money(g.fullPaid)} · {gConv.toFixed(1)}%
-                      {g.soldCount > 0 ? ` · визиты ${g.fullCount}/${g.soldCount}` : ""}
+                      продали {money(g.sold)} · полностью {money(g.fullPaid)} ({gConv.toFixed(1)}% суммы)
+                      {g.soldCount > 0
+                        ? ` · визиты ${g.fullCount}/${g.soldCount} (${visitConv.toFixed(1)}%)`
+                        : ""}
                     </span>
                   </button>
-                  {open && (
+                  <div className={open ? undefined : "mo-print-detail"}>
                     <table className="w-full border-t border-[var(--mo-border)] text-sm">
                       <thead className="text-xs mo-muted">
                         <tr>
@@ -184,7 +189,7 @@ export function RopReportPage() {
                           ))}
                       </tbody>
                     </table>
-                  )}
+                  </div>
                 </div>
               );
             })}
@@ -192,6 +197,7 @@ export function RopReportPage() {
           </div>
         )}
       </div>
+      <PrintSign />
     </div>
   );
 }

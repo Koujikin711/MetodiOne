@@ -10,6 +10,7 @@ import { BookingDirectionsPanel } from "@/components/BookingDirectionsPanel";
 import { BookingWeekSpecialistGrid } from "@/components/BookingWeekSpecialistGrid";
 import { BookingUpcomingServicesReport } from "@/components/BookingUpcomingServicesReport";
 import { PrintButton } from "@/components/PrintButton";
+import { PrintMasthead, PrintSign, printPeriod } from "@/components/PrintMasthead";
 import { DirectionStreamsPanel } from "@/components/DirectionStreamsPanel";
 import { DateTimeField } from "@/components/DateTimeField";
 import { DateField } from "@/components/DateField";
@@ -1308,8 +1309,12 @@ export function OnlineBookingPage() {
   );
 
   return (
-    <div className="booking-page mo-page relative space-y-3">
-      <header className="booking-page-header">
+    <div className="booking-page mo-print-doc mo-print-wide mo-page relative space-y-3">
+      <PrintMasthead
+        title={tab === "journal" ? "Журнал записей" : tab === "upcoming" ? "Отчёт по услугам" : "Онлайн-записи"}
+        meta={tab === "journal" ? printPeriod(journalDate) : undefined}
+      />
+      <header className="booking-page-header print-screen-only">
         <div className="booking-page-head">
           <div className="booking-page-brand">
             <Link to={chatStages ? "/chat" : "/app"} className="booking-page-back">
@@ -1881,7 +1886,7 @@ export function OnlineBookingPage() {
 
       {tab === "journal" && (
         <section className="mo-section booking-journal-section p-3 sm:p-4">
-          <div className="booking-journal-filters">
+          <div className="booking-journal-filters print-screen-only">
             <div ref={journalDateWrapRef} className="booking-journal-date-wrap">
               <div className="booking-page-date-nav booking-journal-date-nav" aria-label="Дата журнала">
                 <button
@@ -2378,6 +2383,7 @@ export function OnlineBookingPage() {
           </div>
         </div>
       ) : null}
+      <PrintSign />
     </div>
   );
 }

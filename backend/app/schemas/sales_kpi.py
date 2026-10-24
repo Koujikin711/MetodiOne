@@ -208,6 +208,14 @@ class SalesKpiManualSaleSoldAtPatch(BaseModel):
     sold_at: date | datetime
 
 
+class SalesKpiOwnerPaidAdjust(BaseModel):
+    """Владелец ставит новую оплату или снимает уже записанную сумму."""
+
+    mode: Literal["set", "subtract"]
+    amount: Decimal = Field(..., ge=0)
+    reason: str = Field(..., min_length=3, max_length=500)
+
+
 class SalesKpiManualSalePaymentPatch(BaseModel):
     """Доплата по курсу/протоколу (не перезапись итога)."""
 

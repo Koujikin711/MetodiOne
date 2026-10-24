@@ -703,6 +703,23 @@ html {
   @apply justify-center px-1;
 }
 
+.shell-tools {
+  min-height: 2.75rem;
+  padding: 0.35rem 0.7rem 0.15rem;
+}
+@media (min-width: 640px) {
+  .shell-tools {
+    min-height: 0;
+    padding: 0 0 0.35rem;
+  }
+}
+.shell-tools__theme {
+  height: 2.5rem;
+  width: 2.5rem;
+  border-radius: 9999px;
+  padding: 0;
+}
+
 .shell-sidebar-header {
   @apply relative z-[1] flex shrink-0 items-center gap-2 px-2 pb-1;
   transition: padding var(--mo-sidebar-duration) var(--mo-sidebar-ease);
@@ -1588,6 +1605,39 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 .booking-appt-foot {
   min-height: 0.75rem;
 }
+.journal-icon-btn {
+  position: relative;
+}
+.journal-icon-btn__tip {
+  display: none;
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 12rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--mo-border-strong);
+  border-radius: 0.4rem;
+  background: var(--mo-surface-elevated);
+  color: var(--mo-text);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.3;
+  white-space: nowrap;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+}
+.journal-icon-btn:hover,
+.journal-icon-btn:focus-visible {
+  z-index: 50;
+}
+.journal-icon-btn:hover .journal-icon-btn__tip,
+.journal-icon-btn:focus-visible .journal-icon-btn__tip {
+  display: block;
+}
+
 .booking-appt-note-wrap {
   position: absolute;
   top: 0;
@@ -4026,6 +4076,19 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   z-index: 5;
 }
 
+.expenses-page__tools {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.expenses-page__tools .expenses-month-picker {
+  width: 11.5rem;
+  min-width: 0;
+  max-width: none;
+}
+
 .mo-month-picker {
   min-width: min(12rem, 100%);
   max-width: 16rem;
@@ -4417,6 +4480,178 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   color: var(--mo-text);
   border-top: 1px solid color-mix(in srgb, var(--mo-border) 70%, transparent);
   vertical-align: middle;
+}
+
+.expenses-print-head,
+.expenses-print-sign,
+.expenses-print-mark,
+.expenses-print-empty {
+  display: none;
+}
+
+@page expenses-sheet {
+  size: A4 landscape;
+  margin: 12mm 14mm 16mm;
+}
+
+@media print {
+  .expenses-page {
+    page: expenses-sheet;
+  }
+
+  .expenses-page,
+  .expenses-page .expenses-month {
+    height: auto !important;
+    overflow: visible !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    color: #111 !important;
+  }
+
+  .expenses-page button,
+  .expenses-page .fixed,
+  .expenses-page .expenses-form,
+  .expenses-page .expenses-page__head,
+  .expenses-page .expenses-month__head,
+  .expenses-page .expenses-month__cards,
+  .expenses-page .expenses-month__empty,
+  .expenses-page .payroll-note,
+  .expenses-page .expenses-screen-only {
+    display: none !important;
+  }
+
+  .expenses-print-head,
+  .expenses-print-sign {
+    display: block !important;
+  }
+
+  .expenses-print-mark {
+    display: inline !important;
+  }
+
+  .expenses-print-empty {
+    display: block !important;
+    margin: 0 0 6mm;
+    font-size: 10pt;
+    color: #334155;
+  }
+
+  .expenses-page .payroll-sheet input,
+  .expenses-page .payroll-sheet .mo-input {
+    display: inline-block !important;
+    width: auto !important;
+    min-width: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: #111 !important;
+    font: inherit !important;
+    line-height: 1.25 !important;
+  }
+
+  .expenses-print-head h1 {
+    margin: 2mm 0 1mm;
+    font-size: 18pt;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+    color: #0f172a;
+  }
+
+  .expenses-print-head p {
+    margin: 0 0 5mm;
+    padding-bottom: 2.5mm;
+    border-bottom: 0.6pt solid #0f172a;
+    font-size: 10pt;
+    color: #334155;
+  }
+
+  .expenses-page .expenses-month__table-wrap,
+  .expenses-page .payroll-sheet-wrap {
+    display: block !important;
+    overflow: visible !important;
+  }
+
+  .expenses-page .expenses-month__table,
+  .expenses-page .payroll-sheet {
+    min-width: 0 !important;
+    width: 100% !important;
+    table-layout: fixed;
+    border-collapse: collapse;
+    font-size: 8pt;
+    color: #111 !important;
+  }
+
+  .expenses-page .expenses-month__table th,
+  .expenses-page .payroll-sheet th {
+    padding: 1.6mm 1.4mm;
+    border: 0.4pt solid #94a3b8;
+    background: #f1f5f9 !important;
+    color: #0f172a !important;
+    font-size: 7pt;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    white-space: normal;
+  }
+
+  .expenses-page .expenses-month__table td,
+  .expenses-page .payroll-sheet td,
+  .expenses-page .expenses-month__table th,
+  .expenses-page .payroll-sheet th {
+    overflow-wrap: anywhere;
+  }
+
+  .expenses-page .expenses-month__table td,
+  .expenses-page .payroll-sheet td {
+    padding: 1.4mm 1.4mm;
+    border: 0.3pt solid #cbd5e1;
+    color: #111 !important;
+    background: #fff !important;
+    vertical-align: top;
+    white-space: normal;
+  }
+
+  .expenses-page .expenses-month__table thead,
+  .expenses-page .payroll-sheet thead {
+    display: table-header-group;
+  }
+
+  .expenses-page .expenses-month__table tfoot td {
+    border-top: 0.8pt solid #0f172a;
+    font-weight: 700;
+    background: #f8fafc !important;
+  }
+
+  .expenses-print-sign {
+    display: flex !important;
+    gap: 18mm;
+    margin-top: 10mm;
+    break-inside: avoid;
+  }
+
+  .expenses-print-sign div {
+    display: flex;
+    align-items: flex-end;
+    gap: 4mm;
+    min-width: 62mm;
+    font-size: 10pt;
+    color: #0f172a;
+  }
+
+  .expenses-print-sign i {
+    display: block;
+    flex: 1 1 48mm;
+    min-width: 48mm;
+    height: 5mm;
+    border-bottom: 0.6pt solid #0f172a;
+  }
 }
 
 @media (max-width: 639px) {
@@ -5424,8 +5659,10 @@ fieldset.extra-services-field {
 
 @media print {
   @page { margin: 12mm; }
-  body { background: #fff !important; color: #0f172a !important; }
-  body * { visibility: hidden; }
+  body.printing-pl,
+  body.printing-tb { background: #fff !important; color: #0f172a !important; }
+  body.printing-pl *,
+  body.printing-tb * { visibility: hidden; }
   body.printing-pl .print-zone-pl,
   body.printing-pl .print-zone-pl *,
   body.printing-tb .print-zone-tb,
@@ -6802,10 +7039,11 @@ li.is-overdue {
 .kpi-course-col-product { width: 7%; }
 .kpi-course-col-num { width: 4.5%; }
 .kpi-course-col-manager { width: 15%; }
-.kpi-course-col-client { width: 16%; }
-.kpi-course-col-phone { width: 14%; }
-.kpi-course-col-sum { width: 14%; }
-.kpi-course-col-money { width: 8.5%; }
+.kpi-course-col-client { width: 23.5%; }
+.kpi-course-col-phone { width: 13%; }
+.kpi-course-col-sum { width: 9.5%; }
+.kpi-course-col-paid { width: 8.5%; }
+.kpi-course-col-debt { width: 6.5%; }
 
 .kpi-course-sheet thead th,
 .kpi-course-sheet tbody td {
@@ -6917,12 +7155,12 @@ li.is-overdue {
 }
 
 .kpi-course-sheet .kpi-pay-pack__input {
-  width: 3.1rem;
+  width: 2.5rem;
   height: 1.3rem;
 }
 
 .kpi-course-sheet .kpi-pay-pack .date-field {
-  width: 4.7rem;
+  width: 4.1rem;
 }
 
 .kpi-course-sheet .kpi-pay-pack .date-field button[aria-label="Открыть календарь"] {
@@ -10903,10 +11141,29 @@ html:has(.studio-root) {
   color: var(--mo-text-muted);
 }
 
+.mo-print-head,
+.mo-print-sign,
+.mo-print-only,
+.mo-print-detail,
+.debtors-print-total {
+  display: none;
+}
+
 @media print {
-  @page { margin: 10mm; }
+  @page { margin: 12mm 14mm 16mm; }
+  @page mo-print-wide {
+    size: A4 landscape;
+    margin: 10mm 12mm 14mm;
+  }
   html, body {
     height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+    color: #111827 !important;
+  }
+  .app-shell-bg {
+    height: auto !important;
+    min-height: 0 !important;
     overflow: visible !important;
     background: #fff !important;
     color: #111827 !important;
@@ -10920,11 +11177,184 @@ html:has(.studio-root) {
     --mo-border: #d1d5db;
   }
   .shell-sidebar,
+  .shell-tools,
   nav[aria-label="Основная навигация"],
   .print-hide,
+  .print-screen-only,
+  .executive-banner,
   .kpi-pay-pack,
-  .kpi-actions-menu {
+  .kpi-actions-menu,
+  #_rht_toaster {
     display: none !important;
+  }
+  .fixed {
+    display: none !important;
+  }
+  .mo-print-wide {
+    page: mo-print-wide;
+  }
+  .mo-print-head {
+    display: block !important;
+  }
+  .mo-print-head h1 {
+    margin: 2mm 0 1mm;
+    font-size: 18pt;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+    color: #0f172a;
+  }
+  .mo-print-head p {
+    margin: 0 0 5mm;
+    padding-bottom: 2.5mm;
+    border-bottom: 0.6pt solid #0f172a;
+    font-size: 10pt;
+    color: #334155;
+  }
+  .mo-print-sign {
+    display: flex !important;
+    gap: 18mm;
+    margin-top: 10mm;
+    break-inside: avoid;
+  }
+  .mo-print-sign div {
+    display: flex;
+    align-items: flex-end;
+    gap: 4mm;
+    min-width: 62mm;
+    font-size: 10pt;
+    color: #0f172a;
+  }
+  .mo-print-sign i {
+    display: block;
+    flex: 1 1 48mm;
+    min-width: 48mm;
+    height: 5mm;
+    border-bottom: 0.6pt solid #0f172a;
+  }
+  .mo-print-doc,
+  .mo-print-doc .mo-section,
+  .mo-print-doc .rounded-xl,
+  .mo-print-doc .rounded-2xl,
+  .mo-print-doc .finance-stat-card,
+  .mo-print-doc .finance-panel {
+    background: #fff !important;
+    color: #111 !important;
+    box-shadow: none !important;
+  }
+  .mo-print-doc .btn-primary,
+  .mo-print-doc .btn-secondary,
+  .mo-print-doc .btn-danger,
+  .mo-print-doc .btn-table,
+  .mo-print-doc .journal-icon-btn,
+  .mo-print-doc .kpi-tabs,
+  .mo-print-doc .mo-tabs,
+  .mo-print-doc .debtor-chip,
+  .mo-print-doc .kpi-toolbar,
+  .mo-print-doc .print-omit,
+  .mo-print-doc form,
+  .mo-print-doc input,
+  .mo-print-doc select,
+  .mo-print-doc textarea {
+    display: none !important;
+  }
+  .mo-print-doc button {
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: #111 !important;
+    font: inherit !important;
+    text-align: inherit !important;
+  }
+  .mo-print-doc button.print-keep {
+    display: flex !important;
+    width: 100% !important;
+    padding: 1.4mm 0 !important;
+  }
+  .mo-print-doc li button {
+    display: none !important;
+  }
+  .mo-print-doc a,
+  .mo-print-doc .mo-muted,
+  .mo-print-doc .lux-caption {
+    color: #334155 !important;
+    text-decoration: none !important;
+  }
+  .mo-print-doc table input,
+  .mo-print-doc table select,
+  .mo-print-doc table textarea {
+    display: inline !important;
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: #111 !important;
+    font: inherit !important;
+  }
+  .mo-print-doc .sm\:hidden,
+  .mo-print-doc .md\:hidden,
+  .mo-print-doc .print-omit {
+    display: none !important;
+  }
+  .mo-print-doc .hidden.sm\:block,
+  .mo-print-doc .hidden.md\:block,
+  .mo-print-doc .kpi-course-scroll,
+  .mo-print-doc .curator-journal-scroll,
+  .mo-print-doc .mo-print-detail {
+    display: block !important;
+    overflow: visible !important;
+    max-height: none !important;
+  }
+  .mo-print-only {
+    display: inline !important;
+  }
+  .mo-print-doc table {
+    width: 100% !important;
+    min-width: 0 !important;
+    border-collapse: collapse !important;
+    color: #111 !important;
+  }
+  .mo-print-doc th,
+  .mo-print-doc td {
+    border: 0.3pt solid #cbd5e1 !important;
+    padding: 1.3mm 1.5mm !important;
+    background: #fff !important;
+    color: #111 !important;
+    vertical-align: top;
+    white-space: normal !important;
+  }
+  .mo-print-doc th {
+    background: #f1f5f9 !important;
+    font-size: 7.5pt;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+  .mo-print-doc thead {
+    display: table-header-group;
+  }
+  .mo-print-doc .cj-sticky-corner,
+  .mo-print-doc .cj-sticky-top,
+  .mo-print-doc .cj-sticky-top2,
+  .mo-print-doc .cj-sticky-name {
+    position: static !important;
+  }
+  .debtors-print-total {
+    display: table-footer-group !important;
+  }
+  .debtors-print-total td {
+    font-weight: 700;
+    border-top: 0.8pt solid #0f172a !important;
+  }
+  .mo-print-doc .audit-event-row {
+    margin: 0 !important;
+    padding: 1.6mm 0 !important;
+    border-bottom: 0.3pt solid #cbd5e1;
+    background: transparent !important;
+    break-inside: avoid;
   }
   .shell-main,
   .shell-main * {
@@ -10946,12 +11376,18 @@ html:has(.studio-root) {
     border-color: #d1d5db !important;
   }
   tr { break-inside: avoid; }
-  body:has(.print-sheet) .shell-sidebar,
-  body:has(.print-sheet) .shell-main,
-  body:has(.print-sheet) nav[aria-label="Основная навигация"] {
+  body:has(.print-sheet) .app-shell-bg:not(:has(.print-sheet)) {
     display: none !important;
   }
+  body:has(.print-sheet) .app-shell-bg:has(.print-sheet) * {
+    visibility: hidden !important;
+  }
+  body:has(.print-sheet) .print-sheet,
+  body:has(.print-sheet) .print-sheet * {
+    visibility: visible !important;
+  }
   .print-sheet-backdrop {
+    display: block !important;
     position: static !important;
     inset: auto !important;
     height: auto !important;

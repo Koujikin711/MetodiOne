@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 
 import { DateField } from "@/components/DateField";
 import { PrintButton } from "@/components/PrintButton";
+import { PrintMasthead, PrintSign, printPeriod } from "@/components/PrintMasthead";
 import { apiFetch } from "@/lib/api";
 import type { ExpertReportsResponse } from "@/lib/types";
 
@@ -27,8 +28,18 @@ export function ExpertReportsPage() {
   });
 
   return (
-    <div className="relative mx-auto max-w-6xl space-y-6 pb-8">
-      <header className="flex flex-wrap items-start justify-between gap-3">
+    <div className="mo-print-doc mo-print-wide relative mx-auto max-w-6xl space-y-6 pb-8">
+      <PrintMasthead
+        title="Отчёты специалистов"
+        meta={
+          period === "day"
+            ? "За сегодня"
+            : period === "week"
+              ? "За неделю"
+              : printPeriod(dateFrom, dateTo) || "За период"
+        }
+      />
+      <header className="print-screen-only flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight text-[var(--mo-text)]">Отчёты</h1>
         <p className="text-sm lux-caption">
@@ -38,7 +49,7 @@ export function ExpertReportsPage() {
         <PrintButton />
       </header>
 
-      <section className="mo-section p-4">
+      <section className="print-screen-only mo-section p-4">
         <div className="grid gap-3 md:grid-cols-[200px_170px_170px_1fr]">
           <select
             value={period}
@@ -163,6 +174,7 @@ export function ExpertReportsPage() {
           У вас нет назначенной воронки эксперта. Владелец должен привязать вас к воронке в настройках.
         </p>
       )}
+      <PrintSign />
     </div>
   );
 }

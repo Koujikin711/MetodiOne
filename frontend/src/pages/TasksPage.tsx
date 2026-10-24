@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 
 import { DateTimeField } from "@/components/DateTimeField";
 import { PrintButton } from "@/components/PrintButton";
+import { PrintMasthead, PrintSign } from "@/components/PrintMasthead";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken, decodeUserIdFromToken } from "@/lib/auth";
@@ -240,18 +241,22 @@ export function TasksPage() {
   const items = tasksQ.data?.items ?? [];
 
   return (
-    <div className="mo-fill-page">
-      <div className="mo-admin-page-head">
+    <div className="mo-print-doc mo-fill-page">
+      <PrintMasthead
+        title={view === "done" ? "Выполненные задачи" : view === "missed" ? "Невыполненные задачи" : "Задачи"}
+        meta={scope === "team" ? "Команда" : "Мои"}
+      />
+      <div className="mo-admin-page-head print-screen-only">
         <PageHeader
           className="mb-0"
           title="Задачи"
-          description="Быстро создавайте и отмечайте выполненные"
+          description={role === "manager" ? undefined : "Быстро создавайте и отмечайте выполненные"}
           actions={view === "done" ? <PrintButton /> : undefined}
         />
       </div>
 
       <div className="mo-fill-page-scroll space-y-5 pt-4">
-        <section className="mo-section p-4 sm:p-5">
+        <section className="print-screen-only mo-section p-4 sm:p-5">
           <div className="flex flex-wrap items-center gap-2">
             <div className="mo-tabs">
               <button type="button" data-active={view === "active"} onClick={() => setView("active")}>
@@ -378,11 +383,13 @@ export function TasksPage() {
                   );
                 })}
               </div>
-              <p className="mt-1 text-xs lux-caption">
-                {weekdays.length
-                  ? "Каждую неделю в эти дни, в выбранное время, до этой даты. После «Готово» или «Не провёл» появляется следующий день."
-                  : "Отметьте дни — задача пойдёт каждую неделю до даты выше, в то же время."}
-              </p>
+              {role === "manager" ? null : (
+                <p className="mt-1 text-xs lux-caption">
+                  {weekdays.length
+                    ? "Каждую неделю в эти дни, в выбранное время, до этой даты. После «Готово» или «Не провёл» появляется следующий день."
+                    : "Отметьте дни — задача пойдёт каждую неделю до даты выше, в то же время."}
+                </p>
+              )}
             </div>
             {expertSelected ? (
               <label className="flex items-center gap-2 text-sm sm:col-span-full">
@@ -677,6 +684,7 @@ export function TasksPage() {
             })}
           </ul>
         </section>
+        <PrintSign />
       </div>
     </div>
   );

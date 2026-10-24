@@ -5,7 +5,6 @@ import toast from "react-hot-toast";
 
 import { PatientPhone, displayPatientPhone } from "@/components/PatientPhone";
 import { ChatMediaVideo } from "@/components/ChatMediaVideo";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import { WaitingCallbackModal } from "@/components/WaitingCallbackModal";
 import { useChatRealtime } from "@/hooks/useChatRealtime";
 import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
@@ -1224,9 +1223,11 @@ export function ChatPage() {
     >
       <header className="hidden shrink-0 lg:block">
         <h1 className="lux-heading-page text-xl sm:text-2xl">Чат</h1>
-        <p className="mt-0.5 hidden text-sm lux-caption xl:block">
-          Переписка с клиентами: текст, фото, видео, голос, файлы.
-        </p>
+        {userRole === "manager" ? null : (
+          <p className="mt-0.5 hidden text-sm lux-caption xl:block">
+            Переписка с клиентами: текст, фото, видео, голос, файлы.
+          </p>
+        )}
       </header>
 
       <div
@@ -1556,9 +1557,6 @@ export function ChatPage() {
                   ) : null}
                 </div>
                 <div className="chat-thread-header-actions flex shrink-0 flex-row items-center gap-1 lg:gap-1.5">
-                  <div className="flex justify-center lg:hidden">
-                    <ThemeToggle compact />
-                  </div>
                   <button
                     type="button"
                     className="chat-thread-header-btn shrink-0"
@@ -1588,10 +1586,12 @@ export function ChatPage() {
 
               {statusOpen && salesChatMode && activeThread?.lead_id ? (
                 <div className="shrink-0 border-b border-[var(--mo-border)] py-2">
-                  <p className="mb-1.5 text-[11px] mo-muted">
-                    Вручную: В работе / Не ответили / В ожидании / Удачно / Отказ. «Не ответили» и
-                    «В ожидании» только вручную — чат сам туда не переводит. «Новый лид» — автоматически.
-                  </p>
+                  {userRole === "manager" ? null : (
+                    <p className="mb-1.5 text-[11px] mo-muted">
+                      Вручную: В работе / Не ответили / В ожидании / Удачно / Отказ. «Не ответили» и
+                      «В ожидании» только вручную — чат сам туда не переводит. «Новый лид» — автоматически.
+                    </p>
+                  )}
                   <div className="flex flex-wrap gap-1.5">
                     {(statusStagesQuery.data ?? [])
                       .slice()

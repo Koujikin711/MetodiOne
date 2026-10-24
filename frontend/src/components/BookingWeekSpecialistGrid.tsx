@@ -833,11 +833,11 @@ export function BookingWeekSpecialistGrid({
           </button>
         ) : null}
       </div>
-      <p className="border-t border-[var(--mo-border)] px-3 py-2 text-[11px] mo-muted">
+      </div>
+      <p className="px-1 py-2 text-[11px] leading-relaxed mo-muted">
         Клик по времени — новая запись. Карточку можно перетащить на другое время или день. Имя
         специалиста — развернуть или свернуть. Часовой пояс: {BOOKING_TIME_ZONE}.
       </p>
-      </div>
     </div>
   );
 }

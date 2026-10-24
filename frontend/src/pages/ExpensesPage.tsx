@@ -19,13 +19,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FormEvent, Fragment, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
-import { GripVertical } from "@/components/icons";
+import { Check, GripVertical } from "@/components/icons";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
 import { EXPENSE_CATALOG } from "@/lib/expenseCatalog";
 import { APP_CURRENCY } from "@/lib/money";
 import { DateField } from "@/components/DateField";
-import { PrintButton } from "@/components/PrintButton";
+import { Printer } from "@/components/icons";
 import { MonthYearPicker } from "@/components/MonthYearPicker";
 
 type StaffCard = {
@@ -335,6 +335,54 @@ function PayrollLine({
   );
 }
 
+function periodLabel(yearMonth: string) {
+  const [ys, ms] = yearMonth.split("-");
+  const day = new Date(Number(ys), Number(ms) - 1, 1);
+  if (Number.isNaN(day.getTime())) return yearMonth;
+  const name = day.toLocaleString("ru-RU", { month: "long", year: "numeric" });
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+function ExpensesPrintHead({
+  title,
+  period,
+  total,
+  totalLabel = "итого",
+}: {
+  title: string;
+  period: string;
+  total: string;
+  totalLabel?: string;
+}) {
+  return (
+    <header className="expenses-print-head">
+      <h1>{title}</h1>
+      <p>
+        {period}
+        <span>
+          {" "}
+          · {totalLabel} {total} {APP_CURRENCY}
+        </span>
+      </p>
+    </header>
+  );
+}
+
+function ExpensesPrintSign() {
+  return (
+    <footer className="expenses-print-sign">
+      <div>
+        <span>Составил</span>
+        <i />
+      </div>
+      <div>
+        <span>Проверил</span>
+        <i />
+      </div>
+    </footer>
+  );
+}
+
 /** 07.09.26 */
 function formatDateShort(isoDate: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(isoDate || "");
@@ -399,9 +447,18 @@ function ExpenseConfirm({
     </button>
   ) : null;
   if (row.expense_confirm === "pending") {
-    if (!isOwner) return <span className="text-[11px] text-amber-300">Ждёт владельца</span>;
+    if (!isOwner) {
+      return (
+        <span>
+          <span className="expenses-print-mark">ждёт</span>
+          <span className="expenses-screen-only text-[11px] text-amber-300">Ждёт владельца</span>
+        </span>
+      );
+    }
     return (
       <span className="flex flex-wrap gap-1">
+        <span className="expenses-print-mark">ждёт</span>
+        <span className="expenses-screen-only contents">
         <button type="button" className="btn-primary btn-table" disabled={pending} onClick={() => onDecide(true)}>
           Подтвердить
         </button>
@@ -409,18 +466,32 @@ function ExpenseConfirm({
           Отклонить
         </button>
         {edit}
+        </span>
       </span>
     );
   }
+  const confirmed = row.expense_confirm === "confirmed";
+  const label = confirmed ? "Подтверждён" : row.expense_confirm === "rejected" ? "Отклонён" : "Без подтверждения";
+  const printWord = confirmed ? "да" : row.expense_confirm === "rejected" ? "нет" : "—";
   return (
     <span className="flex flex-wrap items-center gap-1">
-      {row.expense_confirm === "rejected" ? (
-        <span className="text-[11px] text-[var(--mo-danger,#ef4444)]">Отклонён</span>
-      ) : row.expense_confirm === "confirmed" ? (
-        <span className="text-[11px] text-[var(--mo-text-muted)]">Подтверждён</span>
-      ) : (
-        <span className="text-[11px] text-[var(--mo-text-muted)]">—</span>
-      )}
+      <span className="expenses-print-mark">{printWord}</span>
+      <span
+        className={[
+          "expenses-screen-only inline-flex h-6 w-6 items-center justify-center",
+          confirmed ? "text-emerald-500" : "text-[var(--mo-danger,#ef4444)]",
+        ].join(" ")}
+        title={label}
+        aria-label={label}
+      >
+        {confirmed ? (
+          <Check className="h-4 w-4" />
+        ) : (
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+        )}
+      </span>
       {edit}
     </span>
   );
@@ -833,8 +904,18 @@ export function ExpensesPage() {
             Банк, статья, товар. «Кому» — получатель (ЗП), «Через кого» — кто передал; это разные роли.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <PrintButton />
+        <div className="expenses-page__tools">
+          <button
+            type="button"
+            className="journal-icon-btn print-hide inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] text-[var(--mo-text)]"
+            aria-label="Печать"
+            onClick={() => window.print()}
+          >
+            <Printer className="h-5 w-5" />
+            <span className="journal-icon-btn__tip" role="tooltip">
+              Печать
+            </span>
+          </button>
           <MonthYearPicker className="expenses-month-picker" value={yearMonth} onChange={setYearMonth} />
         </div>
       </div>
@@ -959,6 +1040,14 @@ export function ExpensesPage() {
 
         {view === "payroll" ? (
           <section className="expenses-month">
+            <ExpensesPrintHead
+              title="Ведомость"
+              period={periodLabel(yearMonth)}
+              totalLabel="к выплате"
+              total={money(
+                (payrollQuery.data?.rows ?? []).reduce((sum, row) => sum + Number(row.remainder || 0), 0),
+              )}
+            />
             <div className="expenses-month__head">
               <h2 className="expenses-month__title">Ведомость</h2>
               <button type="button" className="btn-secondary px-3 py-1.5 text-sm" onClick={() => setPayrollAddOpen(true)}>
@@ -1119,11 +1208,17 @@ export function ExpensesPage() {
                 </div>
               </div>
             ) : null}
+            <ExpensesPrintSign />
           </section>
         ) : null}
 
         {view === "journal" ? (
         <section className="expenses-month">
+          <ExpensesPrintHead
+            title="Журнал расходов"
+            period={periodLabel(yearMonth)}
+            total={money(total)}
+          />
           <div className="expenses-month__head">
             <h2 className="expenses-month__title">За месяц</h2>
             <input
@@ -1307,10 +1402,23 @@ export function ExpensesPage() {
                       </Fragment>
                     ))}
                   </tbody>
+                  <tfoot>
+                    <tr>
+                      <td>Итого</td>
+                      <td>
+                        {money(total)} {APP_CURRENCY}
+                      </td>
+                      <td colSpan={10} />
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             </>
           )}
+          {!listQuery.isLoading && !listQuery.isError && filtered.length === 0 ? (
+            <p className="expenses-print-empty">За этот месяц записей нет.</p>
+          ) : null}
+          <ExpensesPrintSign />
         </section>
         ) : null}
       </div>

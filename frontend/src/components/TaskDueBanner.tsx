@@ -78,10 +78,10 @@ export function TaskDueBanner() {
   const count = due.length + freshOnly.length;
 
   return (
-    <div ref={rootRef} className="pointer-events-none fixed right-14 top-3 z-40 print:hidden sm:right-4 sm:top-4">
+    <div ref={rootRef} className="relative z-40 shrink-0 print:hidden">
       <button
         type="button"
-        className="pointer-events-auto relative flex h-10 w-10 items-center justify-center rounded-full border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] text-[var(--mo-text)] shadow-sm"
+        className="relative flex h-10 w-10 items-center justify-center rounded-full border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] text-[var(--mo-text)] shadow-sm"
         aria-label={count > 0 ? `Уведомления: ${count}` : "Уведомления"}
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
@@ -94,7 +94,7 @@ export function TaskDueBanner() {
         ) : null}
       </button>
       {open ? (
-        <div className="pointer-events-auto absolute right-0 mt-2 w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] shadow-xl">
+        <div className="absolute right-0 mt-2 w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] shadow-xl">
           <div className="flex items-center justify-between gap-2 border-b border-[var(--mo-border)] px-3 py-2">
             <p className="text-sm font-semibold text-[var(--mo-text)]">Уведомления</p>
             {perm === "default" ? (

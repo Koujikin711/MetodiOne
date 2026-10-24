@@ -6,6 +6,7 @@ import { AccessDenied } from "@/components/AccessDenied";
 import { DateField } from "@/components/DateField";
 import { ProtocolQueuePanel } from "@/components/ProtocolQueuePanel";
 import { PrintButton } from "@/components/PrintButton";
+import { PrintMasthead, PrintSign } from "@/components/PrintMasthead";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
@@ -124,7 +125,7 @@ function ManagerCourses({ seeAll }: { seeAll: boolean }) {
             ? "Все курсы менеджеров. Сумма, оплата и долг — как в KPI. Доплату можно записать здесь."
             : "Курсы, где вы указаны менеджером продажи. Сумма, оплата и долг — как в KPI. Доплату можно записать здесь."}
         </p>
-        <label className="mt-3 block text-xs mo-muted">
+        <label className="print-screen-only mt-3 block text-xs mo-muted">
           Поиск
           <input
             className="mo-input mt-1 min-w-[14rem]"
@@ -154,7 +155,7 @@ function ManagerCourses({ seeAll }: { seeAll: boolean }) {
                 <th className="px-3 py-2 font-medium">Сумма</th>
                 <th className="px-3 py-2 font-medium">Оплачено</th>
                 <th className="px-3 py-2 font-medium">Долг</th>
-                <th className="px-3 py-2 font-medium">Оплата</th>
+                <th className="print-omit px-3 py-2 font-medium">Оплата</th>
               </tr>
             </thead>
             <tbody>
@@ -177,7 +178,7 @@ function ManagerCourses({ seeAll }: { seeAll: boolean }) {
                     {s.status === "refused" ? <div className="text-[10px] mo-muted">отказ</div> : null}
                     {s.status === "completed" ? <div className="text-[10px] mo-muted">завершён</div> : null}
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="print-omit px-3 py-2">
                     {s.status === "active" && num(s.debt_amount) > 0 ? (
                       <CoursePay
                         draft={payDraft[s.id] ?? ""}
@@ -215,13 +216,15 @@ export function SalesControlPage() {
     return <AccessDenied message="Контроль продаж открыт менеджеру и админу." />;
   }
   return (
-    <div className="mo-page">
+    <div className="mo-print-doc mo-print-wide mo-page">
+      <PrintMasthead title="Контроль продаж" meta={section === "protocols" ? "Протоколы" : "Курсы"} />
+      <div className="print-screen-only">
       <PageHeader
         title="Контроль продаж"
         description={
           seeAll
             ? "Протоколы — все пациенты. Курсы — продажи всех менеджеров и их оплаты."
-            : "Протоколы — ваши пациенты из журнала куратора. Курсы — продажи, где вы менеджер, и их оплаты."
+            : undefined
         }
         actions={<PrintButton />}
       />
@@ -242,11 +245,13 @@ export function SalesControlPage() {
           </button>
         ))}
       </div>
+      </div>
       {section === "protocols" ? (
         <ProtocolQueuePanel enabled canReassign={seeAll} />
       ) : (
         <ManagerCourses seeAll={seeAll} />
       )}
+      <PrintSign />
     </div>
   );
 }

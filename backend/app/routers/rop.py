@@ -62,8 +62,20 @@ from app.schemas.rop import (
 from app.services.audit import write_audit_event
 from app.services.presence_time import online_seconds_so_far, presence_gap_seconds
 from app.services.clinic_roles import can_access_rop
-from app.services.lead_sales_stages import ARCHIVE_STAGE_NAME
+from app.services.lead_extra_phones import lead_has_contact_phone
+from app.services.lead_sales_stages import ARCHIVE_STAGE_NAME, CLOSED_OUTCOME_STAGE_NAMES
 from app.services.sales_kpi_weighted import _norm_kpi_label, load_plan_items
+
+# Не «активные» на дашборде: исход или архив.
+_DASH_DONE_STAGES = CLOSED_OUTCOME_STAGE_NAMES | {ARCHIVE_STAGE_NAME}
+
+
+# Ещё не исход: «обработал» — все, кто уже не в этих стадиях.
+_STATS_OPEN_STAGES = frozenset({"Новый лид", "В обработке", "В работе"})
+# Эти строки показываем всегда, даже с нулём, и в порядке воронки.
+_STATS_ALWAYS_ROWS = _STATS_OPEN_STAGES | frozenset(
+    {"Не ответили", "В ожидании", "Удачно", "Отказ"}
+)
 
 router = APIRouter(prefix="/rop", tags=["rop"])
 
@@ -87,6 +99,34 @@ PRESENCE_ROLES = frozenset(
 def _assert_rop(user: User) -> None:
     if not can_access_rop(user.role):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Доступ только для РОП / владельца")
+
+
+def _as_utc(ts: datetime) -> datetime:
+    if ts.tzinfo is None:
+        return ts.replace(tzinfo=UTC)
+    return ts.astimezone(UTC)
+
+
+def first_reply_minutes(
+    messages: list[tuple[str, int | None, datetime]],
+    manager_id: int,
+) -> float | None:
+    """Минуты от первого входящего до первого ответа этого менеджера.
+
+    Сообщения уже по времени. Автосообщения без автора не считаются ответом.
+    """
+    inbound: datetime | None = None
+    for direction, author, ts in messages:
+        moment = _as_utc(ts)
+        if direction == "in" and inbound is None:
+            inbound = moment
+            continue
+        if inbound is None or direction != "out" or author is None or int(author) != manager_id:
+            continue
+        delta = (moment - inbound).total_seconds() / 60.0
+        if delta >= 0:
+            return delta
+    return None
 
 
 def _booking_tz() -> ZoneInfo:
@@ -230,6 +270,41 @@ async def _archive_stage_ids(db: AsyncSession, *, company_id: int, pipeline_id: 
     return {int(x) for x in rows}
 
 
+async def _visit_paid_by_manager(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    manager_ids: list[int],
+    start: datetime,
+    end: datetime,
+) -> dict[int, Decimal]:
+    """Оплата визита: ответственный на записи, иначе менеджер карточки."""
+    if not manager_ids:
+        return {}
+    mgr = func.coalesce(BookingAppointment.responsible_manager_id, Lead.manager_id)
+    rows = (
+        await db.execute(
+            select(mgr, func.coalesce(func.sum(BookingAppointment.paid_amount), 0))
+            .outerjoin(Lead, Lead.id == BookingAppointment.lead_id)
+            .where(
+                BookingAppointment.company_id == company_id,
+                BookingAppointment.start_at >= start,
+                BookingAppointment.start_at < end,
+                BookingAppointment.status != "cancelled",
+                or_(
+                    BookingAppointment.responsible_manager_id.in_(manager_ids),
+                    and_(
+                        BookingAppointment.responsible_manager_id.is_(None),
+                        Lead.manager_id.in_(manager_ids),
+                    ),
+                ),
+            )
+            .group_by(mgr)
+        )
+    ).all()
+    return {int(mid): Decimal(str(amt or 0)) for mid, amt in rows if mid is not None}
+
+
 async def _won_today_by_actor(
     db: AsyncSession,
     *,
@@ -320,7 +395,6 @@ async def rop_dashboard(
     start, end = _day_bounds(day)
     now = datetime.now(UTC)
     manager_ids = await _pipeline_manager_ids(db, company_id=company_id, pipeline_id=pipeline_id)
-    archive_ids = await _archive_stage_ids(db, company_id=company_id, pipeline_id=pipeline_id)
 
     managers = (
         await db.execute(select(User).where(User.id.in_(manager_ids or [0])))
@@ -334,10 +408,10 @@ async def rop_dashboard(
             Lead.company_id == company_id,
             PipelineStage.pipeline_id == pipeline_id,
             Lead.manager_id.in_(manager_ids or [0]),
+            PipelineStage.name.notin_(tuple(_DASH_DONE_STAGES)),
+            lead_has_contact_phone(),
         )
     )
-    if archive_ids:
-        active_q = active_q.where(Lead.status_id.notin_(archive_ids))
     active_rows = (await db.execute(active_q.group_by(Lead.manager_id))).all()
     active_map = {int(mid): int(cnt) for mid, cnt in active_rows if mid}
 
@@ -351,6 +425,7 @@ async def rop_dashboard(
                 Lead.manager_id.in_(manager_ids or [0]),
                 Lead.created_at >= start,
                 Lead.created_at < end,
+                lead_has_contact_phone(),
             )
             .group_by(Lead.manager_id)
         )
@@ -366,23 +441,13 @@ async def rop_dashboard(
         end=end,
     )
 
-    rev_rows = (
-        await db.execute(
-            select(
-                BookingAppointment.responsible_manager_id,
-                func.coalesce(func.sum(BookingAppointment.paid_amount), 0),
-            )
-            .where(
-                BookingAppointment.company_id == company_id,
-                BookingAppointment.responsible_manager_id.in_(manager_ids or [0]),
-                BookingAppointment.start_at >= start,
-                BookingAppointment.start_at < end,
-                BookingAppointment.status != "cancelled",
-            )
-            .group_by(BookingAppointment.responsible_manager_id)
-        )
-    ).all() if manager_ids else []
-    rev_map = {int(mid): Decimal(str(amt or 0)) for mid, amt in rev_rows if mid}
+    rev_map = await _visit_paid_by_manager(
+        db,
+        company_id=company_id,
+        manager_ids=manager_ids,
+        start=start,
+        end=end,
+    )
 
     man_rows = (
         await db.execute(
@@ -542,26 +607,13 @@ async def rop_day_close(
         start=start,
         end=end,
     )
-    rev_map: dict[int, Decimal] = {}
-    if manager_ids:
-        for mid, amt in (
-            await db.execute(
-                select(
-                    BookingAppointment.responsible_manager_id,
-                    func.coalesce(func.sum(BookingAppointment.paid_amount), 0),
-                )
-                .where(
-                    BookingAppointment.company_id == company_id,
-                    BookingAppointment.responsible_manager_id.in_(manager_ids),
-                    BookingAppointment.start_at >= start,
-                    BookingAppointment.start_at < end,
-                    BookingAppointment.status != "cancelled",
-                )
-                .group_by(BookingAppointment.responsible_manager_id)
-            )
-        ).all():
-            if mid is not None:
-                rev_map[int(mid)] = Decimal(str(amt or 0))
+    rev_map = await _visit_paid_by_manager(
+        db,
+        company_id=company_id,
+        manager_ids=manager_ids,
+        start=start,
+        end=end,
+    )
 
     out: list[RopDayCloseManager] = []
     for mid in manager_ids:
@@ -615,8 +667,17 @@ async def rop_stats(
     by_id = {int(u.id): u for u in managers}
 
     in_map: dict[int, int] = {}
-    proc_map: dict[int, int] = {}
-    stages_raw: dict[int, list[tuple[int, str, int]]] = defaultdict(list)
+    stages_raw: dict[int, dict[int, int]] = defaultdict(dict)
+    catalog = (
+        await db.execute(
+            select(PipelineStage.id, PipelineStage.name, PipelineStage.order)
+            .where(
+                PipelineStage.company_id == company_id,
+                PipelineStage.pipeline_id == pipeline_id,
+            )
+            .order_by(PipelineStage.order.asc(), PipelineStage.id.asc())
+        )
+    ).all()
     if manager_ids:
         for mid, cnt in (
             await db.execute(
@@ -634,11 +695,9 @@ async def rop_stats(
         ).all():
             if mid is not None:
                 in_map[int(mid)] = int(cnt)
-        for mid, cnt in (
+        for mid, sid, cnt in (
             await db.execute(
-                select(Lead.manager_id, func.count(func.distinct(Lead.id)))
-                .join(ChatThread, ChatThread.lead_id == Lead.id)
-                .join(ChatMessage, ChatMessage.thread_id == ChatThread.id)
+                select(Lead.manager_id, Lead.status_id, func.count())
                 .join(PipelineStage, PipelineStage.id == Lead.status_id)
                 .where(
                     Lead.company_id == company_id,
@@ -646,53 +705,13 @@ async def rop_stats(
                     Lead.manager_id.in_(manager_ids),
                     Lead.created_at >= start,
                     Lead.created_at < end,
-                    ChatMessage.direction == "out",
-                    ChatMessage.created_at >= start,
-                    ChatMessage.created_at < end,
                 )
-                .group_by(Lead.manager_id)
+                .group_by(Lead.manager_id, Lead.status_id)
             )
         ).all():
-            if mid is not None:
-                proc_map[int(mid)] = int(cnt)
-        for mid, cnt in (
-            await db.execute(
-                select(Lead.manager_id, func.count(func.distinct(Lead.id)))
-                .join(LeadAuditEvent, LeadAuditEvent.lead_id == Lead.id)
-                .join(PipelineStage, PipelineStage.id == Lead.status_id)
-                .where(
-                    Lead.company_id == company_id,
-                    PipelineStage.pipeline_id == pipeline_id,
-                    Lead.manager_id.in_(manager_ids),
-                    Lead.created_at >= start,
-                    Lead.created_at < end,
-                    LeadAuditEvent.action == "card_opened",
-                    LeadAuditEvent.created_at >= start,
-                    LeadAuditEvent.created_at < end,
-                )
-                .group_by(Lead.manager_id)
-            )
-        ).all():
-            if mid is None:
+            if mid is None or sid is None:
                 continue
-            proc_map[int(mid)] = max(proc_map.get(int(mid), 0), int(cnt))
-        for mid, sid, sname, cnt in (
-            await db.execute(
-                select(Lead.manager_id, Lead.status_id, PipelineStage.name, func.count())
-                .join(PipelineStage, PipelineStage.id == Lead.status_id)
-                .where(
-                    Lead.company_id == company_id,
-                    PipelineStage.pipeline_id == pipeline_id,
-                    Lead.manager_id.in_(manager_ids),
-                    Lead.created_at >= start,
-                    Lead.created_at < end,
-                )
-                .group_by(Lead.manager_id, Lead.status_id, PipelineStage.name)
-            )
-        ).all():
-            if mid is None:
-                continue
-            stages_raw[int(mid)].append((int(sid), str(sname), int(cnt)))
+            stages_raw[int(mid)][int(sid)] = int(cnt)
 
     out: list[RopStatsManager] = []
     for mid in manager_ids:
@@ -700,21 +719,27 @@ async def rop_stats(
         if u is None:
             continue
         leads_in = in_map.get(mid, 0)
-        processed = proc_map.get(mid, 0)
+        counts = stages_raw.get(mid, {})
+        open_count = sum(
+            counts.get(int(sid), 0)
+            for sid, sname, _order in catalog
+            if str(sname) in _STATS_OPEN_STAGES
+        )
+        processed = max(0, leads_in - open_count)
         conv = round(100.0 * processed / leads_in, 1) if leads_in else 0.0
-        stages = [
-            RopStatsStage(
-                stage_id=sid,
-                stage_name=sname,
-                count=cnt,
-                percent=round(100.0 * cnt / leads_in, 1) if leads_in else 0.0,
-            )
-            for sid, sname, cnt in stages_raw.get(mid, [])
-        ]
-        stages.sort(key=lambda s: -s.count)
-        if not any(s.stage_name == "Не ответили" for s in stages):
+        stages: list[RopStatsStage] = []
+        for sid, sname, _order in catalog:
+            cnt = counts.get(int(sid), 0)
+            name = str(sname)
+            if cnt == 0 and name not in _STATS_ALWAYS_ROWS:
+                continue
             stages.append(
-                RopStatsStage(stage_id=0, stage_name="Не ответили", count=0, percent=0.0)
+                RopStatsStage(
+                    stage_id=int(sid),
+                    stage_name=name,
+                    count=cnt,
+                    percent=round(100.0 * cnt / leads_in, 1) if leads_in else 0.0,
+                )
             )
         out.append(
             RopStatsManager(
@@ -987,7 +1012,7 @@ async def rop_analytics(
 
     leads = (
         await db.execute(
-            select(Lead.id, Lead.manager_id, Lead.created_at)
+            select(Lead.id, Lead.manager_id)
             .join(PipelineStage, PipelineStage.id == Lead.status_id)
             .where(
                 Lead.company_id == company_id,
@@ -999,37 +1024,33 @@ async def rop_analytics(
         )
     ).all() if manager_ids else []
     lead_ids = [int(r[0]) for r in leads]
-    created_map = {int(r[0]): r[2] for r in leads}
     mgr_of = {int(r[0]): int(r[1]) for r in leads if r[1] is not None}
 
-    first_opened: dict[int, datetime] = {}
+    by_lead: dict[int, list[tuple[str, int | None, datetime]]] = defaultdict(list)
     if lead_ids:
-        for lid, ts in (
+        for lid, direction, author, ts in (
             await db.execute(
-                select(LeadAuditEvent.lead_id, LeadAuditEvent.created_at)
-                .where(
-                    LeadAuditEvent.action == "card_opened",
-                    LeadAuditEvent.lead_id.in_(lead_ids),
+                select(
+                    ChatThread.lead_id,
+                    ChatMessage.direction,
+                    ChatMessage.author_user_id,
+                    ChatMessage.created_at,
                 )
-                .order_by(LeadAuditEvent.created_at.asc())
+                .join(ChatThread, ChatThread.id == ChatMessage.thread_id)
+                .where(ChatThread.lead_id.in_(lead_ids))
+                .order_by(ChatMessage.created_at.asc(), ChatMessage.id.asc())
             )
         ).all():
-            lid_i = int(lid)
-            if lid_i not in first_opened:
-                first_opened[lid_i] = ts
+            if lid is None or ts is None:
+                continue
+            by_lead[int(lid)].append((str(direction or ""), int(author) if author is not None else None, ts))
 
     sla_by_mgr: dict[int, list[float]] = defaultdict(list)
     leads_cnt: dict[int, int] = defaultdict(int)
     for lid, mid in mgr_of.items():
         leads_cnt[mid] += 1
-        created = created_map.get(lid)
-        opened = first_opened.get(lid)
-        if created is None or opened is None:
-            continue
-        c = created if created.tzinfo else created.replace(tzinfo=UTC)
-        o = opened if opened.tzinfo else opened.replace(tzinfo=UTC)
-        mins = (o.astimezone(UTC) - c.astimezone(UTC)).total_seconds() / 60.0
-        if mins >= 0:
+        mins = first_reply_minutes(by_lead.get(lid, []), mid)
+        if mins is not None:
             sla_by_mgr[mid].append(mins)
 
     all_mins = [m for vals in sla_by_mgr.values() for m in vals]

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { DateField } from "@/components/DateField";
 import { PrintButton } from "@/components/PrintButton";
+import { PrintMasthead, PrintSign, printPeriod } from "@/components/PrintMasthead";
 import { useRopContext } from "@/pages/rop/RopLayout";
 
 type Analytics = {
@@ -35,6 +36,15 @@ function monthStartYmd() {
 
 function money(v: number | string) {
   return Number(v || 0).toLocaleString("ru-RU", { maximumFractionDigits: 0 });
+}
+
+function formatMinutes(v: number | null | undefined) {
+  if (v == null || Number.isNaN(Number(v))) return "—";
+  const total = Math.max(0, Math.round(Number(v)));
+  if (total < 60) return `${total} мин`;
+  const hours = Math.floor(total / 60);
+  const mins = total % 60;
+  return mins ? `${hours} ч ${mins} мин` : `${hours} ч`;
 }
 
 export function RopAnalyticsPage() {
@@ -76,8 +86,9 @@ export function RopAnalyticsPage() {
   const data = query.data;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-end gap-3">
+    <div className="mo-print-doc flex flex-col gap-4">
+      <PrintMasthead title="Аналитика отдела продаж" meta={printPeriod(from, to)} />
+      <div className="print-screen-only flex flex-wrap items-end gap-3">
         <PrintButton />
         <label className="text-sm mo-muted">
           С
@@ -96,17 +107,15 @@ export function RopAnalyticsPage() {
           <div className="rounded-xl border border-[var(--mo-border)] p-4">
             <h3 className="font-medium">Среднее время ответа</h3>
             <p className="mt-1 text-2xl tabular-nums">
-              {data?.avg_first_response_minutes != null
-                ? `${data.avg_first_response_minutes} мин`
-                : "—"}
+              {formatMinutes(data?.avg_first_response_minutes)}
             </p>
             <div className="mt-3 overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm md:w-auto md:min-w-[24rem]">
                 <thead className="text-xs mo-muted">
                   <tr>
-                    <th className="py-1 text-left">Менеджер</th>
-                    <th className="py-1 text-right">Лиды</th>
-                    <th className="py-1 text-right">Ответ, мин</th>
+                    <th className="py-1 pr-8 text-left font-normal">Менеджер</th>
+                    <th className="w-20 py-1 text-right font-normal">Лиды</th>
+                    <th className="w-28 py-1 pl-4 text-right font-normal">Ответ</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -115,7 +124,7 @@ export function RopAnalyticsPage() {
                       <td className="py-1">{m.full_name}</td>
                       <td className="py-1 text-right tabular-nums">{m.leads_count}</td>
                       <td className="py-1 text-right tabular-nums">
-                        {m.avg_first_response_minutes ?? "—"}
+                        {formatMinutes(m.avg_first_response_minutes)}
                       </td>
                     </tr>
                   ))}
@@ -134,14 +143,13 @@ export function RopAnalyticsPage() {
                   <div key={g.id} className="rounded-lg border border-[var(--mo-border)]">
                     <button
                       type="button"
-                      className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm"
+                      className="print-keep flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm"
                       onClick={() => setOpenId(open ? null : g.id)}
                     >
                       <span className="font-medium">{g.name}</span>
                       <span className="tabular-nums">{money(g.total)}</span>
                     </button>
-                    {open && (
-                      <div className="flex flex-col gap-2 border-t border-[var(--mo-border)] px-3 py-3">
+                    <div className={["flex flex-col gap-2 border-t border-[var(--mo-border)] px-3 py-3", open ? "" : "mo-print-detail"].filter(Boolean).join(" ")}>
                         {g.services
                           .slice()
                           .sort((a, b) => Number(b.amount) - Number(a.amount))
@@ -164,8 +172,7 @@ export function RopAnalyticsPage() {
                               </div>
                             );
                           })}
-                      </div>
-                    )}
+                    </div>
                   </div>
                 );
               })}
@@ -174,6 +181,7 @@ export function RopAnalyticsPage() {
           </div>
         </>
       )}
+      <PrintSign />
     </div>
   );
 }

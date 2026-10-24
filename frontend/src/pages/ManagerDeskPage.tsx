@@ -7,7 +7,6 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { StatTile } from "@/components/ui/StatTile";
 import { useChatRealtime } from "@/hooks/useChatRealtime";
 import { apiFetch } from "@/lib/api";
-import { theme } from "@/lib/theme";
 import type { ChatThread, ChatThreadBucketCounts, TaskListResponse } from "@/lib/types";
 
 export function ManagerDeskPage() {
@@ -42,7 +41,7 @@ export function ManagerDeskPage() {
         title="Рабочий стол"
         description="Сводка, чат и задачи в одном экране."
         actions={
-          <Link to="/chat" className={theme.btnPrimary}>
+          <Link to="/chat" className="btn-primary">
             Полный чат
           </Link>
         }
@@ -86,7 +85,7 @@ export function ManagerDeskPage() {
                   <li key={task.id}>
                     <Link
                       to="/tasks"
-                      className="block rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] px-3 py-2 hover:border-[var(--mo-accent)]/40"
+                      className="block rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-2 hover:border-[var(--mo-accent)]/40"
                     >
                       <div className="text-sm font-medium text-[var(--mo-text)]">{task.title}</div>
                     </Link>
@@ -97,14 +96,14 @@ export function ManagerDeskPage() {
           </Card>
 
           <div className="grid gap-3 sm:grid-cols-3">
-            <Link to="/chat" className={`${theme.surfaceElevated} block p-4 hover:border-[var(--mo-accent)]/40`}>
-              <div className="text-sm font-semibold">Чаты и стадии</div>
+            <Link to="/chat" className="mo-card block p-4 hover:border-[var(--mo-accent)]/40">
+              <div className="text-sm font-semibold text-[var(--mo-text)]">Чаты и стадии</div>
             </Link>
-            <Link to="/booking" className={`${theme.surfaceElevated} block p-4 hover:border-[var(--mo-accent)]/40`}>
-              <div className="text-sm font-semibold">Онлайн-запись</div>
+            <Link to="/booking" className="mo-card block p-4 hover:border-[var(--mo-accent)]/40">
+              <div className="text-sm font-semibold text-[var(--mo-text)]">Онлайн-запись</div>
             </Link>
-            <Link to="/kpi" className={`${theme.surfaceElevated} block p-4 hover:border-[var(--mo-accent)]/40`}>
-              <div className="text-sm font-semibold">KPI</div>
+            <Link to="/kpi" className="mo-card block p-4 hover:border-[var(--mo-accent)]/40">
+              <div className="text-sm font-semibold text-[var(--mo-text)]">KPI</div>
             </Link>
           </div>
         </div>

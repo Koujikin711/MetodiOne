@@ -231,7 +231,7 @@ export function BookingUpcomingServicesReport({
 
   return (
     <div className="booking-upcoming space-y-4">
-      <div className="booking-upcoming__filters flex flex-wrap items-end gap-3">
+      <div className="booking-upcoming__filters print-screen-only flex flex-wrap items-end gap-3">
         <label className="block text-sm mo-muted">
           Услуга
           <select

@@ -12,6 +12,12 @@ from app.schemas.audit import SystemAuditEventRead
 
 router = APIRouter(prefix="/audit", tags=["audit"])
 
+# Служебные метки фоновой раздачи. Журнал их не показывает: по ним задача понимает, что сегодня уже работала.
+_HIDDEN_FROM_JOURNAL = (
+    "archive_evening_reactivate_done",
+    "archive_evening_reactivate_stats",
+)
+
 _ID_IN_DETAILS = re.compile(
     r"\b(?:user_id|actor_user_id|author_user_id|from_manager_id|to_manager_id|manager_id)=(\d+)",
     re.I,
@@ -122,7 +128,10 @@ async def list_audit_events(
     type_filter = (entity_type or "").strip()
     include_lead = type_filter in ("", "lead")
 
-    sys_q = select(SystemAuditEvent).where(SystemAuditEvent.company_id == company_id)
+    sys_q = select(SystemAuditEvent).where(
+        SystemAuditEvent.company_id == company_id,
+        SystemAuditEvent.action.not_in(_HIDDEN_FROM_JOURNAL),
+    )
     if type_filter:
         sys_q = sys_q.where(SystemAuditEvent.entity_type == type_filter)
     if entity_id is not None:
