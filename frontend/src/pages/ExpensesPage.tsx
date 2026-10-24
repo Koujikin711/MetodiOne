@@ -19,7 +19,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FormEvent, Fragment, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
-import { Check, GripVertical } from "@/components/icons";
+import { Check, GripVertical, Pencil } from "@/components/icons";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
 import { EXPENSE_CATALOG } from "@/lib/expenseCatalog";
@@ -442,9 +442,18 @@ function ExpenseConfirm({
   onEdit?: () => void;
 }) {
   const edit = isOwner && onEdit ? (
-    <button type="button" className="btn-secondary btn-table" onClick={onEdit}>
-      Править
-    </button>
+        <button
+          type="button"
+          className="expenses-screen-only journal-icon-btn inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--mo-text)]"
+          aria-label="Править"
+          title="Править"
+          onClick={onEdit}
+        >
+          <Pencil className="h-4 w-4" />
+          <span className="journal-icon-btn__tip" role="tooltip">
+            Править
+          </span>
+        </button>
   ) : null;
   if (row.expense_confirm === "pending") {
     if (!isOwner) {

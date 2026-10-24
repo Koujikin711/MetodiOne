@@ -1,5 +1,7 @@
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
+import { Pencil } from "@/components/icons";
 import { formatMoney } from "@/lib/money";
 
 type Mode = "subtract" | "set";
@@ -29,19 +31,41 @@ export function OwnerPaidAdjust({
   const tooMuch =
     nextPaid != null && (nextPaid < 0 || (serviceAmount > 0 && nextPaid > serviceAmount + 0.001));
   const reasonOk = reason.trim().length >= 3;
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
 
-  return (
-    <div className="owner-paid-adjust print-omit mt-1">
-      <button
-        type="button"
-        className="text-[11px] font-medium text-[var(--mo-text)] underline-offset-2 hover:underline"
-        onClick={() => setOpen((value) => !value)}
-      >
-        {open ? "Скрыть правку" : "Исправить сумму"}
-      </button>
-      {!open ? null : (
-        <>
-      <p className="mt-1 text-[11px] font-semibold text-[var(--mo-text)]">Правка владельца</p>
+  useLayoutEffect(() => {
+    if (!open) {
+      setPos(null);
+      return;
+    }
+    function place() {
+      const el = btnRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const width = 420;
+      const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8));
+      let top = r.bottom + 6;
+      if (top + 220 > window.innerHeight - 8) top = Math.max(8, r.top - 220);
+      setPos({ top, left });
+    }
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [open]);
+
+  const panel =
+    open && pos && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            className="owner-paid-adjust print-omit fixed z-[90] w-[26rem] max-w-[calc(100vw-1rem)] rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-3 shadow-xl"
+            style={{ top: pos.top, left: pos.left }}
+          >
+      <p className="text-[11px] font-semibold text-[var(--mo-text)]">Правка владельца</p>
       <p className="text-[11px] mo-muted">
         Сейчас оплачено {formatMoney(paid)} из {formatMoney(serviceAmount)}. Снятие забирает с последней оплаты.
         Запись попадёт в аудит.
@@ -104,8 +128,24 @@ export function OwnerPaidAdjust({
             : `Станет оплачено ${formatMoney(nextPaid)}, долг ${formatMoney(nextDebt ?? 0)}.`}
         </p>
       ) : null}
-        </>
-      )}
-    </div>
+          </div>,
+          document.body,
+        )
+      : null;
+
+  return (
+    <span className="owner-paid-adjust print-omit ml-1 inline-flex align-middle">
+      <button
+        ref={btnRef}
+        type="button"
+        className="inline-flex h-6 w-6 items-center justify-center rounded-md text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)]"
+        aria-label={open ? "Скрыть правку" : "Исправить сумму"}
+        title={open ? "Скрыть правку" : "Исправить сумму"}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <Pencil className="h-3.5 w-3.5" />
+      </button>
+      {panel}
+    </span>
   );
 }

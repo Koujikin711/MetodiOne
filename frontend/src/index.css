@@ -7032,23 +7032,24 @@ li.is-overdue {
 .kpi-course-sheet {
   width: 100%;
   table-layout: fixed;
-  font-size: 0.68rem;
+  font-size: 0.84rem;
 }
 
 .kpi-course-col-date { width: 8%; }
 .kpi-course-col-product { width: 7%; }
 .kpi-course-col-num { width: 4.5%; }
-.kpi-course-col-manager { width: 15%; }
-.kpi-course-col-client { width: 23.5%; }
-.kpi-course-col-phone { width: 13%; }
-.kpi-course-col-sum { width: 9.5%; }
-.kpi-course-col-paid { width: 8.5%; }
-.kpi-course-col-debt { width: 6.5%; }
+.kpi-course-col-manager { width: 14%; }
+.kpi-course-col-client { width: 15%; }
+.kpi-course-col-phone { width: 12%; }
+.kpi-course-col-sum { width: 9%; }
+.kpi-course-col-paid { width: 9%; }
+.kpi-course-col-debt { width: 6%; }
+.kpi-course-col-actions { width: 11%; }
 
 .kpi-course-sheet thead th,
 .kpi-course-sheet tbody td {
-  padding: 0.08rem 0.22rem 0.08rem 0;
-  font-size: 0.68rem;
+  padding: 0.22rem 0.28rem 0.22rem 0;
+  font-size: 0.84rem;
   line-height: 1.15;
   vertical-align: middle;
   overflow: hidden;
@@ -7079,10 +7080,10 @@ li.is-overdue {
 .kpi-course-manager {
   width: 100%;
   min-width: 0;
-  height: 1.35rem;
+  height: 1.65rem;
   min-height: 0 !important;
   padding: 0 1.1rem 0 0.28rem !important;
-  font-size: 0.66rem !important;
+  font-size: 0.8rem !important;
   line-height: 1.2 !important;
   border-radius: 0.3rem !important;
   background-position: right 0.2rem center;
@@ -7091,10 +7092,10 @@ li.is-overdue {
 .kpi-course-flow {
   width: 100%;
   min-width: 0;
-  height: 1.35rem;
+  height: 1.65rem;
   min-height: 0 !important;
   padding: 0 0.85rem 0 0.2rem !important;
-  font-size: 0.66rem !important;
+  font-size: 0.8rem !important;
   line-height: 1.2 !important;
   border-radius: 0.3rem !important;
   background-position: right 0.12rem center;
@@ -7127,10 +7128,16 @@ li.is-overdue {
 }
 
 .kpi-course-sheet .kpi-actions-trigger {
-  padding: 0.04rem 0.28rem;
-  font-size: 0.62rem;
-  border-radius: 0.3rem;
-  gap: 0.15rem;
+  padding: 0.12rem 0.4rem;
+  font-size: 0.75rem;
+  border-radius: 0.4rem;
+  gap: 0.2rem;
+}
+
+.kpi-course-sheet td.kpi-course-paid,
+.kpi-course-sheet td.kpi-course-act {
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .kpi-course-sheet .kpi-debt {
@@ -11246,6 +11253,9 @@ html:has(.studio-root) {
   .mo-print-doc .btn-danger,
   .mo-print-doc .btn-table,
   .mo-print-doc .journal-icon-btn,
+  .mo-print-doc .booking-appt-note-btn,
+  .mo-print-doc .owner-paid-adjust,
+  .mo-print-doc svg,
   .mo-print-doc .kpi-tabs,
   .mo-print-doc .mo-tabs,
   .mo-print-doc .debtor-chip,
@@ -11293,6 +11303,11 @@ html:has(.studio-root) {
     box-shadow: none !important;
     color: #111 !important;
     font: inherit !important;
+  }
+  .mo-print-doc .print-hide,
+  .mo-print-doc table .print-hide,
+  .mo-print-doc table select.print-hide {
+    display: none !important;
   }
   .mo-print-doc .sm\:hidden,
   .mo-print-doc .md\:hidden,

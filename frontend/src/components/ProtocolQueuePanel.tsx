@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
 
 import { DateTimeField } from "@/components/DateTimeField";
+import { FileText } from "@/components/icons";
 import { apiFetch } from "@/lib/api";
 
 type ProtocolRow = {
@@ -60,7 +62,15 @@ function toDatetimeLocal(iso: string | null | undefined): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function FollowupFields({
+function fmtCall(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${String(d.getFullYear()).slice(-2)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function FollowupCall({
   row,
   pending,
   onSave,
@@ -69,37 +79,111 @@ function FollowupFields({
   pending: boolean;
   onSave: (comment: string, nextCallAt: string) => void;
 }) {
-  const savedComment = row.followup_comment ?? "";
   const savedCall = toDatetimeLocal(row.followup_call_at);
-  const [text, setText] = useState(savedComment);
   const [callAt, setCallAt] = useState(savedCall);
   useEffect(() => {
-    setText(savedComment);
     setCallAt(savedCall);
-  }, [savedComment, savedCall]);
+  }, [savedCall]);
   return (
-    <div className="debtor-note">
-      <input
-        className="mo-input debtor-note__comment"
-        aria-label="Комментарий после разговора"
-        placeholder="После разговора"
-        value={text}
-        disabled={pending}
-        onChange={(e) => setText(e.target.value)}
-        onBlur={() => {
-          if (text !== savedComment) onSave(text, callAt);
-        }}
-      />
-      <DateTimeField
-        aria-label="Следующий созвон"
-        value={callAt}
-        disabled={pending}
-        onChange={(iso) => {
-          setCallAt(iso);
-          onSave(text, iso);
-        }}
-      />
-    </div>
+    <>
+      <div className="print-hide">
+        <DateTimeField
+          aria-label="Следующий созвон"
+          value={callAt}
+          disabled={pending}
+          onChange={(iso) => {
+            setCallAt(iso);
+            onSave(row.followup_comment ?? "", iso);
+          }}
+        />
+      </div>
+      <span className="mo-print-only tabular-nums text-xs">{fmtCall(row.followup_call_at)}</span>
+    </>
+  );
+}
+
+function ProtocolNote({
+  row,
+  pending,
+  onSave,
+}: {
+  row: ProtocolRow;
+  pending: boolean;
+  onSave: (comment: string, nextCallAt: string) => void;
+}) {
+  const saved = row.followup_comment ?? "";
+  const [text, setText] = useState(saved);
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  useEffect(() => {
+    setText(saved);
+  }, [saved]);
+  useLayoutEffect(() => {
+    if (!open) {
+      setPos(null);
+      return;
+    }
+    function place() {
+      const el = btnRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const width = 280;
+      const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8));
+      let top = r.bottom + 6;
+      if (top + 140 > window.innerHeight - 8) top = Math.max(8, r.top - 140);
+      setPos({ top, left });
+    }
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [open]);
+  const note = saved.trim();
+  const panel =
+    open && pos && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            className="print-hide fixed z-[90] w-[17.5rem] rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-2 shadow-xl"
+            style={{ top: pos.top, left: pos.left }}
+          >
+            <textarea
+              className="mo-input min-h-20 w-full text-sm"
+              aria-label="Заметка"
+              placeholder="Заметка"
+              value={text}
+              disabled={pending}
+              autoFocus
+              onChange={(e) => setText(e.target.value)}
+              onBlur={() => {
+                if (text !== saved) onSave(text, toDatetimeLocal(row.followup_call_at));
+              }}
+            />
+          </div>,
+          document.body,
+        )
+      : null;
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        className={[
+          "booking-appt-note-btn print-hide shrink-0 rounded p-0.5 transition hover:bg-black/10",
+          note ? "is-filled" : "is-empty",
+        ].join(" ")}
+        aria-label={note || "Заметка"}
+        title={note || "Заметка"}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <FileText className="h-3.5 w-3.5" />
+      </button>
+      <span className="mo-print-only text-xs">{note || "—"}</span>
+      {panel}
+    </>
   );
 }
 
@@ -300,10 +384,10 @@ export function ProtocolQueuePanel({
                 <th className="px-3 py-2 font-medium">Статус</th>
                 <th className="px-3 py-2 font-medium">Начало</th>
                 <th className="px-3 py-2 font-medium">Осталось</th>
-                <th className="px-3 py-2 font-medium">Предыдущие</th>
                 <th className="px-3 py-2 font-medium">Менеджер</th>
                 <th className="px-3 py-2 font-medium">Посл. контакт</th>
                 <th className="px-3 py-2 font-medium">Созвон</th>
+                <th className="px-3 py-2 font-medium">Заметки</th>
                 <th className="px-3 py-2 font-medium">Админу</th>
               </tr>
             </thead>
@@ -341,11 +425,10 @@ export function ProtocolQueuePanel({
                   <td className="px-3 py-2.5 tabular-nums text-xs">
                     {r.days_remaining < 0 ? `${r.days_remaining} дн.` : `${r.days_remaining} дн.`}
                   </td>
-                  <td className="px-3 py-2.5 text-xs tabular-nums">{r.previous_protocols_label}</td>
                   <td className="px-3 py-2.5 text-xs">
                     {canReassign ? (
                       <select
-                        className="mo-input min-w-[9.5rem] py-1 text-xs"
+                        className="mo-input print-hide min-w-[9.5rem] py-1 text-xs"
                         aria-label="Менеджер"
                         value={r.manager_user_id ?? ""}
                         disabled={changeManager.isPending || (!r.lead_id && !r.purchase_id)}
@@ -369,10 +452,20 @@ export function ProtocolQueuePanel({
                     ) : (
                       r.manager_name || "—"
                     )}
+                    {canReassign ? (
+                      <span className="mo-print-only">{r.manager_name || "—"}</span>
+                    ) : null}
                   </td>
                   <td className="px-3 py-2.5 tabular-nums text-xs">{fmtDt(r.last_contact_at)}</td>
                   <td className={["px-3 py-2.5", r.followup_overdue ? "text-amber-300" : ""].filter(Boolean).join(" ")}>
-                    <FollowupFields
+                    <FollowupCall
+                      row={r}
+                      pending={saveFollowup.isPending}
+                      onSave={(comment, nextCallAt) => saveFollowup.mutate({ row: r, comment, nextCallAt })}
+                    />
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <ProtocolNote
                       row={r}
                       pending={saveFollowup.isPending}
                       onSave={(comment, nextCallAt) => saveFollowup.mutate({ row: r, comment, nextCallAt })}

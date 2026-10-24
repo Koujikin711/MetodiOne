@@ -3,7 +3,6 @@ import { useMemo, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
 import { DateField } from "@/components/DateField";
-import { PrintButton } from "@/components/PrintButton";
 import { PrintMasthead, PrintSign, printPeriod } from "@/components/PrintMasthead";
 import { useRopContext } from "@/pages/rop/RopLayout";
 
@@ -105,7 +104,6 @@ export function RopReportPage() {
     <div className="mo-print-doc flex flex-col gap-4">
       <PrintMasthead title="Отчёт отдела продаж" meta={printPeriod(from, to)} />
       <div className="print-screen-only flex flex-wrap items-end gap-3">
-        <PrintButton />
         <label className="text-sm mo-muted">
           С
           <DateField value={from} onChange={setFrom} className="mo-input mt-1" />

@@ -15,7 +15,6 @@ import {
 import { AppBanners } from "@/components/AppBanners";
 import { TaskDueBanner } from "@/components/TaskDueBanner";
 import { ShellSidebarNav } from "@/components/ShellSidebarNav";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import { TariffFeatureOutletGate } from "@/components/TariffFeatureOutletGate";
 import { GradientIconBox } from "@/components/GradientIconBox";
 import { useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
@@ -323,7 +322,6 @@ export function MainLayout() {
         >
           <div className="shell-tools relative z-40 flex shrink-0 items-center justify-end gap-2 print:hidden">
             <TaskDueBanner />
-            <ThemeToggle compact className="shell-tools__theme" />
           </div>
           <AppBanners />
           <div

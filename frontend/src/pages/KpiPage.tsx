@@ -1976,6 +1976,7 @@ export function KpiPage() {
                 <col className="kpi-course-col-sum" />
                 <col className="kpi-course-col-paid" />
                 <col className="kpi-course-col-debt" />
+                <col className="kpi-course-col-actions" />
               </colgroup>
               <thead>
                 <tr>
@@ -1989,6 +1990,7 @@ export function KpiPage() {
                   <th>Сумма</th>
                   <th>Оплачено</th>
                   <th>Долг</th>
+                  <th className="print-omit">Действие</th>
                 </tr>
               </thead>
               <tbody>
@@ -2074,7 +2076,7 @@ export function KpiPage() {
                         ) : null}
                       </div>
                     </td>
-                    <td className="tabular-nums">
+                    <td className="tabular-nums kpi-course-paid">
                       {sheetMoney(s.paid_amount)}
                       {isCompanyOwner && s.status === "active" ? (
                         <OwnerPaidAdjust
@@ -2098,6 +2100,21 @@ export function KpiPage() {
                       <span className={["kpi-debt", num(s.debt_amount) <= 0 ? "is-zero" : ""].filter(Boolean).join(" ")}>
                         {sheetMoney(s.debt_amount)}
                       </span>
+                    </td>
+                    <td className="kpi-course-act print-omit">
+                      {isAdminOrOwner && s.status === "active" ? (
+                        <SaleRowActionsMenu
+                          onReturn={() => {
+                            if (window.confirm("Отметить возврат и снять с KPI?")) {
+                              returnMutation.mutate(s.id);
+                            }
+                          }}
+                          onRefuse={() => askCloseSale(s.id, "refused")}
+                          onComplete={() => askCloseSale(s.id, "completed")}
+                        />
+                      ) : (
+                        "—"
+                      )}
                     </td>
                   </tr>
                 ))}

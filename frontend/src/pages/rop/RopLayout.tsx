@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { NavLink, Outlet, useOutletContext } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 
+import { PrintButton } from "@/components/PrintButton";
 import { apiFetch } from "@/lib/api";
 import type { Pipeline } from "@/lib/types";
 
@@ -52,21 +53,24 @@ export function RopLayout() {
           <h1 className="mo-page-title">Кабинет РОП</h1>
           <p className="mo-page-sub">Отдел продаж: менеджеры, лиды, выручка</p>
         </div>
-        <label className="text-sm mo-muted">
-          Воронка
-          <select
-            className="mo-input mt-1 min-w-[12rem]"
-            value={pipelineId ?? ""}
-            onChange={(e) => setPipelineId(Number(e.target.value))}
-            disabled={!pipelines.length}
-          >
-            {pipelines.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="flex items-end gap-2">
+          <PrintButton />
+          <label className="text-sm mo-muted">
+            Воронка
+            <select
+              className="mo-input mt-1 min-w-[12rem]"
+              value={pipelineId ?? ""}
+              onChange={(e) => setPipelineId(Number(e.target.value))}
+              disabled={!pipelines.length}
+            >
+              {pipelines.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
       </div>
 
       <nav className="print-screen-only flex flex-wrap gap-1 border-b border-[var(--mo-border)] pb-1">

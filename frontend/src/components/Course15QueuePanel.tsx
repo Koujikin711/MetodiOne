@@ -97,22 +97,19 @@ export function Course15QueuePanel({ enabled }: { enabled: boolean }) {
       <div className="rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-4 shadow-[var(--mo-shadow-luxury)]">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-base font-semibold text-[var(--mo-text)]">Курс 15 — очередь перехода</h2>
-            <p className="mt-1 max-w-2xl text-xs mo-muted">
+            <h2 className="text-lg font-semibold tracking-tight text-[var(--mo-text)]">Курс 15 — очередь перехода</h2>
+            <p className="mt-1 max-w-2xl text-sm leading-relaxed mo-muted">
               Имя из онлайн-записи, телефон отдельно. Начало — последняя оплата, окончание —
               через 15 дней. После выбора Курс или Протокол строка уходит из этого списка.
               Когда админ подтвердит оплату, она исчезает и из «У админа».
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-3 text-xs tabular-nums">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm tabular-nums">
             <span>
               Активен <strong>{data?.counts?.active ?? 0}</strong>
             </span>
             <span>
               Ждёт шаг <strong>{data?.counts?.waiting_next_step ?? 0}</strong>
-            </span>
-            <span className="text-amber-700 dark:text-amber-300">
-              Внимание <strong>{data?.counts?.requires_attention ?? 0}</strong>
             </span>
             <span>
               У админа <strong>{data?.counts?.pending_admin ?? 0}</strong>
@@ -177,23 +174,21 @@ export function Course15QueuePanel({ enabled }: { enabled: boolean }) {
 
       {rows.length > 0 ? (
         <div className="mo-table-scroll rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)]">
-          <table className="w-full min-w-[960px] text-left text-sm">
+          <table className="w-full min-w-[760px] text-left text-[15px] leading-snug">
             <thead>
-              <tr className="border-b border-[var(--mo-border)] text-[11px] uppercase tracking-wide mo-muted">
-                <th className="px-3 py-2 font-medium">Пациент</th>
-                <th className="px-3 py-2 font-medium">Статус</th>
-                <th className="px-3 py-2 font-medium" title="Дата последней оплаты. Сверху более позднее начало">
+              <tr className="border-b border-[var(--mo-border)] text-xs font-semibold uppercase tracking-[0.04em] mo-muted">
+                <th className="px-3.5 py-3 font-semibold">Пациент</th>
+                <th className="px-3.5 py-3 font-semibold">Статус</th>
+                <th className="px-3.5 py-3 font-semibold" title="Дата последней оплаты. Сверху более позднее начало">
                   Начало
                 </th>
-                <th className="px-3 py-2 font-medium" title="15 дней после последней оплаты">
+                <th className="px-3.5 py-3 font-semibold" title="15 дней после последней оплаты">
                   Окончание
                 </th>
-                <th className="px-3 py-2 font-medium">Менеджер</th>
-                <th className="px-3 py-2 font-medium">Посл. контакт</th>
-                <th className="px-3 py-2 font-medium">След. контакт</th>
-                <th className="px-3 py-2 font-medium">След. шаг</th>
-                <th className="px-3 py-2 font-medium">Внимание</th>
-                <th className="px-3 py-2 font-medium">Дальше</th>
+                <th className="px-3.5 py-3 font-semibold">Менеджер</th>
+                <th className="px-3.5 py-3 font-semibold">Посл. контакт</th>
+                <th className="px-3.5 py-3 font-semibold">След. шаг</th>
+                <th className="px-3.5 py-3 font-semibold">Дальше</th>
               </tr>
             </thead>
             <tbody>
@@ -201,44 +196,29 @@ export function Course15QueuePanel({ enabled }: { enabled: boolean }) {
                 <tr
                   key={r.lead_id}
                   data-lead-row={r.lead_id}
-                  className={[
-                    "border-b border-[var(--mo-border)]/50",
-                    r.requires_attention ? "bg-amber-500/5" : "",
-                  ].join(" ")}
+                  className="border-b border-[var(--mo-border)]/50"
                 >
-                  <td className="px-3 py-2.5">
+                  <td className="px-3.5 py-3">
                     <Link
                       to={`/leads/${r.lead_id}`}
                       className="font-semibold text-[var(--mo-accent-hover)] hover:underline"
                     >
                       {r.patient_name}
                     </Link>
-                    <div className="text-[11px] tabular-nums mo-muted">
+                    <div className="mt-0.5 text-[13px] tabular-nums mo-muted">
                       {r.patient_phone || "—"} · #{r.lead_id}
                     </div>
                   </td>
-                  <td className="px-3 py-2.5">
-                    <span className="text-xs font-medium">{r.state_label}</span>
-                  </td>
-                  <td className="px-3 py-2.5 tabular-nums text-xs">{fmtDt(r.started_at)}</td>
-                  <td className="px-3 py-2.5 tabular-nums text-xs">{fmtDt(r.ended_at)}</td>
-                  <td className="px-3 py-2.5 text-xs">{r.manager_name || "—"}</td>
-                  <td className="px-3 py-2.5 tabular-nums text-xs">{fmtDt(r.last_contact_at)}</td>
-                  <td className="px-3 py-2.5 tabular-nums text-xs">{fmtDt(r.next_contact_at)}</td>
-                  <td className="px-3 py-2.5 text-xs">{r.next_step}</td>
-                  <td className="px-3 py-2.5 text-xs">
-                    {r.requires_attention ? (
-                      <span className="text-amber-700 dark:text-amber-300" title={r.attention_reason || ""}>
-                        да
-                      </span>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td className="px-3 py-2.5">
+                  <td className="px-3.5 py-3 font-medium">{r.state_label}</td>
+                  <td className="px-3.5 py-3 tabular-nums">{fmtDt(r.started_at)}</td>
+                  <td className="px-3.5 py-3 tabular-nums">{fmtDt(r.ended_at)}</td>
+                  <td className="px-3.5 py-3">{r.manager_name || "—"}</td>
+                  <td className="px-3.5 py-3 tabular-nums">{fmtDt(r.last_contact_at)}</td>
+                  <td className="px-3.5 py-3">{r.next_step}</td>
+                  <td className="px-3.5 py-3">
                     {r.state === "waiting_next_step" || r.state === "active" ? (
                       <select
-                        className="mo-input min-w-[9.5rem] py-1 text-xs"
+                        className="mo-input min-w-[9.5rem] py-1.5 text-sm"
                         value={r.pending_program ?? ""}
                         disabled={sendMutation.isPending || withdrawMutation.isPending}
                         aria-label="Курс или Протокол"
