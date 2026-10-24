@@ -151,6 +151,7 @@ export function EmployeesPage() {
   const [editSpecialization, setEditSpecialization] = useState("");
   const [editAlsoExpert, setEditAlsoExpert] = useState(false);
   const [editPipelineIds, setEditPipelineIds] = useState<number[]>([]);
+  const [issuedLogin, setIssuedLogin] = useState<{ email: string; password: string; detail: string } | null>(null);
 
   const pipelines = pipelinesQuery.data ?? [];
   const pipelineById = useMemo(() => new Map(pipelines.map((p) => [p.id, p])), [pipelines]);
@@ -409,6 +410,7 @@ export function EmployeesPage() {
   }
 
   function openEditEmployee(e: Employee) {
+    setIssuedLogin(null);
     setEditEmployee(e);
     setEditFullName(e.full_name ?? "");
     setEditEmail(e.email);
@@ -431,9 +433,15 @@ export function EmployeesPage() {
         email_sent: boolean;
         whatsapp_sent: boolean;
         detail: string;
+        password: string;
       }>(`/api/employees/${employeeId}/resend-credentials`, { method: "POST" }),
     onSuccess: (r) => {
-      toast.success(r.detail || "Логин и пароль отправлены");
+      setIssuedLogin({
+        email: editEmail.trim(),
+        password: r.password,
+        detail: r.detail || "Пароль записан",
+      });
+      toast.success(r.detail || "Пароль записан");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -990,6 +998,20 @@ export function EmployeesPage() {
                 <p className="mt-2 text-[11px] leading-relaxed mo-muted">
                   При смене email на новый адрес уйдёт письмо с новым логином и паролем.
                 </p>
+                {issuedLogin ? (
+                  <div className="mt-3 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-2 text-sm">
+                    <p className="text-xs mo-muted">{issuedLogin.detail}</p>
+                    <p className="mt-2">
+                      Логин: <span className="font-medium">{issuedLogin.email}</span>
+                    </p>
+                    <p className="mt-1 break-all">
+                      Пароль: <span className="font-semibold tracking-wide">{issuedLogin.password}</span>
+                    </p>
+                    <p className="mt-2 text-[11px] leading-relaxed mo-muted">
+                      Этот пароль уже в системе. Введите его на телефоне как на экране, без пробела в конце.
+                    </p>
+                  </div>
+                ) : null}
                 <button
                   type="button"
                   className="btn-secondary mt-3 w-full text-sm disabled:opacity-60"
@@ -997,7 +1019,7 @@ export function EmployeesPage() {
                   onClick={() => {
                     if (
                       !window.confirm(
-                        "Сгенерировать новый пароль и отправить логин с паролем ещё раз на email и в WhatsApp сотрудника?",
+                        "Записать новый пароль? Он появится на этом экране. Письмо уйдёт только если почта сервера настроена.",
                       )
                     ) {
                       return;

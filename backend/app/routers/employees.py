@@ -121,6 +121,7 @@ class ResendCredentialsResult(BaseModel):
     email_sent: bool
     whatsapp_sent: bool
     detail: str
+    password: str
 
 
 def _rand_password() -> str:
@@ -285,24 +286,16 @@ def _invite_app_base() -> str:
     """
     Абсолютный URL фронта (без завершающего /).
     В письмах нельзя использовать относительные ссылки — Gmail даёт битый вид http:///login.
+    Пустая настройка — живой сайт, отдельную переменную для этого не требуем.
     """
-    raw = (settings.public_app_url or "").strip()
-    if not raw:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                "Задайте переменную окружения PUBLIC_APP_URL с полным адресом фронта, "
-                "например https://ваш-проект.vercel.app (без слэша в конце). "
-                "Иначе ссылка в письме приглашения будет недействительной."
-            ),
-        )
+    raw = (settings.public_app_url or "").strip() or "https://metodione.com"
     if not raw.startswith(("http://", "https://")):
         raw = "https://" + raw
     p = urlparse(raw)
     if p.scheme not in ("http", "https") or not p.netloc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="PUBLIC_APP_URL указан неверно. Пример: https://metodi.vercel.app",
+            detail="Адрес сайта указан неверно. Пример: https://metodione.com",
         )
     path = (p.path or "").rstrip("/")
     if path == "/":
@@ -311,7 +304,7 @@ def _invite_app_base() -> str:
     if not base:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="PUBLIC_APP_URL указан неверно (нет домена). Пример: https://metodi.vercel.app",
+            detail="Адрес сайта указан неверно (нет домена). Пример: https://metodione.com",
         )
     return base
 
@@ -915,13 +908,6 @@ async def patch_employee_contact(
             _invite_app_base()
             temp_password = _rand_password()
             invite_token = secrets.token_urlsafe(32)
-            target.email = normalized
-            target.hashed_password = hash_password(temp_password)
-            target.invite_token = invite_token
-            target.must_change_password = True
-            new_email = normalized
-            email_changed = True
-
             intro = "Для вашего аккаунта в CRM изменён email. Используйте новые данные для входа."
             credentials_sent = _send_employee_credentials_email(
                 normalized,
@@ -934,8 +920,14 @@ async def patch_employee_contact(
             if not credentials_sent:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Не удалось отправить письмо на новый email. Проверьте SMTP.",
+                    detail="Не удалось отправить письмо на новый email. Старый логин и пароль остаются.",
                 )
+            target.email = normalized
+            target.hashed_password = hash_password(temp_password)
+            target.invite_token = invite_token
+            target.must_change_password = True
+            new_email = normalized
+            email_changed = True
 
     if body.phone is not None:
         phone = _norm_phone(body.phone)
@@ -1215,28 +1207,29 @@ async def resend_employee_credentials(
     )
     await db.commit()
 
-    if not email_sent and not wa_sent:
-        detail = "Не удалось отправить ни на email, ни в WhatsApp"
+    if email_sent or wa_sent:
+        detail = "Пароль записан."
+        if email_sent and wa_sent:
+            detail += " Отправлено на email и в WhatsApp."
+        elif email_sent:
+            detail += " Отправлено на email."
+        else:
+            detail += " Отправлено в WhatsApp."
+        if email_sent and not wa_sent and wa_err:
+            detail += f" WhatsApp: {wa_err}"
+        elif wa_sent and not email_sent:
+            detail += " Письмо не ушло."
+    else:
+        detail = "Пароль записан. Письмо и WhatsApp не ушли — скопируйте пароль с этого экрана."
         if wa_err:
-            detail = f"{detail}. {wa_err}"
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
-
-    parts: list[str] = []
-    if email_sent:
-        parts.append("email")
-    if wa_sent:
-        parts.append("WhatsApp")
-    detail = "Отправлено: " + " и ".join(parts)
-    if email_sent and not wa_sent and wa_err:
-        detail = f"{detail}. WhatsApp: {wa_err}"
-    elif wa_sent and not email_sent:
-        detail = f"{detail}. Письмо на email не ушло — проверьте SMTP."
+            detail += f" {wa_err}"
 
     return ResendCredentialsResult(
         employee_id=int(target.id),
         email_sent=email_sent,
         whatsapp_sent=wa_sent,
         detail=detail,
+        password=temp_password,
     )
 
 

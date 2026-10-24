@@ -119,12 +119,7 @@ def _rand_password() -> str:
 
 
 def _invite_app_base() -> str:
-    raw = (settings.public_app_url or "").strip()
-    if not raw:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Задайте PUBLIC_APP_URL, чтобы отправлять ссылку доступа владельцу компании",
-        )
+    raw = (settings.public_app_url or "").strip() or "https://metodione.com"
     if not raw.startswith(("http://", "https://")):
         raw = "https://" + raw
     p = urlparse(raw)

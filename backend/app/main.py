@@ -73,7 +73,7 @@ from app.database_migrate import (
     ensure_patient_purchase_tables,
     ensure_patient_journey_tables,
 )
-from app.core.security import decode_token, hash_password, verify_password
+from app.core.security import decode_token, hash_password
 from app.models import Base, BookingDirection, BookingSpecialist, Company, LeadSource, Pipeline, PipelineStage, User, UserRole
 from app.services.default_pipeline_stages import default_pipeline_stage_creates
 from app.routers import (
@@ -339,11 +339,9 @@ async def seed_test_admin() -> None:
             await session.commit()
             return
 
-        # Old seed skipped existing rows; restore documented credentials if drift.
+        # Пароль существующей учётки не трогаем: перезапуск Amvera не должен
+        # возвращать начальный пароль и выкидывать владельца.
         dirty = False
-        if not verify_password("admin", user.hashed_password):
-            user.hashed_password = hash_password("admin")
-            dirty = True
         if user.role != UserRole.owner:
             user.role = UserRole.owner
             dirty = True
@@ -383,9 +381,6 @@ async def seed_super_owner() -> None:
             return
 
         dirty = False
-        if not verify_password("admin", user.hashed_password):
-            user.hashed_password = hash_password("admin")
-            dirty = True
         if user.role != UserRole.super_owner:
             user.role = UserRole.super_owner
             dirty = True
@@ -565,9 +560,6 @@ async def _seed_sales_crm_space_inner() -> None:
                 dirty = True
             if user.role != UserRole.owner:
                 user.role = UserRole.owner
-                dirty = True
-            if not verify_password(SALES_OWNER_PASSWORD, user.hashed_password):
-                user.hashed_password = hash_password(SALES_OWNER_PASSWORD)
                 dirty = True
             if getattr(user, "must_change_password", False):
                 user.must_change_password = False
