@@ -479,9 +479,12 @@ function ExpenseConfirm({
       </span>
     );
   }
+  if (row.expense_confirm !== "confirmed" && row.expense_confirm !== "rejected") {
+    return edit;
+  }
   const confirmed = row.expense_confirm === "confirmed";
-  const label = confirmed ? "Подтверждён" : row.expense_confirm === "rejected" ? "Отклонён" : "Без подтверждения";
-  const printWord = confirmed ? "да" : row.expense_confirm === "rejected" ? "нет" : "—";
+  const label = confirmed ? "Подтверждён" : "Отклонён";
+  const printWord = confirmed ? "да" : "нет";
   return (
     <span className="flex flex-wrap items-center gap-1">
       <span className="expenses-print-mark">{printWord}</span>

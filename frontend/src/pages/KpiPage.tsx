@@ -12,6 +12,7 @@ import { MonthYearPicker } from "@/components/MonthYearPicker";
 import { CompanyMonthCompare } from "@/components/CompanyMonthCompare";
 import { ServiceRevenueCharts } from "@/components/ServiceRevenueCharts";
 import { OwnerPaidAdjust } from "@/components/OwnerPaidAdjust";
+import { ProtocolQueuePanel } from "@/components/ProtocolQueuePanel";
 import { PrintButton } from "@/components/PrintButton";
 import { PrintMasthead, PrintSign, printMonthLabel } from "@/components/PrintMasthead";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -288,20 +289,22 @@ function SaleManagerCell({
   pending,
   onPick,
   onUseLead,
+  plain = false,
 }: {
   sale: SalesKpiManualSale;
   managers: { id: number; name: string }[];
   pending: boolean;
   onPick: (managerId: number) => void;
   onUseLead: () => void;
+  plain?: boolean;
 }) {
   const known = managers.some((m) => m.id === sale.manager_user_id);
   const cardId = sale.lead_manager_user_id ?? null;
   const differs = cardId != null && cardId !== sale.manager_user_id;
   return (
-    <div className="kpi-course-manager-cell">
+    <div className={plain ? "flex min-w-[9rem] flex-col gap-1" : "kpi-course-manager-cell"}>
       <select
-        className="mo-input kpi-course-manager"
+        className={plain ? "mo-input py-1 text-sm" : "mo-input kpi-course-manager"}
         aria-label={`Менеджер продажи ${sale.client_name}`}
         title="Прошлые оплаты остаются. Новые пойдут выбранному."
         value={sale.manager_user_id}
@@ -340,18 +343,20 @@ function SaleNumberSelect({
   label,
   pending,
   onPick,
+  optionLabel,
 }: {
   value: number | null | undefined;
   options: number[];
   label: string;
   pending: boolean;
   onPick: (next: number) => void;
+  optionLabel?: (n: number) => string;
 }) {
   const current = value != null && Number(value) > 0 ? Number(value) : "";
   const known = current !== "" && options.includes(Number(current));
   return (
     <select
-      className="mo-input kpi-course-flow"
+      className={optionLabel ? "mo-input min-w-[6.5rem] py-1 text-sm" : "mo-input kpi-course-flow"}
       aria-label={label}
       value={current}
       disabled={pending}
@@ -364,10 +369,12 @@ function SaleNumberSelect({
       {current === "" ? <option value="">—</option> : null}
       {options.map((n) => (
         <option key={n} value={n}>
-          {n}
+          {optionLabel ? optionLabel(n) : n}
         </option>
       ))}
-      {!known && current !== "" ? <option value={current}>{current}</option> : null}
+      {!known && current !== "" ? (
+        <option value={current}>{optionLabel ? optionLabel(Number(current)) : current}</option>
+      ) : null}
     </select>
   );
 }
@@ -439,19 +446,14 @@ function matchesKpiListQuery(query: string, parts: Array<string | number | null 
   return false;
 }
 
-function sheetMoney(value: string | number | null | undefined): string {
-  return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(num(value));
-}
-
 function formatSaleDtCompact(iso: string): string {
   try {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return iso;
     const dd = String(d.getDate()).padStart(2, "0");
     const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const hh = String(d.getHours()).padStart(2, "0");
-    const mi = String(d.getMinutes()).padStart(2, "0");
-    return `${dd}.${mm} ${hh}:${mi}`;
+    const yy = String(d.getFullYear()).slice(-2);
+    return `${dd}.${mm}.${yy}`;
   } catch {
     return iso;
   }
@@ -641,6 +643,7 @@ export function KpiPage() {
   const [journalSearch, setJournalSearch] = useState("");
   const [journalOpen, setJournalOpen] = useState(false);
   const [saleProductFilter, setSaleProductFilter] = useState<"all" | "course" | "protocol">("all");
+  const [saleFormOpen, setSaleFormOpen] = useState(false);
   const [tab, setTab] = useState<TabId>(
     isCurator ? "debtors" : isAccountant ? "company" : isOwner ? "plan" : "sales",
   );
@@ -687,6 +690,10 @@ export function KpiPage() {
   useEffect(() => {
     if (role === "expert" && meQuery.data?.also_curator) setTab("debtors");
   }, [role, meQuery.data?.also_curator]);
+
+  useEffect(() => {
+    if (searchParams.get("tab") === "manual") setTab("manual");
+  }, [searchParams]);
 
   useEffect(() => {
     if (!isManager || !meQuery.data?.id) return;
@@ -1001,6 +1008,7 @@ export function KpiPage() {
       setSelectedLead(null);
       setLeadFromContext(false);
     }
+    setSaleFormOpen(true);
     setSaleForm((s) => ({
       ...s,
       client_name: req.patient_name,
@@ -1412,14 +1420,13 @@ export function KpiPage() {
       ) : null}
 
       {tab === "manual" && (isAdminOrOwner || isManager) ? (
+        <>
         <section className="mo-section space-y-3 p-3 sm:space-y-4 sm:p-4">
           <div>
-            <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Продажа курса / протокола</h2>
-            {isManager ? null : (
-              <p className="mt-1 text-[11px] leading-snug text-[var(--mo-text-muted)] sm:text-sm">
-                Карточку можно заполнить самим — оплата сразу идёт в выручку. Если её заполнил менеджер, подтвердите, прошла оплата или нет.
-              </p>
-            )}
+            <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Курсы и проданные протоколы</h2>
+            <p className="mt-1 text-[11px] leading-snug text-[var(--mo-text-muted)] sm:text-sm">
+              Здесь оплаты: курс и уже купленный протокол в одном списке. Срок 30 дней — отдельный блок ниже.
+            </p>
           </div>
 
           {(programRequestsQuery.data ?? []).length > 0 ? (
@@ -1467,13 +1474,48 @@ export function KpiPage() {
             </div>
           ) : null}
 
-          {manualPlanItems.length === 0 ? (
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="btn-primary min-h-12 w-full text-base disabled:opacity-50 sm:min-h-0 sm:w-auto sm:text-sm"
+              disabled={saleFormOpen && (createSaleMutation.isPending || manualPlanItems.length === 0)}
+              onClick={() => {
+                if (!saleFormOpen) {
+                  setSaleFormOpen(true);
+                  return;
+                }
+                createSaleMutation.mutate();
+              }}
+            >
+              Добавить продажу
+            </button>
+            {saleFormOpen ? (
+              <button
+                type="button"
+                className="btn-secondary min-h-12 w-full text-base sm:min-h-0 sm:w-auto sm:text-sm"
+                onClick={() => setSaleFormOpen(false)}
+              >
+                Скрыть
+              </button>
+            ) : null}
+            {isManager ? null : (
+              <button
+                type="button"
+                className="btn-secondary min-h-12 w-full text-base sm:min-h-0 sm:w-auto sm:text-sm"
+                onClick={() => setJournalOpen(true)}
+              >
+                Журнал платежей
+              </button>
+            )}
+          </div>
+
+          {saleFormOpen && manualPlanItems.length === 0 ? (
             <p className="text-sm text-amber-200/90">
               {salesSpace
                 ? "Сначала владелец должен добавить продукты во вкладке «План»."
                 : "Сначала владелец должен добавить продукты с источником «Курс / протокол» во вкладке «План»."}
             </p>
-          ) : (
+          ) : saleFormOpen ? (
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
               <label className="col-span-2 flex flex-col gap-1 text-[11px] mo-muted sm:col-span-1 sm:text-sm">
                 Продукт
@@ -1673,27 +1715,7 @@ export function KpiPage() {
                 />
               </label>
             </div>
-          )}
-
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              className="btn-primary min-h-12 w-full text-base disabled:opacity-50 sm:min-h-0 sm:w-auto sm:text-sm"
-              disabled={createSaleMutation.isPending || manualPlanItems.length === 0}
-              onClick={() => createSaleMutation.mutate()}
-            >
-              Добавить продажу
-            </button>
-            {isManager ? null : (
-              <button
-                type="button"
-                className="btn-secondary min-h-12 w-full text-base sm:min-h-0 sm:w-auto sm:text-sm"
-                onClick={() => setJournalOpen(true)}
-              >
-                Журнал платежей
-              </button>
-            )}
-          </div>
+          ) : null}
 
           {journalOpen && typeof document !== "undefined"
             ? createPortal(
@@ -1960,52 +1982,40 @@ export function KpiPage() {
             {manualQuery.isLoading ? <p className="text-sm lux-caption">Загрузка…</p> : null}
           </ul>
 
-          <p className="kpi-course-note hidden sm:block">
+          <p className="hidden text-sm text-[var(--mo-text-muted)] sm:block">
             Прошлые оплаты остаются у прежнего менеджера. Новая доплата идёт выбранному.
           </p>
-          <div className="kpi-course-scroll hidden sm:block">
-            <table className="kpi-data-table kpi-course-sheet">
-              <colgroup>
-                <col className="kpi-course-col-date" />
-                <col className="kpi-course-col-product" />
-                <col className="kpi-course-col-num" />
-                <col className="kpi-course-col-num" />
-                <col className="kpi-course-col-manager" />
-                <col className="kpi-course-col-client" />
-                <col className="kpi-course-col-phone" />
-                <col className="kpi-course-col-sum" />
-                <col className="kpi-course-col-paid" />
-                <col className="kpi-course-col-debt" />
-                <col className="kpi-course-col-actions" />
-              </colgroup>
+          <div className="mo-table-scroll hidden rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)] sm:block">
+            <table className="w-full min-w-[1100px] text-left text-sm">
               <thead>
-                <tr>
-                  <th>Дата</th>
-                  <th>Продукт</th>
-                  <th>Поток</th>
-                  <th>Этап</th>
-                  <th>Менеджер</th>
-                  <th>Клиент</th>
-                  <th>Телефон</th>
-                  <th>Сумма</th>
-                  <th>Оплачено</th>
-                  <th>Долг</th>
-                  <th className="print-omit">Действие</th>
+                <tr className="border-b border-[var(--mo-border)] text-[11px] uppercase tracking-wide mo-muted">
+                  <th className="px-3 py-2 font-medium">Дата</th>
+                  <th className="px-3 py-2 font-medium">Курс</th>
+                  <th className="px-3 py-2 font-medium">Поток</th>
+                  <th className="px-3 py-2 font-medium">Этап</th>
+                  <th className="px-3 py-2 font-medium">Менеджер</th>
+                  <th className="px-3 py-2 font-medium">Пациент</th>
+                  <th className="px-3 py-2 font-medium">Телефон</th>
+                  <th className="px-3 py-2 font-medium">Сумма</th>
+                  <th className="px-3 py-2 font-medium">Оплачено</th>
+                  <th className="px-3 py-2 font-medium">Долг</th>
+                  <th className="print-omit px-3 py-2 font-medium">Оплата</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredManualSales.map((s) => (
-                  <tr key={s.id}>
-                    <td className="tabular-nums">
+                  <tr key={s.id} className="border-b border-[var(--mo-border)]">
+                    <td className="whitespace-nowrap px-3 py-2 tabular-nums">
                       {s.sold_at ? formatSaleDtCompact(s.sold_at) : "—"}
                     </td>
-                    <td title={s.plan_item_name}>{s.plan_item_name}</td>
-                    <td>
+                    <td className="px-3 py-2">{s.plan_item_name}</td>
+                    <td className="whitespace-nowrap px-3 py-2">
                       {isAdminOrOwner ? (
                         <SaleNumberSelect
                           value={s.group_no}
                           options={KPI_GROUP_OPTIONS}
                           label={`Поток ${s.client_name}`}
+                          optionLabel={(n) => `Поток ${n}`}
                           pending={changeSaleFlow.isPending}
                           onPick={(groupNo) =>
                             changeSaleFlow.mutate({
@@ -2016,15 +2026,16 @@ export function KpiPage() {
                           }
                         />
                       ) : (
-                        <span className="tabular-nums">{s.group_no && Number(s.group_no) > 0 ? s.group_no : "—"}</span>
+                        groupLabel(s.group_no)
                       )}
                     </td>
-                    <td>
+                    <td className="whitespace-nowrap px-3 py-2">
                       {isAdminOrOwner ? (
                         <SaleNumberSelect
                           value={s.stream_no}
                           options={KPI_STREAM_OPTIONS}
                           label={`Этап ${s.client_name}`}
+                          optionLabel={(n) => `Этап ${n}`}
                           pending={changeSaleFlow.isPending}
                           onPick={(streamNo) =>
                             changeSaleFlow.mutate({
@@ -2035,15 +2046,16 @@ export function KpiPage() {
                           }
                         />
                       ) : (
-                        <span className="tabular-nums">{s.stream_no && Number(s.stream_no) > 0 ? s.stream_no : "—"}</span>
+                        streamLabel(s.stream_no)
                       )}
                     </td>
-                    <td>
+                    <td className="px-3 py-2">
                       {isAdminOrOwner ? (
                         <SaleManagerCell
                           sale={s}
                           managers={managers}
                           pending={changeSaleManager.isPending}
+                          plain
                           onPick={(managerId) => changeSaleManager.mutate({ id: s.id, managerId })}
                           onUseLead={() => changeSaleManager.mutate({ id: s.id, useLead: true })}
                         />
@@ -2051,33 +2063,11 @@ export function KpiPage() {
                         s.manager_name
                       )}
                     </td>
-                    <td className="font-medium" title={s.client_name}>{s.client_name}</td>
-                    <td className="tabular-nums" title={s.client_phone}>{s.client_phone}</td>
-                    <td className="tabular-nums kpi-course-pay">
-                      <div className="kpi-sum-pay">
-                        <span className="kpi-pay-pack__sum">{sheetMoney(s.service_amount)}</span>
-                        {s.status === "active" && num(s.debt_amount) > 0 ? (
-                          <ManualPayPack
-                            showPaid={false}
-                            paid={num(s.paid_amount)}
-                            draft={payDraft[s.id] ?? ""}
-                            date={payDates[s.id] || todayYmd()}
-                            pending={payMutation.isPending}
-                            onDraft={(value) => setPayDraft((prev) => ({ ...prev, [s.id]: value }))}
-                            onDate={(value) => setPayDates((prev) => ({ ...prev, [s.id]: value }))}
-                            onOk={() =>
-                              payMutation.mutate({
-                                id: s.id,
-                                add: Number(payDraft[s.id] || 0),
-                                paid_at: payDates[s.id] || todayYmd(),
-                              })
-                            }
-                          />
-                        ) : null}
-                      </div>
-                    </td>
-                    <td className="tabular-nums kpi-course-paid">
-                      {sheetMoney(s.paid_amount)}
+                    <td className="px-3 py-2 font-medium">{s.client_name}</td>
+                    <td className="px-3 py-2 tabular-nums">{s.client_phone || "—"}</td>
+                    <td className="whitespace-nowrap px-3 py-2 tabular-nums">{formatMoney(num(s.service_amount))}</td>
+                    <td className="whitespace-nowrap px-3 py-2 tabular-nums">
+                      {formatMoney(num(s.paid_amount))}
                       {isCompanyOwner && s.status === "active" ? (
                         <OwnerPaidAdjust
                           paid={num(s.paid_amount)}
@@ -2086,6 +2076,36 @@ export function KpiPage() {
                           onApply={(body) => adjustPaidMutation.mutate({ id: s.id, ...body })}
                         />
                       ) : null}
+                    </td>
+                    <td className="px-3 py-2">
+                      <span className={["kpi-debt", num(s.debt_amount) <= 0 ? "is-zero" : ""].filter(Boolean).join(" ")}>
+                        {formatMoney(num(s.debt_amount))}
+                      </span>
+                      {s.status === "returned" ? <div className="text-[10px] mo-muted">возврат</div> : null}
+                      {s.status === "refused" ? <div className="text-[10px] mo-muted">отказ</div> : null}
+                      {s.status === "completed" ? <div className="text-[10px] mo-muted">завершён</div> : null}
+                    </td>
+                    <td className="print-omit px-3 py-2">
+                      {s.status === "active" && num(s.debt_amount) > 0 ? (
+                        <ManualPayPack
+                          showPaid={false}
+                          paid={num(s.paid_amount)}
+                          draft={payDraft[s.id] ?? ""}
+                          date={payDates[s.id] || todayYmd()}
+                          pending={payMutation.isPending}
+                          onDraft={(value) => setPayDraft((prev) => ({ ...prev, [s.id]: value }))}
+                          onDate={(value) => setPayDates((prev) => ({ ...prev, [s.id]: value }))}
+                          onOk={() =>
+                            payMutation.mutate({
+                              id: s.id,
+                              add: Number(payDraft[s.id] || 0),
+                              paid_at: payDates[s.id] || todayYmd(),
+                            })
+                          }
+                        />
+                      ) : (
+                        <span className="text-[var(--mo-text-muted)]">—</span>
+                      )}
                       <PaymentDecisions
                         dense
                         sale={s}
@@ -2095,26 +2115,6 @@ export function KpiPage() {
                           confirmPayMutation.mutate({ saleId, paymentId, confirmed })
                         }
                       />
-                    </td>
-                    <td>
-                      <span className={["kpi-debt", num(s.debt_amount) <= 0 ? "is-zero" : ""].filter(Boolean).join(" ")}>
-                        {sheetMoney(s.debt_amount)}
-                      </span>
-                    </td>
-                    <td className="kpi-course-act print-omit">
-                      {isAdminOrOwner && s.status === "active" ? (
-                        <SaleRowActionsMenu
-                          onReturn={() => {
-                            if (window.confirm("Отметить возврат и снять с KPI?")) {
-                              returnMutation.mutate(s.id);
-                            }
-                          }}
-                          onRefuse={() => askCloseSale(s.id, "refused")}
-                          onComplete={() => askCloseSale(s.id, "completed")}
-                        />
-                      ) : (
-                        "—"
-                      )}
                     </td>
                   </tr>
                 ))}
@@ -2126,6 +2126,13 @@ export function KpiPage() {
             {manualQuery.isLoading ? <p className="mt-2 text-sm lux-caption">Загрузка…</p> : null}
           </div>
         </section>
+        <div className="mt-4">
+          <ProtocolQueuePanel
+            enabled
+            canReassign={role === "admin" || role === "administrator" || isCompanyOwner}
+          />
+        </div>
+        </>
       ) : null}
 
       {tab === "debtors" && (isAdminOrOwner || isCurator) ? (

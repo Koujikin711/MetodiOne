@@ -505,17 +505,6 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         iconKey: "user-round",
       });
     }
-    if (isManagerNav) {
-      items.push({
-        id: "sales-control",
-        to: "/sales-control",
-        title: "Контроль продаж",
-        labelShort: "Контроль",
-        labelFull: "Контроль продаж",
-        variant: "platform",
-        iconKey: "clipboard-list",
-      });
-    }
     if (showNavForFeature("tasks")) {
       items.push({
         id: "tasks",
@@ -773,15 +762,6 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       iconKey: "target",
     });
   }
-  items.push({
-    id: "sales-control",
-    to: "/sales-control",
-    title: "Контроль продаж",
-    labelShort: "Контроль",
-    labelFull: "Контроль продаж",
-    variant: "platform",
-    iconKey: "clipboard-list",
-  });
   items.push(curatorJournalNavItem());
   if (showNavForFeature("analytics")) {
     items.push({

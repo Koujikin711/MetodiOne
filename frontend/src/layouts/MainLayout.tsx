@@ -716,24 +716,7 @@ export function MainLayout() {
                   </span>
                 </NavLink>
               </NavIf>
-              {role === "manager" || role === "admin" ? (
-                <NavLink
-                  preventScrollReset
-                  to="/sales-control"
-                  className={managerChatFirst ? salesMobileBottomNavLinkClass : mobileBottomNavLinkClass}
-                  title="Контроль продаж"
-                >
-                  <GradientIconBox
-                    variant="platform"
-                    className={managerChatFirst ? "h-7 w-7 [&_svg]:h-3.5 [&_svg]:w-3.5" : "h-9 w-9 [&_svg]:h-4 [&_svg]:w-4"}
-                  >
-                    <ClipboardList className={managerChatFirst ? "h-3.5 w-3.5" : "h-4 w-4"} />
-                  </GradientIconBox>
-                  <span className={managerChatFirst ? "max-w-full truncate text-[9px] leading-tight" : "text-[9px]"}>
-                    {managerChatFirst ? "Контроль" : "Контроль продаж"}
-                  </span>
-                </NavLink>
-              ) : (
+              {role === "manager" || role === "admin" ? null : (
                 <NavIf show={showNavForFeature("crm")}>
                   <NavLink
                     preventScrollReset
