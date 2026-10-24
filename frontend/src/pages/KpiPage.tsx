@@ -2747,7 +2747,7 @@ function CompanyReportSection({
         </p>
       </section>
 
-      {import.meta.env.DEV ? <CompanyMonthCompare yearMonth={data.year_month} /> : null}
+      <CompanyMonthCompare pipelineId={data.pipeline_id} yearMonth={data.year_month} />
 
       <section className="mo-section p-4">
         <h3 className="mb-1 text-lg font-semibold text-[var(--mo-text)]">План компании по продуктам</h3>

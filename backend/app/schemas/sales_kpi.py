@@ -448,6 +448,20 @@ class SalesKpiCompanyServiceStat(BaseModel):
     creditor_amount: Decimal = Decimal("0")
 
 
+class SalesKpiMonthCompareService(BaseModel):
+    name: str
+    revenue: list[Decimal]
+    sales: list[int]
+
+
+class SalesKpiMonthCompare(BaseModel):
+    year_month: str
+    labels: list[str]
+    revenue: list[Decimal]
+    sales: list[int]
+    services: list[SalesKpiMonthCompareService]
+
+
 class SalesKpiCompanyReport(BaseModel):
     pipeline_id: int
     pipeline_name: str

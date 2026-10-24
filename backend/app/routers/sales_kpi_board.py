@@ -39,6 +39,7 @@ from app.models import (
     UserPipelineAssignment,
     UserRole,
 )
+from app.services.company_month_compare import build_month_compare, month_starts
 from app.services.crm_space import company_is_sales_mode
 from app.services.payroll_facts import load_referral_rows
 from app.services.debtor_collection import (
@@ -67,6 +68,8 @@ from app.schemas.sales_kpi import (
     SalesKpiManualSaleFlowPatch,
     SalesKpiManualSaleLinkLeadPatch,
     SalesKpiManualSaleManagerPatch,
+    SalesKpiMonthCompare,
+    SalesKpiMonthCompareService,
     SalesKpiManualSaleOut,
     SalesKpiManualSalePaymentOut,
     SalesKpiManualSalePaymentPatch,
@@ -2602,6 +2605,96 @@ async def save_debtor_note(
         comment=comment,
         promised_on=body.promised_on,
         promise_overdue=promise_is_overdue(body.promised_on, today),
+    )
+
+
+@router.get("/company-month-compare", response_model=SalesKpiMonthCompare)
+async def company_month_compare(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    pipeline_id: int = Query(..., ge=1),
+    year_month: str = Query(..., description="YYYY-MM"),
+) -> SalesKpiMonthCompare:
+    """Шесть месяцев до выбранного: касса визитов и число записей. Без полного отчёта."""
+    _assert_kpi_access(current_user)
+    _assert_company_report_access(current_user)
+    await _load_pipeline(db, company_id, pipeline_id)
+    try:
+        ym = parse_year_month(year_month)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    months = month_starts(ym)
+    window_start, _ = month_bounds(months[0])
+    _, window_end = month_bounds(months[-1])
+    sales_mode = await company_is_sales_mode(db, company_id)
+    visits: list[tuple] = []
+    if sales_mode:
+        desk_rows = (
+            await db.execute(
+                select(
+                    ManagerDeskSale.paid_amount,
+                    ManagerDeskSale.sold_at,
+                ).where(
+                    ManagerDeskSale.company_id == company_id,
+                    ManagerDeskSale.status == "active",
+                    ManagerDeskSale.sold_at >= window_start,
+                    ManagerDeskSale.sold_at < window_end,
+                    or_(
+                        ManagerDeskSale.pipeline_id == pipeline_id,
+                        ManagerDeskSale.pipeline_id.is_(None),
+                    ),
+                ),
+            )
+        ).all()
+        visits = [
+            (paid, "completed", sold_at, sold_at, "Продажи стола")
+            for paid, sold_at in desk_rows
+        ]
+    else:
+        appt_rows = (
+            await db.execute(
+                select(
+                    BookingAppointment.paid_amount,
+                    BookingAppointment.status,
+                    BookingAppointment.start_at,
+                    BookingAppointment.paid_at,
+                    BookingDirection.name,
+                )
+                .join(BookingDirection, BookingDirection.id == BookingAppointment.direction_id)
+                .outerjoin(Lead, Lead.id == BookingAppointment.lead_id)
+                .outerjoin(PipelineStage, PipelineStage.id == Lead.status_id)
+                .where(
+                    BookingAppointment.company_id == company_id,
+                    or_(
+                        and_(
+                            BookingAppointment.start_at >= window_start,
+                            BookingAppointment.start_at < window_end,
+                        ),
+                        and_(
+                            BookingAppointment.paid_at.is_not(None),
+                            BookingAppointment.paid_at >= window_start,
+                            BookingAppointment.paid_at < window_end,
+                        ),
+                    ),
+                    or_(
+                        BookingAppointment.pipeline_id == pipeline_id,
+                        PipelineStage.pipeline_id == pipeline_id,
+                        BookingDirection.pipeline_id == pipeline_id,
+                    ),
+                ),
+            )
+        ).all()
+        visits = list(appt_rows)
+
+    built = build_month_compare(ym, visits)
+    return SalesKpiMonthCompare(
+        year_month=ym.isoformat()[:7],
+        labels=built["labels"],
+        revenue=built["revenue"],
+        sales=built["sales"],
+        services=[SalesKpiMonthCompareService(**row) for row in built["services"]],
     )
 
 

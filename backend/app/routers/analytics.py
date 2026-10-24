@@ -29,6 +29,11 @@ from app.models import (
     UserPipelineAssignment,
     UserRole,
 )
+from app.services.analytics_overview_money import (
+    PRIOR_VISIT_DEBT_NAME,
+    overview_visit_money,
+    prior_visit_debt,
+)
 from app.services.booking_directions import is_admin_only_booking_direction_name
 from app.services.sales_kpi_weighted import (
     booking_debt_cutoff,
@@ -762,33 +767,35 @@ async def analytics_overview(
         prev_sold, prev_paid = lead_money.get(lid, (Decimal("0"), Decimal("0")))
         lead_money[lid] = (prev_sold + sold_dec, prev_paid + paid_dec)
 
-    # Карточки руководства: деньги визитов этого срока и платежи курсов, не только новые лиды.
+    # Карточки руководства: тот же набор визитов, что у «Услуг».
+    # Пакет «Курс»/«Протокол» не прибавляем — его деньги уже в оплате KPI.
     visit_filters = [
         BookingAppointment.company_id == company_id,
         BookingAppointment.start_at >= start,
         BookingAppointment.start_at < end,
     ]
-    if pipeline_id is not None:
-        visit_filters.append(BookingAppointment.pipeline_id == pipeline_id)
-    visit_paid, visit_debt = (
-        await db.execute(
-            select(
-                func.coalesce(func.sum(BookingAppointment.paid_amount), 0),
-                func.coalesce(
-                    func.sum(
-                        case(
-                            (
-                                BookingAppointment.service_amount > BookingAppointment.paid_amount,
-                                BookingAppointment.service_amount - BookingAppointment.paid_amount,
-                            ),
-                            else_=0,
-                        )
-                    ),
-                    0,
-                ),
-            ).where(*visit_filters)
+    visit_q = (
+        select(
+            BookingAppointment.paid_amount,
+            BookingAppointment.service_amount,
+            BookingAppointment.status,
+            BookingDirection.name,
         )
-    ).one()
+        .join(BookingDirection, BookingDirection.id == BookingAppointment.direction_id)
+        .outerjoin(Lead, Lead.id == BookingAppointment.lead_id)
+        .outerjoin(PipelineStage, PipelineStage.id == Lead.status_id)
+        .where(*visit_filters)
+    )
+    if pipeline_id is not None:
+        visit_q = visit_q.where(
+            or_(
+                BookingAppointment.pipeline_id == pipeline_id,
+                PipelineStage.pipeline_id == pipeline_id,
+                BookingDirection.pipeline_id == pipeline_id,
+            ),
+        )
+    visit_rows = (await db.execute(visit_q)).all()
+    visit_paid, visit_debt = overview_visit_money(list(visit_rows))
     course_filters = [
         SalesKpiManualSalePayment.company_id == company_id,
         SalesKpiManualSalePayment.paid_at >= start,
@@ -1865,6 +1872,16 @@ async def analytics_services(
         or Decimal(str(row["revenue_paid"])) > 0
         or Decimal(str(row["debtor_amount"])) > 0
     ]
+    shown_debt = sum((row.debtor_amount for row in service_stats), Decimal("0"))
+    earlier_debt = prior_visit_debt(debtor_total, shown_debt)
+    if earlier_debt > 0:
+        service_stats.append(
+            ServicesAnalyticsServiceRow(
+                direction_name=PRIOR_VISIT_DEBT_NAME,
+                money_source="booking",
+                debtor_amount=earlier_debt,
+            ),
+        )
 
     expert_roll: dict[int, dict] = {}
     for row in expert_acc.values():

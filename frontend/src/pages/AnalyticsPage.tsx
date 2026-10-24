@@ -292,10 +292,11 @@ export function AnalyticsPage() {
     staleTime: Infinity,
   });
 
-  const chartServices =
+  const serviceRows =
     !servicesLiveEmpty && servicesQuery.data
       ? (servicesQuery.data.service_stats ?? [])
       : (snapshotQuery.data?.service_stats ?? []);
+  const chartServices = serviceRows.filter((row) => row.direction_name !== "Долг прошлых месяцев");
   const chartExperts =
     !servicesLiveEmpty && servicesQuery.data
       ? (servicesQuery.data.expert_stats ?? [])
@@ -462,7 +463,7 @@ export function AnalyticsPage() {
           <button
             type="button"
             onClick={() => {
-              if (servicesMode && chartServices.length) {
+              if (servicesMode && serviceRows.length) {
                 const stamp =
                   servicesQuery.data?.date_from && servicesQuery.data?.date_to
                     ? `${servicesQuery.data.date_from}_${servicesQuery.data.date_to}`
@@ -480,7 +481,7 @@ export function AnalyticsPage() {
                     "Всего оплат",
                     "Дебиторка",
                   ],
-                  chartServices.map((s) => [
+                  serviceRows.map((s) => [
                     s.direction_name,
                     s.appointments_total,
                     s.appeared_count,
@@ -663,14 +664,14 @@ export function AnalyticsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {chartServices.length === 0 ? (
+                    {serviceRows.length === 0 ? (
                       <tr>
                         <td colSpan={9} className="analytics-empty-cell">
                           Нет записей за месяц
                         </td>
                       </tr>
                     ) : (
-                      chartServices.map((s) => (
+                      serviceRows.map((s) => (
                         <tr key={`${s.money_source ?? "booking"}-${s.direction_id ?? s.direction_name}`}>
                           <td className="py-2.5 pr-3 font-medium">
                             {s.direction_name}
@@ -779,13 +780,13 @@ export function AnalyticsPage() {
                   label="Оплачено"
                   value={moneyFmt.format(Number(overviewQuery.data.executive.paid_amount))}
                   tone="success"
-                  hint="Визиты этого срока и платежи курсов"
+                  hint="Как в услугах: визиты без пакетов «Курс» и «Протокол», плюс оплаты KPI"
                 />
                 <MetricCard
                   label="Не оплачено"
                   value={moneyFmt.format(Number(overviewQuery.data.executive.unpaid_amount))}
                   tone="warning"
-                  hint="Долг по визитам этого срока"
+                  hint="Долг визитов этого срока, без пакетов курса и протокола"
                 />
                 <MetricCard
                   label="Ответ в чате"
