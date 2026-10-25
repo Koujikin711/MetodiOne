@@ -73,13 +73,11 @@ export function CrmToolbar({
           </button>
           {isCompanyAdmin && onDownloadBase ? (
             <button type="button" onClick={onDownloadBase} className="crm-pill-btn">
-              <span className="hidden sm:inline">Скачать базу</span>
-              <span className="sm:hidden">База</span>
+              Экспорт
             </button>
           ) : null}
           <button type="button" onClick={onImport} className="crm-pill-btn">
-            <span className="hidden sm:inline">Загрузить базу</span>
-            <span className="sm:hidden">CSV</span>
+            Импорт
           </button>
         </div>
       </div>

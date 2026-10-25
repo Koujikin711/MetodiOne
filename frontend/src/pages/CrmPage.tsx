@@ -1922,7 +1922,7 @@ export function CrmPage() {
             `/api/pipelines/${pipelineId}/export-leads`,
             `baza_${pipelineId}.csv`,
           )
-            .then(() => toast.success("База скачана. Этот файл можно загрузить обратно."))
+            .then(() => toast.success("Экспорт скачан. Этот файл можно загрузить через «Импорт»."))
             .catch((e: Error) => toast.error(e.message));
         }}
         pipelines={pipelinesQuery.data}
@@ -2790,7 +2790,7 @@ export function CrmPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl crm-modal-panel border p-6 shadow-2xl">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="lux-subheading">Загрузить базу</h2>
+              <h2 className="lux-subheading">Импорт</h2>
               <button
                 type="button"
                 onClick={() => {
@@ -2805,7 +2805,7 @@ export function CrmPage() {
             </div>
 
             <p className="mt-3 text-sm leading-relaxed lux-caption">
-              Файл с кнопки «Скачать базу» загружается обратно в эту воронку: ФИО, телефон, дополнительные
+              Файл с кнопки «Экспорт» загружается обратно в эту воронку: ФИО, телефон, дополнительные
               номера, источник, стадия, менеджер и причина отказа. Стадии с теми же названиями должны уже быть
               в воронке, менеджеры — заведены с той же почтой. Номер, который уже есть, пропускается. Визиты,
               переписка и оплаты этим файлом не восстанавливаются. Подойдёт и CSV из Битрикс24. За один раз
