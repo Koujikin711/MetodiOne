@@ -220,8 +220,12 @@ html[data-chat-composing="1"] nav[aria-label="Основная навигаци�
 
   html[data-chat-composing="1"] .shell-main > * {
     min-height: 0;
-    height: 100%;
-    max-height: 100%;
+  }
+
+  html[data-chat-composing="1"] .shell-main > .shell-tools {
+    flex: 0 0 auto;
+    height: auto;
+    max-height: none;
   }
 
   html[data-chat-composing="1"] [data-chat-page] {
