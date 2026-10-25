@@ -118,10 +118,6 @@ function AccountBars({ brands }: { brands: Brand[] }) {
     <section className="mkt-chart-card mkt-modern">
       <div className="mkt-modern__head">
         <h3>Новые подписчики по аккаунтам</h3>
-        <div className="mkt-modern__legend">
-          <span><i className="is-followers" /> Подписчики</span>
-          <span><i className="is-leads" /> Лиды</span>
-        </div>
       </div>
       {!has ? (
         <p className="text-sm mo-muted">Нет данных</p>
@@ -130,8 +126,8 @@ function AccountBars({ brands }: { brands: Brand[] }) {
           {rows.map((row) => (
             <li key={row.name}>
               <div className="mkt-modern__account-name">{row.name}</div>
-              <Meter value={row.followers} max={max} kind="followers" />
-              <Meter value={row.leads} max={max} kind="leads" />
+              <Meter label="Подписчики" value={row.followers} max={max} kind="followers" />
+              <Meter label="Лиды" value={row.leads} max={max} kind="leads" />
             </li>
           ))}
         </ul>
@@ -140,10 +136,24 @@ function AccountBars({ brands }: { brands: Brand[] }) {
   );
 }
 
-function Meter({ value, max, kind }: { value: number; max: number; kind: "followers" | "leads" }) {
-  const width = value <= 0 ? 0 : Math.max(4, Math.round((value / max) * 100));
+function Meter({
+  label,
+  value,
+  max,
+  kind,
+}: {
+  label: string;
+  value: number;
+  max: number;
+  kind: "followers" | "leads" | "answered" | "sold" | "rejected";
+}) {
+  const width = value <= 0 ? 0 : Math.max(3, (value / max) * 100);
   return (
     <div className="mkt-modern__meter">
+      <span className="mkt-modern__meter-label">
+        <i className={`is-${kind}`} />
+        {label}
+      </span>
       <div className="mkt-modern__meter-track">
         <div className={`mkt-modern__fill is-${kind}`} style={{ width: `${width}%` }} />
       </div>
@@ -162,32 +172,22 @@ function ManagerBars({ managers }: { managers: Manager[] }) {
     }))
     .map((row) => ({ ...row, sum: row.answered + row.sold + row.rejected }))
     .filter((row) => row.sum > 0);
-  const max = Math.max(1, ...rows.map((row) => row.sum));
+  const max = Math.max(1, ...rows.flatMap((row) => [row.answered, row.sold, row.rejected]));
   return (
     <section className="mkt-chart-card mkt-modern">
       <div className="mkt-modern__head">
         <h3>Конверсия менеджеров</h3>
-        <div className="mkt-modern__legend">
-          <span><i className="is-answered" /> Ответили</span>
-          <span><i className="is-sold" /> Продали</span>
-          <span><i className="is-rejected" /> Отказ</span>
-        </div>
       </div>
       {rows.length === 0 ? (
         <p className="text-sm mo-muted">За период ответов и продаж с рекламы нет</p>
       ) : (
-        <ul className="mkt-modern__people">
+        <ul className="mkt-modern__accounts">
           {rows.map((row) => (
             <li key={row.name}>
-              <span className="mkt-modern__who" title={row.name}>{row.name}</span>
-              <span className="mkt-modern__track" aria-hidden>
-                <span className="mkt-modern__stack" style={{ width: `${Math.max(8, (row.sum / max) * 100)}%` }}>
-                  {row.answered > 0 ? <span className="is-answered" style={{ flex: row.answered }} /> : null}
-                  {row.sold > 0 ? <span className="is-sold" style={{ flex: row.sold }} /> : null}
-                  {row.rejected > 0 ? <span className="is-rejected" style={{ flex: row.rejected }} /> : null}
-                </span>
-              </span>
-              <span className="mkt-modern__sum">{row.sum.toLocaleString("ru-RU")}</span>
+              <div className="mkt-modern__account-name" title={row.name}>{row.name}</div>
+              <Meter label="Ответили" value={row.answered} max={max} kind="answered" />
+              <Meter label="Продали" value={row.sold} max={max} kind="sold" />
+              <Meter label="Отказ" value={row.rejected} max={max} kind="rejected" />
             </li>
           ))}
         </ul>
