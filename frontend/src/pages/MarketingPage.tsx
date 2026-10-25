@@ -99,6 +99,10 @@ function todayIso() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+function hiddenCampaignName(name: string) {
+  return name.trim().toLowerCase().replace(/\s+/g, " ") === "metodione 4";
+}
+
 export function MarketingPage() {
   const qc = useQueryClient();
   const [period, setPeriod] = useState<PeriodKind>("month");
@@ -188,11 +192,14 @@ export function MarketingPage() {
 
   const data = overviewQuery.data;
   const currency = data?.currency || settingsQuery.data?.currency || "USD";
-  const visibleCampaigns = useMemo(() => {
+  const listedCampaigns = useMemo(() => {
     const rows = data?.campaigns ?? [];
+    return rows.filter((c) => !hiddenCampaignName(c.campaign_name));
+  }, [data?.campaigns]);
+  const visibleCampaigns = useMemo(() => {
     if (!igAccount) return [];
-    return rows.filter((c) => c.brand === igAccount);
-  }, [data?.campaigns, igAccount]);
+    return listedCampaigns.filter((c) => c.brand === igAccount);
+  }, [listedCampaigns, igAccount]);
   const configured = Boolean(settingsQuery.data?.configured);
 
   function onSave(e: FormEvent) {
@@ -393,7 +400,7 @@ export function MarketingPage() {
             Клик по рекламе без открытия чата карточку не создаёт. Открытие чата с рекламы создаёт карточку сразу.
           </p>
           <MarketingCharts
-            campaigns={data.campaigns}
+            campaigns={listedCampaigns}
             brands={data.brands}
             daily={data.daily}
             managers={data.managers}
