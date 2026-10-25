@@ -413,7 +413,6 @@ function ReferralCountCell({ cell }: { cell: SalesKpiReferralServiceCell }) {
 }
 
 const KPI_GROUP_OPTIONS = Array.from({ length: 20 }, (_, i) => i + 1);
-const KPI_STREAM_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1);
 
 function groupLabel(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(Number(n)) || Number(n) < 1) return "—";
@@ -917,7 +916,6 @@ export function KpiPage() {
   const createSaleMutation = useMutation({
     mutationFn: async () => {
       if (!pipelineId) throw new Error("Выберите воронку");
-      if (!saleForm.stream_no) throw new Error("Укажите этап");
       if (!saleForm.group_no) throw new Error("Укажите поток");
       const clientName = saleForm.client_name.trim() || selectedLead?.name?.trim() || "";
       const clientPhone = saleForm.client_phone.trim() || selectedLead?.phone?.trim() || "";
@@ -929,7 +927,7 @@ export function KpiPage() {
           pipeline_id: pipelineId,
           plan_item_id: Number(saleForm.plan_item_id),
           manager_user_id: Number(saleForm.manager_user_id),
-          stream_no: Number(saleForm.stream_no),
+          stream_no: 1,
           group_no: Number(saleForm.group_no),
           client_name: clientName,
           client_phone: clientPhone,
@@ -1055,7 +1053,7 @@ export function KpiPage() {
       });
     },
     onSuccess: () => {
-      toast.success("Поток и этап сохранены");
+      toast.success("Поток сохранён");
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-manual-sales"] });
       void queryClient.invalidateQueries({ queryKey: ["curator-journal"] });
     },
@@ -1533,8 +1531,61 @@ export function KpiPage() {
                 : "Сначала владелец должен добавить продукты с источником «Курс / протокол» во вкладке «План»."}
             </p>
           ) : saleFormOpen ? (
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
-              <label className="col-span-2 flex flex-col gap-1 text-[11px] mo-muted sm:col-span-1 sm:text-sm">
+            <div className="grid max-w-5xl grid-cols-2 gap-x-2 gap-y-1.5 md:grid-cols-4">
+              <KpiLeadPicker
+                selected={selectedLead}
+                lockedFromContext={leadFromContext}
+                onSelect={(lead) => {
+                  setSelectedLead(lead);
+                  setLeadFromContext(false);
+                  if (lead) {
+                    setSaleForm((s) => ({
+                      ...s,
+                      client_name: lead.name || s.client_name,
+                      client_phone: (lead.phone || "").trim() || s.client_phone,
+                    }));
+                  }
+                }}
+              />
+              <label className="col-span-2 flex flex-col gap-0.5 text-[11px] mo-muted md:col-span-2">
+                Клиент
+                <input
+                  className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
+                  value={saleForm.client_name}
+                  placeholder="ФИО"
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setSaleForm((s) => ({ ...s, client_name: value }));
+                    setSelectedLead((cur) =>
+                      cur && value.trim() && value.trim() !== cur.name ? null : cur,
+                    );
+                    setLeadFromContext(false);
+                  }}
+                />
+              </label>
+              <label className="col-span-2 flex flex-col gap-0.5 text-[11px] mo-muted md:col-span-2">
+                Телефон
+                <input
+                  className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
+                  inputMode="tel"
+                  value={saleForm.client_phone}
+                  placeholder="Номер"
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setSaleForm((s) => ({ ...s, client_phone: value }));
+                    setSelectedLead((cur) => {
+                      if (!cur) return null;
+                      const typed = value.replace(/\D/g, "").slice(-9);
+                      const saved = (cur.phone || "").replace(/\D/g, "").slice(-9);
+                      if (typed.length >= 4 && saved && typed !== saved) return null;
+                      return cur;
+                    });
+                    setLeadFromContext(false);
+                  }}
+                />
+              </label>
+              <div className="col-span-2 grid grid-cols-2 gap-x-2 gap-y-1.5 md:col-span-4 md:grid-cols-12">
+              <label className="col-span-2 flex flex-col gap-0.5 text-[11px] mo-muted md:col-span-3">
                 Продукт
                 <select
                   className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
@@ -1549,7 +1600,7 @@ export function KpiPage() {
                   ))}
                 </select>
               </label>
-              <label className="col-span-2 flex flex-col gap-1 text-[11px] mo-muted sm:col-span-1 sm:text-sm">
+              <label className="col-span-2 flex flex-col gap-0.5 text-[11px] mo-muted md:col-span-5">
                 Менеджер
                 <select
                   className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
@@ -1570,13 +1621,13 @@ export function KpiPage() {
                   ) : null}
                 </select>
               </label>
-              <label className="flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
+              <label className="flex flex-col gap-0.5 text-[11px] mo-muted md:col-span-2">
                 Поток
                 <select
                   className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
                   value={saleForm.group_no}
                   onChange={(e) => setSaleForm((s) => ({ ...s, group_no: e.target.value }))}
-                  title="Поток — время образования"
+                  title="Один номер — один поток куратора"
                 >
                   <option value="">—</option>
                   {KPI_GROUP_OPTIONS.map((n) => (
@@ -1585,101 +1636,21 @@ export function KpiPage() {
                     </option>
                   ))}
                 </select>
-                <span className="text-[10px] leading-snug text-[var(--mo-text-muted)]">
-                  курс: один номер — один поток куратора
-                </span>
               </label>
-              <label className="flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
-                Этап
-                <select
-                  className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
-                  value={saleForm.stream_no}
-                  onChange={(e) => setSaleForm((s) => ({ ...s, stream_no: e.target.value }))}
-                  title="Этап — номер платежа"
-                >
-                  <option value="">—</option>
-                  {KPI_STREAM_OPTIONS.map((n) => (
-                    <option key={n} value={n}>
-                      Этап {n}
-                    </option>
-                  ))}
-                </select>
-                <span className="text-[10px] leading-snug text-[var(--mo-text-muted)]">номер платежа</span>
-              </label>
-              <label className="flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
-                Клиент
+              <label className="flex flex-col gap-0.5 text-[11px] mo-muted md:col-span-2">
+                Стоимость
                 <input
+                  type="number"
+                  min={0}
+                  inputMode="decimal"
                   className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
-                  value={saleForm.client_name}
-                  placeholder="ФИО — список появится ниже"
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setSaleForm((s) => ({ ...s, client_name: value }));
-                    setSelectedLead((cur) =>
-                      cur && value.trim() && value.trim() !== cur.name ? null : cur,
-                    );
-                    setLeadFromContext(false);
-                  }}
+                  value={saleForm.service_amount}
+                  onChange={(e) => setSaleForm((s) => ({ ...s, service_amount: e.target.value }))}
                 />
               </label>
-              <label className="col-span-2 flex flex-col gap-1 text-[11px] mo-muted sm:col-span-1 sm:text-sm">
-                Телефон
-                <input
-                  className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
-                  inputMode="tel"
-                  value={saleForm.client_phone}
-                  placeholder="Номер — список появится ниже"
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setSaleForm((s) => ({ ...s, client_phone: value }));
-                    setSelectedLead((cur) => {
-                      if (!cur) return null;
-                      const typed = value.replace(/\D/g, "").slice(-9);
-                      const saved = (cur.phone || "").replace(/\D/g, "").slice(-9);
-                      if (typed.length >= 4 && saved && typed !== saved) return null;
-                      return cur;
-                    });
-                    setLeadFromContext(false);
-                  }}
-                />
-              </label>
-              <KpiLeadPicker
-                selected={selectedLead}
-                lockedFromContext={leadFromContext}
-                linkedQuery={
-                  selectedLead
-                    ? ""
-                    : saleForm.client_phone.replace(/\D/g, "").length >= 4
-                      ? saleForm.client_phone.replace(/\D/g, "")
-                      : saleForm.client_name.trim().length >= 2
-                        ? saleForm.client_name.trim()
-                        : ""
-                }
-                onSelect={(lead) => {
-                  setSelectedLead(lead);
-                  setLeadFromContext(false);
-                  if (lead) {
-                    setSaleForm((s) => ({
-                      ...s,
-                      client_name: lead.name || s.client_name,
-                      client_phone: (lead.phone || "").trim() || s.client_phone,
-                    }));
-                  }
-                }}
-              />
-              <div className="kpi-sale-pays col-span-2 lg:col-span-4">
-                <label className="flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
-                  Стоимость
-                  <input
-                    type="number"
-                    min={0}
-                    inputMode="decimal"
-                    className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
-                    value={saleForm.service_amount}
-                    onChange={(e) => setSaleForm((s) => ({ ...s, service_amount: e.target.value }))}
-                  />
-                </label>
-                <label className="flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
+              </div>
+              <div className="kpi-sale-pays col-span-2 md:col-span-4">
+                <label className="flex flex-col gap-0.5 text-[11px] mo-muted">
                   Первый платёж
                   <input
                     type="number"
@@ -1690,7 +1661,7 @@ export function KpiPage() {
                     onChange={(e) => setSaleForm((s) => ({ ...s, paid_amount: e.target.value }))}
                   />
                 </label>
-                <label className="kpi-sale-pays__date flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
+                <label className="kpi-sale-pays__date flex flex-col gap-0.5 text-[11px] mo-muted">
                   Дата 1-го
                   <DateField
                     value={saleForm.first_paid_at}
@@ -1698,7 +1669,7 @@ export function KpiPage() {
                     aria-label="Дата первого платежа"
                   />
                 </label>
-                <label className="flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
+                <label className="flex flex-col gap-0.5 text-[11px] mo-muted">
                   Второй платёж
                   <input
                     type="number"
@@ -1709,7 +1680,7 @@ export function KpiPage() {
                     onChange={(e) => setSaleForm((s) => ({ ...s, second_paid_amount: e.target.value }))}
                   />
                 </label>
-                <label className="kpi-sale-pays__date flex flex-col gap-1 text-[11px] mo-muted sm:text-sm">
+                <label className="kpi-sale-pays__date flex flex-col gap-0.5 text-[11px] mo-muted">
                   Дата 2-го
                   <DateField
                     value={saleForm.second_paid_at}
@@ -1723,7 +1694,7 @@ export function KpiPage() {
                   </p>
                 )}
               </div>
-              <label className="col-span-2 flex flex-col gap-1 text-[11px] mo-muted sm:text-sm lg:col-span-4">
+              <label className="col-span-2 flex flex-col gap-0.5 text-[11px] mo-muted md:col-span-4">
                 Комментарий
                 <input
                   className="mo-input !min-h-11 text-base sm:!min-h-0 sm:text-sm"
@@ -1883,23 +1854,10 @@ export function KpiPage() {
                             })
                           }
                         />
-                        <SaleNumberSelect
-                          value={s.stream_no}
-                          options={KPI_STREAM_OPTIONS}
-                          label={`Этап ${s.client_name}`}
-                          pending={changeSaleFlow.isPending}
-                          onPick={(streamNo) =>
-                            changeSaleFlow.mutate({
-                              id: s.id,
-                              groupNo: Number(s.group_no) > 0 ? Number(s.group_no) : 1,
-                              streamNo,
-                            })
-                          }
-                        />
                       </div>
                     ) : (
                       <p className="truncate text-[11px] text-[var(--mo-text-muted)]">
-                        {groupLabel(s.group_no)} · {streamLabel(s.stream_no)}
+                        {groupLabel(s.group_no)}
                       </p>
                     )}
                   </div>
@@ -2009,7 +1967,6 @@ export function KpiPage() {
                   <th className="px-3 py-2 font-medium">Дата</th>
                   <th className="px-3 py-2 font-medium">Курс</th>
                   <th className="px-3 py-2 font-medium">Поток</th>
-                  <th className="px-3 py-2 font-medium">Этап</th>
                   <th className="px-3 py-2 font-medium">Менеджер</th>
                   <th className="px-3 py-2 font-medium">Пациент</th>
                   <th className="px-3 py-2 font-medium">Телефон</th>
@@ -2044,26 +2001,6 @@ export function KpiPage() {
                         />
                       ) : (
                         groupLabel(s.group_no)
-                      )}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2">
-                      {isAdminOrOwner ? (
-                        <SaleNumberSelect
-                          value={s.stream_no}
-                          options={KPI_STREAM_OPTIONS}
-                          label={`Этап ${s.client_name}`}
-                          optionLabel={(n) => `Этап ${n}`}
-                          pending={changeSaleFlow.isPending}
-                          onPick={(streamNo) =>
-                            changeSaleFlow.mutate({
-                              id: s.id,
-                              groupNo: Number(s.group_no) > 0 ? Number(s.group_no) : 1,
-                              streamNo,
-                            })
-                          }
-                        />
-                      ) : (
-                        streamLabel(s.stream_no)
                       )}
                     </td>
                     <td className="px-3 py-2">

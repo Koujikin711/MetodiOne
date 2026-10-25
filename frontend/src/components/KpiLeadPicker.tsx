@@ -61,7 +61,7 @@ export function KpiLeadPicker({
 
   if (selected) {
     return (
-      <div className="col-span-2 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-3 sm:col-span-2 lg:col-span-2">
+      <div className="col-span-2 rounded-lg border border-[var(--mo-border)] bg-[var(--mo-surface)] px-2.5 py-1.5 md:col-span-4">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="text-[11px] mo-muted">
@@ -91,22 +91,20 @@ export function KpiLeadPicker({
   }
 
   return (
-    <div className="col-span-2 flex flex-col gap-1 sm:col-span-2 lg:col-span-2">
-      <label className="text-[11px] mo-muted sm:text-sm">
-        Найти пациента (ФИО / телефон / Lead #)
+    <div className="kpi-patient-search col-span-2 flex flex-col gap-0.5 md:col-span-4">
+      <label className="text-[11px] mo-muted">
+        Поиск пациента
         <input
-          className="mo-input mt-1 !min-h-11 w-full text-base sm:!min-h-0 sm:text-sm"
+          type="search"
+          className="mo-input mt-0.5 !min-h-11 w-full text-base sm:!min-h-0 sm:text-sm"
           value={q}
           disabled={disabled}
-          placeholder="Начните ввод — выберите из списка"
+          placeholder="ФИО, телефон или номер карточки"
+          title="Можно не выбирать: продажа сохранится без карточки. Если номер общий, выберите нужного ребёнка."
           onChange={(e) => setQ(e.target.value)}
           autoComplete="off"
         />
       </label>
-      <p className="text-[10px] leading-snug text-[var(--mo-text-muted)]">
-        Без пациента продажа останется unresolved (можно привязать позже вручную). Один телефон ≠ один
-        ребёнок — при нескольких совпадениях выберите явно.
-      </p>
       {debounced.length >= 1 && searchQuery.isFetching ? (
         <p className="text-xs lux-caption">Поиск…</p>
       ) : null}

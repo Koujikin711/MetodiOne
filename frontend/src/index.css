@@ -7258,9 +7258,17 @@ li.is-overdue {
   border-radius: 0.4rem;
 }
 
+.kpi-patient-search input[type="search"] {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-3.5-3.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 0.65rem center;
+  background-size: 0.95rem;
+  padding-left: 2.1rem;
+}
+
 .kpi-sale-pays {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.45rem 0.5rem;
   align-items: end;
 }
