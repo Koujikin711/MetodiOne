@@ -22,13 +22,6 @@ _MESSAGING_ACTION_TYPES = (
     "onsite_conversion.total_messaging_connection",
     "onsite_conversion.messaging_conversation_started_7d",
 )
-_FOLLOW_ACTION_TYPES = (
-    "follow",
-    "onsite_conversion.follow",
-    "page_like",
-    "like",
-)
-
 BRAND_ORDER = ("Ganjina Zamiri", "MetodiClinic")
 
 # Instagram, с которых клиника запускает рекламу. Имя кампании не используется.
@@ -137,7 +130,28 @@ def _row_leads(actions: list[dict[str, Any]] | None) -> int:
 
 
 def _row_followers(actions: list[dict[str, Any]] | None) -> int:
-    return _action_value(actions, *_FOLLOW_ACTION_TYPES)
+    """Лайк поста в рекламе — не новый подписчик Instagram. Прирост берётся из insights аккаунта."""
+    del actions
+    return 0
+
+
+def follower_gains_from_daily(daily: list[tuple[str, int]], followers_now: int | None) -> tuple[int, dict[str, int]]:
+    """Сумма дневного прироста. День, куда Meta кладёт всю базу сразу, не считается."""
+    positives = sorted(value for _, value in daily if value > 0)
+    typical = positives[len(positives) // 2] if positives else 0
+    ceiling = int(followers_now * 0.5) if followers_now and followers_now > 0 else None
+    by_day: dict[str, int] = {}
+    total = 0
+    for day, value in daily:
+        if value <= 0:
+            continue
+        if ceiling is not None and value >= ceiling:
+            continue
+        if typical > 0 and value > max(500, typical * 15):
+            continue
+        by_day[day] = by_day.get(day, 0) + value
+        total += value
+    return total, by_day
 
 
 async def fetch_account_meta(token: str, ad_account_id: str) -> dict[str, Any]:
@@ -391,6 +405,75 @@ async def fetch_campaign_instagram_ids(token: str, ad_account_id: str) -> dict[s
         if ig:
             mapped[cid] = ig
     return mapped
+
+
+def _insight_day(end_time: str) -> str:
+    return str(end_time or "")[:10]
+
+
+async def fetch_instagram_follower_gains(
+    token: str,
+    ig_labels: dict[str, str],
+    *,
+    since: date,
+    until: date,
+) -> dict[str, dict[str, Any]]:
+    """Метка аккаунта → новые подписчики за период и разбивка по дням."""
+    merged: dict[str, dict[str, Any]] = {}
+    if not ig_labels or not token:
+        return merged
+    since_s = since.isoformat()
+    until_s = until.isoformat()
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        for ig_id, label in ig_labels.items():
+            if not ig_id or not label:
+                continue
+            try:
+                info_r = await client.get(
+                    f"{GRAPH_BASE}/{ig_id}",
+                    params={"fields": "followers_count", "access_token": token},
+                )
+                info = info_r.json()
+                if info_r.status_code >= 400 or not isinstance(info, dict):
+                    continue
+                now = info.get("followers_count")
+                followers_now = int(now) if isinstance(now, (int, float, str)) and str(now).isdigit() else None
+                ins_r = await client.get(
+                    f"{GRAPH_BASE}/{ig_id}/insights",
+                    params={
+                        "metric": "follower_count",
+                        "period": "day",
+                        "since": since_s,
+                        "until": until_s,
+                        "access_token": token,
+                    },
+                )
+                ins = ins_r.json()
+                if ins_r.status_code >= 400 or not isinstance(ins, dict):
+                    continue
+            except (httpx.HTTPError, TypeError, ValueError):
+                continue
+            daily: list[tuple[str, int]] = []
+            for block in ins.get("data") or []:
+                if not isinstance(block, dict):
+                    continue
+                for point in block.get("values") or []:
+                    if not isinstance(point, dict):
+                        continue
+                    day = _insight_day(str(point.get("end_time") or ""))
+                    if not day or day < since_s or day > until_s:
+                        continue
+                    try:
+                        value = int(float(point.get("value") or 0))
+                    except (TypeError, ValueError):
+                        continue
+                    daily.append((day, value))
+            total, by_day = follower_gains_from_daily(daily, followers_now)
+            bucket = merged.setdefault(label, {"total": 0, "by_day": {}})
+            bucket["total"] += total
+            for day, value in by_day.items():
+                bucket["by_day"][day] = int(bucket["by_day"].get(day, 0)) + value
+    return merged
 
 
 async def resolve_ig_account_labels(token: str, ig_ids: set[str]) -> dict[str, str]:

@@ -48,6 +48,7 @@ from app.services.meta_ads_client import (
     fetch_ad_campaigns,
     fetch_campaign_instagram_ids,
     fetch_insights_range,
+    fetch_instagram_follower_gains,
     keep_rows_for_instagram_accounts,
     merge_campaign_catalog,
     normalize_ad_account_id,
@@ -455,21 +456,33 @@ async def meta_overview(
             until=until,
             brand_by_campaign=brand_by_campaign,
         )
+        follower_gains = await fetch_instagram_follower_gains(
+            token, ig_labels, since=since, until=until
+        )
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Meta API: {e}") from e
 
     summary = summarize_rows(rows)
+    follower_total = sum(int(item.get("total") or 0) for item in follower_gains.values())
     camps = [MarketingCampaignRow(**c) for c in campaign_rows(rows)]
-    brands = [MarketingBrandRow(**b) for b in brand_subscriber_rows(rows)]
+    brand_rows = brand_subscriber_rows(rows)
+    for brand in brand_rows:
+        gained = follower_gains.get(str(brand.get("account") or ""))
+        brand["followers"] = int(gained["total"]) if gained else 0
+    brands = [MarketingBrandRow(**b) for b in brand_rows]
     daily_pts: list[MarketingDailyPoint] = []
     for d in daily_series(rows):
         try:
+            day_key = str(d["date"])[:10]
+            day_followers = sum(
+                int((item.get("by_day") or {}).get(day_key) or 0) for item in follower_gains.values()
+            )
             daily_pts.append(
                 MarketingDailyPoint(
-                    date=date.fromisoformat(str(d["date"])),
+                    date=date.fromisoformat(day_key),
                     spend=d["spend"],
                     leads=int(d["leads"]),
-                    followers=int(d["followers"]),
+                    followers=day_followers,
                     clicks=int(d["clicks"]),
                     impressions=int(d["impressions"]),
                 )
@@ -493,7 +506,7 @@ async def meta_overview(
         impressions=summary["impressions"],
         clicks=summary["clicks"],
         leads=summary["leads"],
-        followers=int(summary.get("followers") or 0),
+        followers=follower_total,
         cost_per_lead=summary["cost_per_lead"],
         campaigns=camps,
         brands=brands,

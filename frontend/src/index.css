@@ -5895,6 +5895,297 @@ fieldset.extra-services-field {
   padding: 0.55rem 0.65rem;
   box-shadow: none;
 }
+
+.mkt-advice {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.mkt-advice__warn {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-start;
+  border-radius: 1rem;
+  border: 1px solid color-mix(in srgb, var(--mo-warning) 40%, var(--mo-border));
+  background:
+    linear-gradient(100deg, color-mix(in srgb, var(--mo-warning) 14%, transparent), transparent 46%),
+    var(--mo-surface);
+  box-shadow: inset 3px 0 0 var(--mo-warning);
+  padding: 0.8rem 0.95rem;
+}
+
+.mkt-advice__warn-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-top: 0.22rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--mo-warning);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--mo-warning) 20%, transparent);
+}
+
+.mkt-advice__warn h3 {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mo-warning);
+}
+
+.mkt-advice__warn ul {
+  margin: 0.28rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.mkt-advice__calm,
+.mkt-advice__empty {
+  margin: 0;
+  border-radius: 1rem;
+  border: 1px solid var(--mo-border);
+  background: var(--mo-surface);
+  padding: 0.75rem 0.9rem;
+  font-size: 0.84rem;
+  color: var(--mo-text-muted);
+}
+
+.mkt-advice__empty {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.mkt-advice__notes {
+  display: grid;
+  gap: 0.55rem;
+}
+
+@media (min-width: 800px) {
+  .mkt-advice__notes {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.mkt-advice__note {
+  border-radius: 1rem;
+  border: 1px solid var(--mo-border);
+  background: var(--mo-surface);
+  padding: 0.75rem 0.9rem;
+}
+
+.mkt-advice__note--forecast {
+  border-color: color-mix(in srgb, var(--mo-accent) 32%, var(--mo-border));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--mo-accent) 12%, transparent), transparent 72%),
+    var(--mo-surface);
+}
+
+.mkt-advice__kicker {
+  display: block;
+  margin-bottom: 0.28rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mo-text-muted);
+}
+
+.mkt-advice__note--forecast .mkt-advice__kicker {
+  color: var(--mo-accent);
+}
+
+.mkt-advice__note p {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.mkt-advice__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.mkt-advice__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0 0.15rem;
+}
+
+.mkt-advice__title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+.mkt-advice__count {
+  min-width: 1.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--mo-border);
+  padding: 0.05rem 0.45rem;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--mo-text-muted);
+}
+
+.mkt-advice__cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 6.2rem 4.4rem 5.4rem;
+  column-gap: 1rem;
+  align-items: center;
+}
+
+.mkt-advice__cols--head {
+  padding: 0 0.95rem;
+  font-size: 0.66rem;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--mo-text-muted);
+}
+
+.mkt-advice__cols--head span:not(:first-child) {
+  text-align: right;
+}
+
+.mkt-advice__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mkt-advice__row {
+  padding: 0.72rem 0.95rem;
+  border-radius: 1rem;
+  border: 1px solid var(--mo-border);
+  background: var(--mo-surface);
+}
+
+.mkt-advice__row.is-stop {
+  box-shadow: inset 3px 0 0 var(--mo-warning);
+  background: color-mix(in srgb, var(--mo-warning) 7%, transparent);
+}
+
+.mkt-advice__row.is-keep {
+  box-shadow: inset 3px 0 0 var(--mo-success);
+}
+
+.mkt-advice__row.is-hold {
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--mo-text-muted) 55%, transparent);
+}
+
+.mkt-advice__row.is-wait {
+  box-shadow: inset 3px 0 0 var(--mo-border-strong);
+}
+
+.mkt-advice__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.55rem;
+}
+
+.mkt-advice__chip {
+  border-radius: 999px;
+  border: 1px solid var(--mo-border);
+  padding: 0.12rem 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  line-height: 1.35;
+}
+
+.mkt-advice__row.is-stop .mkt-advice__chip {
+  color: var(--mo-warning);
+  border-color: color-mix(in srgb, var(--mo-warning) 45%, var(--mo-border));
+  background: color-mix(in srgb, var(--mo-warning) 14%, transparent);
+}
+
+.mkt-advice__row.is-keep .mkt-advice__chip {
+  color: var(--mo-success);
+  border-color: color-mix(in srgb, var(--mo-success) 42%, var(--mo-border));
+  background: color-mix(in srgb, var(--mo-success) 12%, transparent);
+}
+
+.mkt-advice__row.is-hold .mkt-advice__chip,
+.mkt-advice__row.is-wait .mkt-advice__chip {
+  color: var(--mo-text-muted);
+}
+
+.mkt-advice__name {
+  font-size: 0.92rem;
+  font-weight: 650;
+}
+
+.mkt-advice__why {
+  margin: 0.18rem 0 0;
+  font-size: 0.78rem;
+  color: var(--mo-text-muted);
+}
+
+.mkt-advice__num {
+  text-align: right;
+  font-size: 0.86rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.mkt-advice__row.is-stop .mkt-advice__num:last-child {
+  color: var(--mo-warning);
+}
+
+@media (max-width: 720px) {
+  .mkt-advice__cols {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    row-gap: 0.35rem;
+  }
+
+  .mkt-advice__main,
+  .mkt-advice__cols--head span:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .mkt-advice__cols--head span:first-child {
+    display: none;
+  }
+}
+
+.mkt-pie-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  margin: 0.15rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mkt-pie-legend li {
+  display: grid;
+  grid-template-columns: 0.65rem minmax(0, 1fr) auto;
+  gap: 0.45rem;
+  align-items: center;
+  font-size: 0.75rem;
+}
+
+.mkt-pie-legend__dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+}
 .chat-bucket-tab:hover {
   border-color: color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 45%, var(--mo-border));
   background: color-mix(in srgb, var(--chat-stage-color, var(--mo-accent)) 10%, var(--mo-surface));

@@ -3,6 +3,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 
 import { DateField } from "@/components/DateField";
+import { MarketingAdvice } from "@/components/marketing/MarketingAdvice";
 import { MarketingCharts } from "@/components/marketing/MarketingCharts";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { apiFetch } from "@/lib/api";
@@ -200,6 +201,14 @@ export function MarketingPage() {
     if (!igAccount) return [];
     return listedCampaigns.filter((c) => c.brand === igAccount);
   }, [listedCampaigns, igAccount]);
+  const adviceDays = useMemo(
+    () => (data?.daily ?? []).map((row) => ({ date: row.date, spend: Number(row.spend) || 0, leads: row.leads || 0 })),
+    [data?.daily],
+  );
+  const adviceCampaigns = useMemo(
+    () => listedCampaigns.map((row) => ({ name: row.campaign_name, spend: Number(row.spend) || 0, leads: row.leads || 0 })),
+    [listedCampaigns],
+  );
   const configured = Boolean(settingsQuery.data?.configured);
 
   function onSave(e: FormEvent) {
@@ -381,8 +390,11 @@ export function MarketingPage() {
               </div>
             </div>
             <div className="marketing-kpi">
-              <div className="text-[11px] mo-muted">Подписчики</div>
-              <div className="mt-0.5 text-lg font-semibold tabular-nums sm:text-xl">{data.followers}</div>
+              <div className="text-[11px] mo-muted">Новые подписчики</div>
+              <div className="mt-0.5 text-lg font-semibold tabular-nums sm:text-xl">
+                {data.followers.toLocaleString("ru-RU")}
+              </div>
+              <div className="mt-0.5 text-[10px] mo-muted">Instagram за период</div>
             </div>
             <div className="marketing-kpi">
               <div className="text-[11px] mo-muted">Показы / клики</div>
@@ -399,6 +411,14 @@ export function MarketingPage() {
             Meta считает события рекламы (форма + старт переписки). В CRM — карточки менеджерам.
             Клик по рекламе без открытия чата карточку не создаёт. Открытие чата с рекламы создаёт карточку сразу.
           </p>
+          <MarketingAdvice
+            daily={adviceDays}
+            campaigns={adviceCampaigns}
+            accountSpend={Number(data.spend) || 0}
+            accountLeads={data.leads || 0}
+            periodEnd={data.period_end}
+            currency={currency}
+          />
           <MarketingCharts
             campaigns={listedCampaigns}
             brands={data.brands}
@@ -409,14 +429,14 @@ export function MarketingPage() {
 
           <section className="overflow-hidden rounded-2xl border border-[var(--mo-border)]">
             <div className="border-b border-[var(--mo-border)] px-4 py-3 text-sm font-semibold">
-              Подписчики по аккаунтам
+              Новые подписчики по аккаунтам
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
                 <thead className="bg-[var(--mo-surface)]/70 text-xs mo-muted">
                   <tr>
                     <th className="px-3 py-2">Аккаунт</th>
-                    <th className="px-3 py-2">Подписчики</th>
+                    <th className="px-3 py-2">Новые подписчики</th>
                     <th className="px-3 py-2">Лиды</th>
                     <th className="px-3 py-2">Расход</th>
                     <th className="px-3 py-2">Клики</th>
@@ -433,7 +453,7 @@ export function MarketingPage() {
                       onClick={() => setIgAccount((cur) => (cur === b.account ? null : b.account))}
                     >
                       <td className="px-3 py-2 font-medium">{b.account}</td>
-                      <td className="px-3 py-2 tabular-nums">{b.followers}</td>
+                      <td className="px-3 py-2 tabular-nums">{b.followers.toLocaleString("ru-RU")}</td>
                       <td className="px-3 py-2 tabular-nums">{b.leads}</td>
                       <td className="px-3 py-2 tabular-nums">{money(b.spend, currency)}</td>
                       <td className="px-3 py-2 tabular-nums">{b.clicks}</td>
@@ -457,7 +477,6 @@ export function MarketingPage() {
                     <th className="px-3 py-2">Аккаунт</th>
                     <th className="px-3 py-2">Расход</th>
                     <th className="px-3 py-2">Лиды</th>
-                    <th className="px-3 py-2">Подписчики</th>
                     <th className="px-3 py-2">CPL</th>
                     <th className="px-3 py-2">Клики</th>
                   </tr>
@@ -465,13 +484,13 @@ export function MarketingPage() {
                 <tbody>
                   {!igAccount ? (
                     <tr>
-                      <td className="px-3 py-3 mo-muted" colSpan={7}>
+                      <td className="px-3 py-3 mo-muted" colSpan={6}>
                         Нажмите Ganjina Zamiri или MetodiClinic — появятся кампании, которые запущены с этого Instagram.
                       </td>
                     </tr>
                   ) : visibleCampaigns.length === 0 ? (
                     <tr>
-                      <td className="px-3 py-3 mo-muted" colSpan={7}>
+                      <td className="px-3 py-3 mo-muted" colSpan={6}>
                         С этого Instagram за период кампаний нет
                       </td>
                     </tr>
@@ -482,7 +501,6 @@ export function MarketingPage() {
                         <td className="px-3 py-2 mo-muted">{c.brand || "—"}</td>
                         <td className="px-3 py-2 tabular-nums">{money(c.spend, currency)}</td>
                         <td className="px-3 py-2 tabular-nums">{c.leads}</td>
-                        <td className="px-3 py-2 tabular-nums">{c.followers ?? 0}</td>
                         <td className="px-3 py-2 tabular-nums">
                           {c.cost_per_lead != null ? money(c.cost_per_lead, currency) : "—"}
                         </td>

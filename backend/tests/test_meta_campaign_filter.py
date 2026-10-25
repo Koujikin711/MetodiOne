@@ -2,6 +2,7 @@ from datetime import date
 
 from app.services.meta_ads_client import (
     campaign_ig_map_from_ads,
+    follower_gains_from_daily,
     ig_account_label,
     keep_rows_for_instagram_accounts,
     merge_campaign_catalog,
@@ -50,3 +51,17 @@ def test_catalog_adds_only_allowed_instagram_campaign():
     )
     assert len(rows) == 1
     assert rows[0]["brand"] == "Ganjina Zamiri"
+
+
+def test_follower_gain_drops_the_day_meta_dumps_the_whole_audience():
+    daily = [("2026-10-06", 0), ("2026-10-07", 56045), ("2026-10-08", 41), ("2026-10-09", 49)]
+    total, by_day = follower_gains_from_daily(daily, 56289)
+    assert total == 90
+    assert "2026-10-07" not in by_day
+
+
+def test_follower_gain_keeps_a_normal_busy_day():
+    daily = [("2026-10-12", 95), ("2026-10-13", 103), ("2026-10-14", 47)]
+    total, by_day = follower_gains_from_daily(daily, 12407)
+    assert total == 245
+    assert by_day["2026-10-13"] == 103

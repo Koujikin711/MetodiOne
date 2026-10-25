@@ -15,10 +15,6 @@ import {
 } from "recharts";
 
 const COLORS = ["#0ea5e9", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#14b8a6", "#f97316", "#6366f1"];
-const BRAND_COLORS: Record<string, string> = {
-  "Ganjina Zamiri": "#0ea5e9",
-  MetodiClinic: "#f59e0b",
-};
 
 const tick = { fill: "var(--mo-text-muted, #64748b)", fontSize: 11 };
 
@@ -113,15 +109,15 @@ export function MarketingCharts({ campaigns, brands, daily, managers, currency }
     }));
 
   const leadShare = campaigns
-    .map((c) => ({ name: shortLabel(c.campaign_name, 18), value: c.leads || 0 }))
-    .filter((r) => r.value > 0);
+    .map((c) => ({ name: c.campaign_name, value: c.leads || 0 }))
+    .filter((r) => r.value > 0)
+    .sort((a, b) => b.value - a.value);
 
   const brandFollow = brands.map((b) => ({
     name: b.account,
     followers: b.followers || 0,
     leads: b.leads || 0,
     spend: Number(b.spend) || 0,
-    fill: BRAND_COLORS[b.account] || COLORS[0],
   }));
 
   const dailyRows = daily.map((d) => ({
@@ -140,6 +136,9 @@ export function MarketingCharts({ campaigns, brands, daily, managers, currency }
     rejected: m.rejected,
     sold: m.sold,
   }));
+  const managerHasMovement = managerRows.some((m) => m.answered > 0 || m.sold > 0 || m.rejected > 0);
+  const showFollowers = brandFollow.some((b) => b.followers > 0);
+  const showBrandLeads = brandFollow.some((b) => b.leads > 0);
 
   return (
     <div className="mkt-charts-grid">
@@ -214,35 +213,41 @@ export function MarketingCharts({ campaigns, brands, daily, managers, currency }
 
       <section className="mkt-chart-card">
         <h3 className="mb-2 text-sm font-semibold">Лиды по кампаниям</h3>
-        <div className="h-52 sm:h-56">
-          {leadShare.length === 0 ? (
-            <p className="text-sm mo-muted">Нет лидов</p>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={leadShare}
-                  dataKey="value"
-                  nameKey="name"
-                  innerRadius={48}
-                  outerRadius={78}
-                  paddingAngle={2}
-                >
-                  {leadShare.map((_, i) => (
-                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip cursor={false} content={<ChartTip />} />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          )}
-        </div>
+        {leadShare.length === 0 ? (
+          <p className="text-sm mo-muted">Нет лидов</p>
+        ) : (
+          <>
+            <div className="h-44">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={leadShare} dataKey="value" nameKey="name" innerRadius={46} outerRadius={72} paddingAngle={2}>
+                    {leadShare.map((_, i) => (
+                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip cursor={false} content={<ChartTip />} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <ul className="mkt-pie-legend">
+              {leadShare.map((row, i) => (
+                <li key={row.name}>
+                  <span className="mkt-pie-legend__dot" style={{ background: COLORS[i % COLORS.length] }} />
+                  <span className="min-w-0 truncate">{row.name}</span>
+                  <span className="tabular-nums">{row.value.toLocaleString("ru-RU")}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </section>
 
       <section className="mkt-chart-card">
-        <h3 className="mb-2 text-sm font-semibold">Подписчики по аккаунтам</h3>
+        <h3 className="mb-2 text-sm font-semibold">Новые подписчики по аккаунтам</h3>
         <div className="h-52 sm:h-56">
+          {!showFollowers && !showBrandLeads ? (
+            <p className="text-sm mo-muted">Нет данных</p>
+          ) : (
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={brandFollow} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--mo-border)" opacity={0.5} />
@@ -250,22 +255,19 @@ export function MarketingCharts({ campaigns, brands, daily, managers, currency }
               <YAxis tick={tick} width={36} allowDecimals={false} />
               <Tooltip cursor={false} content={<ChartTip />} />
               <Legend />
-              <Bar dataKey="followers" name="Подписчики" radius={[6, 6, 0, 0]}>
-                {brandFollow.map((r) => (
-                  <Cell key={r.name} fill={r.fill} />
-                ))}
-              </Bar>
-              <Bar dataKey="leads" name="Лиды" fill="#8b5cf6" radius={[6, 6, 0, 0]} />
+              {showFollowers ? <Bar dataKey="followers" name="Подписчики" fill="#0ea5e9" radius={[6, 6, 0, 0]} /> : null}
+              {showBrandLeads ? <Bar dataKey="leads" name="Лиды" fill="#8b5cf6" radius={[6, 6, 0, 0]} /> : null}
             </BarChart>
           </ResponsiveContainer>
+          )}
         </div>
       </section>
 
       <section className="mkt-chart-card">
         <h3 className="mb-2 text-sm font-semibold">Конверсия менеджеров</h3>
         <div className="h-52 sm:h-56">
-          {managerRows.length === 0 ? (
-            <p className="text-sm mo-muted">Нет лидов в CRM</p>
+          {managerRows.length === 0 || !managerHasMovement ? (
+            <p className="text-sm mo-muted">За период ответов и продаж с рекламы нет</p>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={managerRows} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
