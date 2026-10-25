@@ -10,6 +10,7 @@ type Props = {
   onTogglePipelineSettings: () => void;
   onCreateLead: () => void;
   onImport: () => void;
+  onDownloadBase?: () => void;
   pipelines: Pipeline[] | undefined;
   pipelineId: number | null;
   onSelectPipeline: (id: number) => void;
@@ -27,6 +28,7 @@ export function CrmToolbar({
   onTogglePipelineSettings,
   onCreateLead,
   onImport,
+  onDownloadBase,
   pipelines,
   pipelineId,
   onSelectPipeline,
@@ -69,8 +71,14 @@ export function CrmToolbar({
           <button type="button" onClick={onCreateLead} className="crm-pill-btn crm-pill-btn--primary">
             Новый лид
           </button>
+          {isCompanyAdmin && onDownloadBase ? (
+            <button type="button" onClick={onDownloadBase} className="crm-pill-btn">
+              <span className="hidden sm:inline">Скачать базу</span>
+              <span className="sm:hidden">База</span>
+            </button>
+          ) : null}
           <button type="button" onClick={onImport} className="crm-pill-btn">
-            <span className="hidden sm:inline">Импорт CSV</span>
+            <span className="hidden sm:inline">Загрузить базу</span>
             <span className="sm:hidden">CSV</span>
           </button>
         </div>

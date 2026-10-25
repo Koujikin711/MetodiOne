@@ -16,6 +16,7 @@ router = APIRouter(prefix="/audit", tags=["audit"])
 _HIDDEN_FROM_JOURNAL = (
     "archive_evening_reactivate_done",
     "archive_evening_reactivate_stats",
+    "lead_base_email_sent",
 )
 
 _ID_IN_DETAILS = re.compile(

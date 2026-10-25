@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import io
 import re
+from datetime import UTC, datetime
 from typing import NamedTuple
 
 # Экспорт Битрикс24 с десятками колонок легко превышает несколько мегабайт.
@@ -18,6 +19,12 @@ class ParsedLeadRow(NamedTuple):
     phone: str | None
     email: str | None
     source: str | None
+    extra_phones: tuple[str, ...] = ()
+    stage_name: str | None = None
+    manager_email: str | None = None
+    manager_name: str | None = None
+    refusal_reason: str | None = None
+    created_at: datetime | None = None
 
 
 def _norm_header(h: str) -> str:
@@ -46,6 +53,37 @@ def _detect_delimiter(first_line: str) -> str:
     return ";" if semi > comma else ","
 
 
+def norm_label(value: str | None) -> str:
+    return " ".join((value or "").strip().casefold().replace("ё", "е").split())
+
+
+def parse_backup_created_at(raw: str | None) -> datetime | None:
+    s = (raw or "").strip()
+    if not s:
+        return None
+    s = s.replace(" UTC", "+00:00").replace("Z", "+00:00")
+    for fmt in ("%Y-%m-%d %H:%M:%S%z", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+        try:
+            dt = datetime.strptime(s, fmt)
+        except ValueError:
+            continue
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+        return dt.astimezone(UTC)
+    try:
+        dt = datetime.fromisoformat(s)
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
+
+
+def split_extra_phones(raw: str | None) -> tuple[str, ...]:
+    parts = [p.strip() for p in (raw or "").split(";")]
+    return tuple(p[:64] for p in parts if p)
+
+
 def _pick(d: dict[str, str], *keys: str) -> str:
     for k in keys:
         v = d.get(k)
@@ -67,6 +105,7 @@ def row_to_parsed_lead(row_map: dict[str, str]) -> ParsedLeadRow | None:
     )
     first = _pick(row_map, "name", "имя", "first_name", "firstname")
     last = _pick(row_map, "last_name", "lastname", "фамилия")
+    full_name = _pick(row_map, "full_name", "фио", "клиент", "пациент")
     company = _pick(row_map, "company", "компания", "company_title", "название_компании")
 
     name: str
@@ -74,6 +113,8 @@ def row_to_parsed_lead(row_map: dict[str, str]) -> ParsedLeadRow | None:
         name = title[:255]
     elif first or last:
         name = f"{first} {last}".strip()[:255]
+    elif full_name:
+        name = full_name[:255]
     elif company:
         name = company[:255]
     else:
@@ -114,12 +155,22 @@ def row_to_parsed_lead(row_map: dict[str, str]) -> ParsedLeadRow | None:
         "utm_source",
         "origin_id",
     )
+    stage_raw = _pick(row_map, "stage", "стадия", "status", "статус")
+    manager_email = _pick(row_map, "manager_email", "email_менеджера", "почта_менеджера")
+    manager_name = _pick(row_map, "manager_name", "менеджер", "ответственный")
+    refusal = _pick(row_map, "refusal_reason", "причина_отказа", "отказ")
 
     return ParsedLeadRow(
         name=name,
         phone=phone,
         email=email_raw[:320] if email_raw else None,
         source=source_raw[:120] if source_raw else None,
+        extra_phones=split_extra_phones(_pick(row_map, "extra_phones", "доп_телефоны", "дополнительные_телефоны")),
+        stage_name=stage_raw[:120] if stage_raw else None,
+        manager_email=manager_email[:320] if manager_email else None,
+        manager_name=manager_name[:255] if manager_name else None,
+        refusal_reason=refusal[:2000] if refusal else None,
+        created_at=parse_backup_created_at(_pick(row_map, "created_at", "дата", "создан")),
     )
 
 

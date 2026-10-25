@@ -116,6 +116,7 @@ from app.services.google_sheets_sync import run_google_sheets_import_tick
 from app.services.runtime_metrics import runtime_metrics
 from app.services.waiting_callback_reminders import run_waiting_callback_tick
 from app.services.archive_evening_reactivate import run_archive_evening_reactivate_tick
+from app.services.lead_base_email import run_lead_base_email_tick
 from app.services.whatsapp_automation import run_whatsapp_reminder_tick
 
 logger = logging.getLogger(__name__)
@@ -678,6 +679,7 @@ async def lifespan(_: FastAPI):
                     sent = await run_whatsapp_reminder_tick(session)
                     waiting_sent = await run_waiting_callback_tick(session)
                     archive_evening = await run_archive_evening_reactivate_tick(session)
+                    lead_base_emails = await run_lead_base_email_tick(session)
                     await session.commit()
                     if sent:
                         logger.info("whatsapp reminders sent: %s", sent)
@@ -701,6 +703,8 @@ async def lifespan(_: FastAPI):
                             ok=True,
                             message=f"Дневная раздача из Архива: {archive_evening} лидов",
                         )
+                    if lead_base_emails:
+                        logger.info("lead base emailed for companies: %s", lead_base_emails)
                     now = asyncio.get_running_loop().time()
                     if now >= next_sheets_run:
                         try:

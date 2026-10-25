@@ -1913,6 +1913,18 @@ export function CrmPage() {
         onTogglePipelineSettings={() => setPipelineSettingsOpen((v) => !v)}
         onCreateLead={() => setCreateLeadOpen(true)}
         onImport={() => setImportOpen(true)}
+        onDownloadBase={() => {
+          if (pipelineId == null) {
+            toast.error("Сначала выберите воронку");
+            return;
+          }
+          void apiDownloadBlob(
+            `/api/pipelines/${pipelineId}/export-leads`,
+            `baza_${pipelineId}.csv`,
+          )
+            .then(() => toast.success("База скачана. Этот файл можно загрузить обратно."))
+            .catch((e: Error) => toast.error(e.message));
+        }}
         pipelines={pipelinesQuery.data}
         pipelineId={pipelineId}
         onSelectPipeline={setPipelineId}
@@ -2778,7 +2790,7 @@ export function CrmPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl crm-modal-panel border p-6 shadow-2xl">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="lux-subheading">Импорт лидов (CSV)</h2>
+              <h2 className="lux-subheading">Загрузить базу</h2>
               <button
                 type="button"
                 onClick={() => {
@@ -2793,10 +2805,11 @@ export function CrmPage() {
             </div>
 
             <p className="mt-3 text-sm leading-relaxed lux-caption">
-              Из Битрикс24: CRM → Лиды → выделите нужные → <span className="mo-muted">Экспорт</span> в Excel.
-              Сохраните файл как CSV (кодировка UTF-8). Подойдут колонки вроде «Название», «Имя», «Фамилия»,
-              «Телефон», «E-mail», «Источник». Все импортируемые лиды попадут в выбранную стадию. За один раз
-              можно загрузить до ~25&nbsp;000 строк; при большом файле импорт может занять несколько минут.
+              Файл с кнопки «Скачать базу» загружается обратно в эту воронку: ФИО, телефон, дополнительные
+              номера, источник, стадия, менеджер и причина отказа. Стадии с теми же названиями должны уже быть
+              в воронке, менеджеры — заведены с той же почтой. Номер, который уже есть, пропускается. Визиты,
+              переписка и оплаты этим файлом не восстанавливаются. Подойдёт и CSV из Битрикс24. За один раз
+              можно загрузить до ~25&nbsp;000 строк.
             </p>
 
             <div className="mt-4 grid gap-3">
@@ -2828,7 +2841,7 @@ export function CrmPage() {
                   </select>
                 </label>
                 <label className="text-sm mo-muted">
-                  Стадия (все строки файла)
+                  Стадия, если в файле её нет
                   <select
                     value={importStageId ?? ""}
                     onChange={(e) => setImportStageId(Number(e.target.value))}

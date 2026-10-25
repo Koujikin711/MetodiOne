@@ -4,7 +4,13 @@ from email.message import EmailMessage
 from app.config import settings
 
 
-def send_email(to_email: str, subject: str, body: str, html_body: str | None = None) -> bool:
+def send_email(
+    to_email: str,
+    subject: str,
+    body: str,
+    html_body: str | None = None,
+    attachments: list[tuple[str, bytes]] | None = None,
+) -> bool:
     if not settings.smtp_host:
         return False
     msg = EmailMessage()
@@ -14,6 +20,8 @@ def send_email(to_email: str, subject: str, body: str, html_body: str | None = N
     msg.set_content(body)
     if html_body:
         msg.add_alternative(html_body, subtype="html")
+    for filename, payload in attachments or []:
+        msg.add_attachment(payload, maintype="text", subtype="csv", filename=filename)
     try:
         with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=20) as server:
             server.ehlo()

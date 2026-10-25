@@ -13,7 +13,7 @@ from sqlalchemy.orm import selectinload
 from app.config import settings
 from app.core.deps import CurrentCompanyId, CurrentUser
 from app.core.manager_scope import manager_lead_visibility
-from app.core.rbac import is_manager_like
+from app.core.rbac import is_lead_assignee_role, is_manager_like
 from app.database import get_db
 from app.models import (
     BookingAppointment,
@@ -49,7 +49,12 @@ from app.services.audit import write_audit_event
 from app.services.patient_phone_visibility import resolve_phone_fields
 from app.services.automation import process_lead_automation
 from app.services.lead_assignment import assign_manager_for_new_lead
-from app.services.lead_extra_phones import find_lead_by_any_phone, lead_has_contact_phone, norm_phone
+from app.services.lead_extra_phones import (
+    find_lead_by_any_phone,
+    lead_has_contact_phone,
+    norm_phone,
+    sync_lead_extra_phones,
+)
 from app.services.phone_match import whatsapp_e164_digits
 from app.services.lead_redistribution_undo import (
     REDISTRIBUTE_ACTIONS,
@@ -62,7 +67,13 @@ from app.services.lead_redistribution_undo import (
     parse_system_total,
 )
 from app.services.sales_kpi import get_kpi_service_price
-from app.services.lead_import import decode_csv_text, normalize_email_strict, parse_csv_rows, row_to_parsed_lead
+from app.services.lead_import import (
+    decode_csv_text,
+    norm_label,
+    normalize_email_strict,
+    parse_csv_rows,
+    row_to_parsed_lead,
+)
 from app.schemas.deal import DealRead, ExtraServiceAddBody, ProtocolConfirmBody
 from app.schemas.deal import ProtocolFinishBody
 
@@ -1050,10 +1061,57 @@ async def import_leads_csv(
             )
 
     errors: list[LeadImportErrorItem] = []
-    work: list[tuple[int, Lead]] = []
+    # row, lead, extra phones, note shown after the card is saved
+    work: list[tuple[int, Lead, tuple[str, ...], str | None]] = []
     # Owner / admin воронки никогда не становятся ответственными.
     # Менеджер — себе (или в пул, если он intake + включено автораспределение).
     import_as_self = current_user.role == UserRole.manager
+    stage_ids_by_label: dict[str, int] = {}
+    if stage.pipeline_id is not None:
+        stage_rows = (
+            await db.execute(
+                select(PipelineStage).where(
+                    PipelineStage.pipeline_id == stage.pipeline_id,
+                    PipelineStage.company_id == company_id,
+                ),
+            )
+        ).scalars().all()
+        for st in stage_rows:
+            stage_ids_by_label.setdefault(norm_label(st.name), int(st.id))
+    company_users = (
+        await db.execute(
+            select(User).where(User.company_id == company_id, User.is_active.is_(True)),
+        )
+    ).scalars().all()
+    manager_by_email: dict[str, int] = {}
+    manager_by_name: dict[str, list[int]] = {}
+    for user in company_users:
+        if not is_lead_assignee_role(user.role):
+            continue
+        manager_by_email[user.email.strip().casefold()] = int(user.id)
+        name_key = norm_label(user.full_name)
+        if name_key:
+            manager_by_name.setdefault(name_key, []).append(int(user.id))
+    seen_phone_tails: set[str] = set()
+
+    def _phone_tails(*raw_phones: str | None) -> list[str]:
+        tails: list[str] = []
+        for raw in raw_phones:
+            digits = norm_phone(raw)
+            if digits and len(digits) >= 9:
+                tails.append(digits[-9:])
+        return tails
+
+    def _manager_from_file(email: str | None, name: str | None) -> int | None:
+        if email:
+            found = manager_by_email.get(email.strip().casefold())
+            if found is not None:
+                return found
+        if name:
+            hits = manager_by_name.get(norm_label(name), [])
+            if len(hits) == 1:
+                return hits[0]
+        return None
 
     async def _import_manager_id_for_row() -> int | None:
         if stage.pipeline_id is not None:
@@ -1086,36 +1144,61 @@ async def import_leads_csv(
             continue
         email = normalize_email_strict(parsed.email) if parsed.email else None
         phone_n = norm_phone(parsed.phone)
-        if phone_n and len(phone_n) >= 9:
+        tails = _phone_tails(phone_n, *parsed.extra_phones)
+        if any(tail in seen_phone_tails for tail in tails):
+            errors.append(LeadImportErrorItem(row=idx, message="Такой телефон уже есть в этом файле — пропуск"))
+            continue
+        existing = None
+        for raw_phone in (phone_n, *parsed.extra_phones):
+            digits = norm_phone(raw_phone)
+            if not digits or len(digits) < 9:
+                continue
             existing = await find_lead_by_any_phone(
                 db,
                 company_id=company_id,
-                phone=phone_n,
+                phone=digits,
                 pipeline_id=int(stage.pipeline_id) if stage.pipeline_id is not None else None,
             )
             if existing is not None:
-                errors.append(
-                    LeadImportErrorItem(
-                        row=idx,
-                        message=f"Телефон уже есть у лида #{existing.id} ({existing.name or 'без имени'}) — пропуск",
-                    ),
-                )
-                continue
-        row_manager_id = await _import_manager_id_for_row()
-        work.append(
-            (
-                idx,
-                Lead(
-                    company_id=company_id,
-                    name=parsed.name,
-                    phone=phone_n or parsed.phone,
-                    email=email,
-                    source=parsed.source,
-                    status_id=default_stage_id,
-                    manager_id=row_manager_id,
+                break
+        if existing is not None:
+            errors.append(
+                LeadImportErrorItem(
+                    row=idx,
+                    message=f"Телефон уже есть у лида #{existing.id} ({existing.name or 'без имени'}) — пропуск",
                 ),
-            ),
-        )
+            )
+            continue
+        notes: list[str] = []
+        row_stage_id = default_stage_id
+        if parsed.stage_name:
+            matched_stage = stage_ids_by_label.get(norm_label(parsed.stage_name))
+            if matched_stage is not None:
+                row_stage_id = matched_stage
+            else:
+                notes.append(f"стадия «{parsed.stage_name}» не найдена — карточка в выбранной стадии")
+        file_manager_id = _manager_from_file(parsed.manager_email, parsed.manager_name)
+        if parsed.manager_email or parsed.manager_name:
+            row_manager_id = file_manager_id
+            if file_manager_id is None:
+                who = parsed.manager_name or parsed.manager_email
+                notes.append(f"менеджер «{who}» не найден — карточка без ответственного")
+        else:
+            row_manager_id = await _import_manager_id_for_row()
+        lead_fields: dict[str, object] = {
+            "company_id": company_id,
+            "name": parsed.name,
+            "phone": phone_n or parsed.phone,
+            "email": email,
+            "source": parsed.source,
+            "status_id": row_stage_id,
+            "manager_id": row_manager_id,
+            "refusal_reason": parsed.refusal_reason,
+        }
+        if parsed.created_at is not None:
+            lead_fields["created_at"] = parsed.created_at
+        seen_phone_tails.update(tails)
+        work.append((idx, Lead(**lead_fields), parsed.extra_phones, "; ".join(notes) or None))
 
     created = 0
     batch_size = 500
@@ -1123,10 +1206,18 @@ async def import_leads_csv(
     for start in range(0, len(work), batch_size):
         batch = work[start : start + batch_size]
         try:
-            for _row_idx, lead in batch:
+            for _row_idx, lead, _extras, _note in batch:
                 db.add(lead)
             await db.flush()
-            for _row_idx, lead in batch:
+            for _row_idx, lead, extras, _note in batch:
+                if extras:
+                    await sync_lead_extra_phones(
+                        db,
+                        company_id=company_id,
+                        lead_id=int(lead.id),
+                        extra_phones=list(extras),
+                        primary_phone=lead.phone,
+                    )
                 await _audit_lead(
                     db,
                     lead_id=lead.id,
@@ -1136,21 +1227,36 @@ async def import_leads_csv(
                 )
             await db.commit()
             created += len(batch)
+            for row_idx, _lead, _extras, note in batch:
+                if note:
+                    errors.append(LeadImportErrorItem(row=row_idx, message=note))
         except Exception:
             await db.rollback()
-            for row_idx, lead in batch:
+            for row_idx, lead, extras, note in batch:
                 try:
-                    l2 = Lead(
-                        company_id=company_id,
-                        name=lead.name,
-                        phone=lead.phone,
-                        email=lead.email,
-                        source=lead.source,
-                        status_id=default_stage_id,
-                        manager_id=lead.manager_id,
-                    )
+                    fields: dict[str, object] = {
+                        "company_id": company_id,
+                        "name": lead.name,
+                        "phone": lead.phone,
+                        "email": lead.email,
+                        "source": lead.source,
+                        "status_id": lead.status_id,
+                        "manager_id": lead.manager_id,
+                        "refusal_reason": lead.refusal_reason,
+                    }
+                    if lead.created_at is not None:
+                        fields["created_at"] = lead.created_at
+                    l2 = Lead(**fields)
                     db.add(l2)
                     await db.flush()
+                    if extras:
+                        await sync_lead_extra_phones(
+                            db,
+                            company_id=company_id,
+                            lead_id=int(l2.id),
+                            extra_phones=list(extras),
+                            primary_phone=l2.phone,
+                        )
                     await _audit_lead(
                         db,
                         lead_id=l2.id,
@@ -1160,6 +1266,8 @@ async def import_leads_csv(
                     )
                     await db.commit()
                     created += 1
+                    if note:
+                        errors.append(LeadImportErrorItem(row=row_idx, message=note))
                 except Exception as e2:
                     await db.rollback()
                     errors.append(LeadImportErrorItem(row=row_idx, message=str(e2)[:240]))
