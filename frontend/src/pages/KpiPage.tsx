@@ -2551,7 +2551,7 @@ function SalesReportSection({
 
   return (
     <div className="kpi-sales-board">
-      <section className="mo-section px-3 py-2">
+      <section className="mo-section px-4 py-3">
         <h2 className="text-[15px] font-semibold text-[var(--mo-text)]">Заработок · {data.year_month}</h2>
         <p className="mt-0.5 text-[11px] lux-caption">
           Новых — курс открыт один раз тем, кто его привёл. Прошлые оплаты старого менеджера не переходят. Сбор дебиторки считается новому, только если эта оплата подтверждена и записана на него. Привёл по курсу — каждый его этап в свой месяц. По протоколу — после полной оплаты, и если принёс больше цены, в сумму входит вся оплата. По остальным услугам — полная оплата минус возврат. Итого{" "}
