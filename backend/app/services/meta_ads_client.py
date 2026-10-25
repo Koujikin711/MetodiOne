@@ -105,15 +105,14 @@ def keep_rows_for_instagram_accounts(
     campaign_ig: dict[str, str],
     ig_labels: dict[str, str],
 ) -> list[dict[str, Any]]:
-    """Оставляет строки Insights, чей Instagram — Ganjina Zamiri или MetodiClinic."""
+    """Все кампании кабинета остаются в расходе. Бренд ставится, если Instagram — Ganjina или MetodiClinic."""
     out: list[dict[str, Any]] = []
     for row in rows:
+        copied = dict(row)
         cid = str(row.get("campaign_id") or "")
         label = ig_labels.get(campaign_ig.get(cid, ""))
-        if not label:
-            continue
-        copied = dict(row)
-        copied["brand"] = label
+        if label:
+            copied["brand"] = label
         out.append(copied)
     return out
 

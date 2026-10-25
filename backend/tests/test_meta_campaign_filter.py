@@ -30,9 +30,11 @@ def test_campaign_keeps_any_name_when_instagram_is_clinic():
         mapped,
         labels,
     )
-    assert len(rows) == 1
+    assert len(rows) == 2
     assert rows[0]["campaign_id"] == "10"
     assert rows[0]["brand"] == "MetodiClinic"
+    assert rows[1]["campaign_id"] == "11"
+    assert rows[1].get("brand") is None
 
 
 def test_catalog_adds_only_allowed_instagram_campaign():
