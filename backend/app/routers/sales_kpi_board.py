@@ -94,6 +94,7 @@ from app.schemas.sales_kpi import (
 )
 from app.services.sales_kpi_weighted import (
     manual_sale_counts_in_kpi,
+    _labels_same_service,
     _norm_kpi_label,
     build_manager_lines,
     completion_ratio,
@@ -977,6 +978,124 @@ async def get_service_rates(
     )
 
 
+def _clean_service_name(raw: str | None) -> str:
+    return " ".join((raw or "").split())
+
+
+async def _retarget_renamed_service(
+    db: AsyncSession,
+    product: SalesKpiPlanItem,
+    old_name: str,
+) -> None:
+    """После смены названия процент считается по новому имени, не по старым привязкам."""
+    await db.execute(
+        delete(SalesKpiPlanItemSpecialist).where(SalesKpiPlanItemSpecialist.plan_item_id == product.id),
+    )
+    await db.execute(
+        delete(SalesKpiPlanItemService).where(SalesKpiPlanItemService.plan_item_id == product.id),
+    )
+    directions = (
+        await db.execute(
+            select(BookingDirection).where(BookingDirection.company_id == product.company_id),
+        )
+    ).scalars().all()
+    match_id: int | None = None
+    wanted = _norm_kpi_label(product.name)
+    for direction in directions:
+        label = _norm_kpi_label(direction.name)
+        if "архив" in label:
+            continue
+        if label == wanted:
+            match_id = int(direction.id)
+            break
+    if match_id is not None:
+        product.direction_id = match_id
+        return
+    if product.direction_id is None:
+        return
+    old_direction = await db.get(BookingDirection, product.direction_id)
+    if old_direction is not None and _labels_same_service(old_direction.name, old_name):
+        product.direction_id = None
+
+
+async def apply_service_rate_edits(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    pipeline_id: int,
+    year_month: str | None,
+    items: list,
+) -> None:
+    ym = None
+    if year_month:
+        try:
+            ym = parse_year_month(year_month)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    products: list[tuple[SalesKpiPlanItem, object]] = []
+    for item in items:
+        key = (item.service_key or "").strip()
+        if not key.startswith("p:"):
+            raise HTTPException(status_code=400, detail=f"Неизвестная услуга: {key}")
+        product = await db.get(SalesKpiPlanItem, int(key[2:]))
+        if product is None or product.company_id != company_id or product.pipeline_id != pipeline_id:
+            raise HTTPException(status_code=400, detail=f"Неизвестная услуга: {key}")
+        products.append((product, item))
+
+    renames: list[tuple[SalesKpiPlanItem, str, str]] = []
+    for product, item in products:
+        if item.name is None:
+            continue
+        if ym is None:
+            raise HTTPException(status_code=400, detail="Укажите месяц")
+        if product.year_month != ym:
+            raise HTTPException(status_code=400, detail="Услуга не из этого месяца")
+        new_name = _clean_service_name(item.name)
+        if not new_name:
+            raise HTTPException(status_code=400, detail="Укажите название услуги")
+        if _norm_kpi_label(new_name) == _norm_kpi_label(product.name):
+            product.name = new_name
+            continue
+        renames.append((product, product.name, new_name))
+
+    if renames:
+        if ym is None:
+            raise HTTPException(status_code=400, detail="Укажите месяц")
+        month_rows = await load_plan_items(db, company_id=company_id, pipeline_id=pipeline_id, ym=ym)
+        final_by_id = {int(row.id): _norm_kpi_label(row.name) for row in month_rows}
+        for product, _old_name, new_name in renames:
+            final_by_id[int(product.id)] = _norm_kpi_label(new_name)
+        seen: dict[str, int] = {}
+        for item_id, label in final_by_id.items():
+            if not label:
+                continue
+            if label in seen:
+                raise HTTPException(status_code=400, detail="Такая услуга уже есть в этом месяце")
+            seen[label] = item_id
+        for product, _old_name, _new_name in renames:
+            product.name = f"~{int(product.id)}"
+        await db.flush()
+        for product, old_name, new_name in renames:
+            product.name = new_name
+            await _retarget_renamed_service(db, product, old_name)
+
+    for product, item in products:
+        percent = Decimal(str(item.manager_percent or 0)).quantize(Decimal("0.01"))
+        label = _norm_kpi_label(product.name)
+        siblings = (
+            await db.execute(
+                select(SalesKpiPlanItem).where(
+                    SalesKpiPlanItem.company_id == company_id,
+                    SalesKpiPlanItem.pipeline_id == pipeline_id,
+                ),
+            )
+        ).scalars().all()
+        for row in siblings:
+            if _norm_kpi_label(row.name) == label:
+                row.manager_percent = percent
+
+
 @router.put("/service-rates", status_code=status.HTTP_204_NO_CONTENT)
 async def put_service_rates(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -987,27 +1106,13 @@ async def put_service_rates(
     _assert_kpi_access(current_user)
     _assert_owner(current_user)
     await _load_pipeline(db, company_id, body.pipeline_id)
-    for item in body.items:
-        percent = Decimal(str(item.manager_percent or 0)).quantize(Decimal("0.01"))
-        key = (item.service_key or "").strip()
-        if key.startswith("p:"):
-            product = await db.get(SalesKpiPlanItem, int(key[2:]))
-            if product is None or product.company_id != company_id or product.pipeline_id != body.pipeline_id:
-                raise HTTPException(status_code=400, detail=f"Неизвестная услуга: {key}")
-            label = _norm_kpi_label(product.name)
-            siblings = (
-                await db.execute(
-                    select(SalesKpiPlanItem).where(
-                        SalesKpiPlanItem.company_id == company_id,
-                        SalesKpiPlanItem.pipeline_id == body.pipeline_id,
-                    ),
-                )
-            ).scalars().all()
-            for row in siblings:
-                if _norm_kpi_label(row.name) == label:
-                    row.manager_percent = percent
-            continue
-        raise HTTPException(status_code=400, detail=f"Неизвестная услуга: {key}")
+    await apply_service_rate_edits(
+        db,
+        company_id=company_id,
+        pipeline_id=body.pipeline_id,
+        year_month=body.year_month,
+        items=body.items,
+    )
     await db.commit()
 
 

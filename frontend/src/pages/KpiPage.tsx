@@ -649,6 +649,7 @@ export function KpiPage() {
   );
 
   const [rateDraft, setRateDraft] = useState<Record<string, string>>({});
+  const [nameDraft, setNameDraft] = useState<Record<string, string>>({});
 
   const [saleForm, setSaleForm] = useState({
     plan_item_id: "",
@@ -875,11 +876,14 @@ export function KpiPage() {
   useEffect(() => {
     if (!ratesQuery.data) return;
     const next: Record<string, string> = {};
+    const names: Record<string, string> = {};
     for (const row of ratesQuery.data.items) {
       const n = num(row.manager_percent);
       next[row.service_key] = n > 0 ? String(n) : "";
+      names[row.service_key] = row.name;
     }
     setRateDraft(next);
+    setNameDraft(names);
   }, [ratesQuery.data]);
 
   const saveRatesMutation = useMutation({
@@ -888,20 +892,23 @@ export function KpiPage() {
       const items = (ratesQuery.data?.items ?? []).map((row) => {
         const raw = (rateDraft[row.service_key] ?? "").trim().replace(",", ".");
         const percent = raw === "" ? 0 : Number(raw);
+        const name = (nameDraft[row.service_key] ?? row.name).trim().replace(/\s+/g, " ");
+        if (!name) throw new Error("Укажите название услуги");
         if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
-          throw new Error(`Процент для «${row.name}» — число от 0 до 100`);
+          throw new Error(`Процент для «${name}» — число от 0 до 100`);
         }
-        return { service_key: row.service_key, manager_percent: percent };
+        return { service_key: row.service_key, manager_percent: percent, name };
       });
       await apiFetch<void>("/api/sales-kpi/service-rates", {
         method: "PUT",
-        body: JSON.stringify({ pipeline_id: pipelineId, items }),
+        body: JSON.stringify({ pipeline_id: pipelineId, year_month: yearMonth, items }),
       });
     },
     onSuccess: () => {
-      toast.success("Проценты сохранены");
+      toast.success("Услуги сохранены");
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-service-rates"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-service-earnings"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-weighted-plan"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-company-report"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -1351,8 +1358,8 @@ export function KpiPage() {
             <div className="min-w-0">
               <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Услуги</h2>
               <p className="mt-1 text-sm lux-caption">
-                У каждой услуги свой процент, включая курс и протокол. Пустое поле — ноль.
-                Заработок считается от приведённой суммы, без порога.
+                Название и процент правятся для выбранного месяца. Пустой процент — ноль.
+                По названию считается, с какой услуги берётся сумма.
               </p>
             </div>
             <button
@@ -1372,7 +1379,7 @@ export function KpiPage() {
             <p className="text-sm lux-caption">В этой воронке нет услуг.</p>
           ) : null}
           {(ratesQuery.data?.items.length ?? 0) > 0 ? (
-            <p className="text-[11px] font-medium mo-muted">Процент менеджера</p>
+            <p className="text-[11px] font-medium mo-muted">Название, под ним процент</p>
           ) : null}
           <div
             className="kpi-rate-row grid gap-2"
@@ -1381,13 +1388,23 @@ export function KpiPage() {
             }}
           >
             {(ratesQuery.data?.items ?? []).map((row) => (
-              <label key={row.service_key} className="flex min-w-0 flex-col gap-1 text-sm">
-                <span className="truncate text-xs font-medium text-[var(--mo-text)]">{row.name}</span>
+              <div key={row.service_key} className="flex min-w-0 flex-col gap-1 text-sm">
+                <input
+                  type="text"
+                  className="mo-input"
+                  aria-label={`Название услуги: ${row.name}`}
+                  value={nameDraft[row.service_key] ?? row.name}
+                  onChange={(e) =>
+                    setNameDraft((prev) => ({ ...prev, [row.service_key]: e.target.value }))
+                  }
+                  placeholder="Название"
+                  autoComplete="off"
+                />
                 <input
                   type="text"
                   inputMode="decimal"
                   className="mo-input"
-                  aria-label={`Процент менеджера: ${row.name}`}
+                  aria-label={`Процент менеджера: ${nameDraft[row.service_key] || row.name}`}
                   value={rateDraft[row.service_key] ?? ""}
                   onChange={(e) =>
                     setRateDraft((prev) => ({ ...prev, [row.service_key]: e.target.value }))
@@ -1395,7 +1412,7 @@ export function KpiPage() {
                   placeholder="%"
                   autoComplete="off"
                 />
-              </label>
+              </div>
             ))}
           </div>
         </section>

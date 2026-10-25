@@ -514,10 +514,12 @@ class SalesKpiServiceRate(BaseModel):
 class SalesKpiServiceRateWrite(BaseModel):
     service_key: str = Field(..., min_length=3, max_length=40)
     manager_percent: Decimal = Field(default=Decimal("0"), ge=0, le=100)
+    name: str | None = Field(default=None, max_length=255)
 
 
 class SalesKpiServiceRatesPut(BaseModel):
     pipeline_id: int = Field(..., ge=1)
+    year_month: str | None = Field(default=None, description="YYYY-MM, нужен чтобы переименовать услугу")
     items: list[SalesKpiServiceRateWrite] = Field(default_factory=list)
 
 
