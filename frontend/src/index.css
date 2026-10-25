@@ -5818,6 +5818,7 @@ fieldset.extra-services-field {
 
 .mkt-charts-grid {
   display: grid;
+  align-items: start;
   gap: 0.75rem;
   grid-template-columns: minmax(0, 1fr);
 }
@@ -5838,6 +5839,154 @@ fieldset.extra-services-field {
 
 .mkt-chart-card .recharts-tooltip-cursor {
   display: none;
+}
+
+.mkt-modern__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem 0.8rem;
+  margin-bottom: 0.85rem;
+}
+
+.mkt-modern__head h3 {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 650;
+}
+
+.mkt-modern__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.mkt-modern__legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.16rem 0.5rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mo-surface-elevated) 80%, transparent);
+  color: var(--mo-text-muted, #94a3b8);
+  font-size: 0.68rem;
+  font-weight: 650;
+}
+
+.mkt-modern__legend i,
+.mkt-modern__stack span {
+  display: block;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+}
+
+.mkt-modern__legend i.is-followers,
+.mkt-modern__fill.is-followers { background: linear-gradient(90deg, #7dd3fc, #0284c7); }
+.mkt-modern__legend i.is-leads,
+.mkt-modern__fill.is-leads { background: linear-gradient(90deg, #c4b5fd, #7c3aed); }
+.mkt-modern__legend i.is-answered,
+.mkt-modern__stack .is-answered { background: #38bdf8; }
+.mkt-modern__legend i.is-sold,
+.mkt-modern__stack .is-sold { background: #34d399; }
+.mkt-modern__legend i.is-rejected,
+.mkt-modern__stack .is-rejected { background: #fb7185; }
+
+.mkt-modern__accounts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mkt-modern__account-name {
+  margin: 0 0 0.28rem;
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.mkt-modern__meter {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 3.4rem;
+  gap: 0.55rem;
+  align-items: center;
+  margin-top: 0.28rem;
+}
+
+.mkt-modern__meter-track {
+  height: 0.85rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mo-border) 65%, transparent);
+  overflow: hidden;
+}
+
+.mkt-modern__fill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.mkt-modern__num {
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.mkt-modern__people {
+  display: flex;
+  flex-direction: column;
+  gap: 0.72rem;
+  margin: 0;
+  padding: 0.15rem 0 0.1rem;
+  list-style: none;
+}
+
+.mkt-modern__people li {
+  display: grid;
+  grid-template-columns: minmax(0, 7.5rem) minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.mkt-modern__who {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.mkt-modern__track {
+  display: block;
+  height: 0.72rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mo-border) 70%, transparent);
+  overflow: hidden;
+}
+
+.mkt-modern__stack {
+  display: flex;
+  height: 100%;
+  min-width: 0.7rem;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.mkt-modern__stack span {
+  display: block;
+  width: auto;
+  height: 100%;
+  border-radius: 0;
+  min-width: 3px;
+}
+
+.mkt-modern__sum {
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .marketing-toolbar {

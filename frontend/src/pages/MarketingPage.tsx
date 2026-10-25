@@ -407,18 +407,6 @@ export function MarketingPage() {
             </div>
           </div>
 
-          <p className="text-xs mo-muted">
-            Meta считает события рекламы (форма + старт переписки). В CRM — карточки менеджерам.
-            Клик по рекламе без открытия чата карточку не создаёт. Открытие чата с рекламы создаёт карточку сразу.
-          </p>
-          <MarketingAdvice
-            daily={adviceDays}
-            campaigns={adviceCampaigns}
-            accountSpend={Number(data.spend) || 0}
-            accountLeads={data.leads || 0}
-            periodEnd={data.period_end}
-            currency={currency}
-          />
           <MarketingCharts
             campaigns={listedCampaigns}
             brands={data.brands}
@@ -570,6 +558,19 @@ export function MarketingPage() {
               </table>
             </div>
           </section>
+
+          <p className="text-xs mo-muted">
+            Meta считает события рекламы (форма + старт переписки). В CRM — карточки менеджерам.
+            Клик по рекламе без открытия чата карточку не создаёт. Открытие чата с рекламы создаёт карточку сразу.
+          </p>
+          <MarketingAdvice
+            daily={adviceDays}
+            campaigns={adviceCampaigns}
+            accountSpend={Number(data.spend) || 0}
+            accountLeads={data.leads || 0}
+            periodEnd={data.period_end}
+            currency={currency}
+          />
         </>
       ) : null}
     </div>
