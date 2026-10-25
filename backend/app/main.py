@@ -45,6 +45,7 @@ from app.database_migrate import (
     ensure_fix_kurs_direction_and_session_pay,
     ensure_fix_ayub_massage_prepaid_10x150,
     ensure_fix_aug2026_konsult_to_kurs15,
+    ensure_kpi_plan_osteopath_to_consultation,
     ensure_fix_massage_osv_prepaid_aug2026,
     ensure_fix_kurs15_price_2000_to_1300,
     ensure_fix_redistribute_keep_booking_sellers,
@@ -203,6 +204,7 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_fix_kurs_direction_and_session_pay(conn, db_url)
                 await ensure_fix_ayub_massage_prepaid_10x150(conn, db_url)
                 await ensure_fix_aug2026_konsult_to_kurs15(conn, db_url)
+                await ensure_kpi_plan_osteopath_to_consultation(conn, db_url)
                 await ensure_fix_massage_osv_prepaid_aug2026(conn, db_url)
                 await ensure_fix_kurs15_price_2000_to_1300(conn, db_url)
                 await ensure_fix_redistribute_keep_booking_sellers(conn, db_url)

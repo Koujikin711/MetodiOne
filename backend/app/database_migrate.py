@@ -4980,3 +4980,160 @@ async def ensure_curator_program_requests(conn: AsyncConnection, database_url: s
         await conn.execute(
             text("ALTER TABLE curator_program_requests ADD COLUMN IF NOT EXISTS note VARCHAR(255)"),
         )
+
+
+_OSTEOPATH_PLAN_NAMES = frozenset({"остеопат", "остиопат"})
+_CONSULTATION_PLAN_NAME = "Консультация"
+_OSTEOPATH_PLAN_FROM = "2026-10-01"
+
+
+def _plan_month_key(value: object) -> str:
+    if hasattr(value, "isoformat"):
+        return value.isoformat()[:10]
+    return str(value or "")[:10]
+
+
+async def ensure_kpi_plan_osteopath_to_consultation(conn: AsyncConnection, database_url: str) -> None:
+    """С октября 2026 процент KPI «Остеопат» считается по консультации.
+
+    Процент и место в списке остаются. Прошлые месяцы не меняются.
+    Зарплата остеопата и направление записи не переименовываются.
+    """
+    import logging
+
+    log = logging.getLogger("crm.migrate")
+    try:
+        await _kpi_plan_osteopath_to_consultation_body(conn, database_url)
+    except Exception as exc:  # noqa: BLE001 — не валим старт API из‑за one-shot патча
+        log.exception("kpi_plan_osteopath_to_consultation failed (skipped): %s", exc)
+
+
+async def _kpi_plan_osteopath_to_consultation_body(conn: AsyncConnection, database_url: str) -> None:
+    from app.services.sales_kpi_weighted import _norm_kpi_label
+
+    low = database_url.lower()
+    sqlite = "sqlite" in low
+    if sqlite:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS app_data_patches (
+                    name TEXT PRIMARY KEY,
+                    applied_at DATETIME
+                )"""
+            ),
+        )
+    else:
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS app_data_patches (
+                    name TEXT PRIMARY KEY,
+                    applied_at TIMESTAMPTZ
+                )"""
+            ),
+        )
+
+    patch_name = "kpi_plan_osteopath_to_consultation_2026_10"
+    existing = await conn.execute(
+        text("SELECT 1 FROM app_data_patches WHERE name = :n LIMIT 1"),
+        {"n": patch_name},
+    )
+    if existing.first() is not None:
+        return
+
+    plan_rows = (
+        await conn.execute(
+            text(
+                """
+                SELECT id, company_id, pipeline_id, year_month, name, direction_id
+                FROM sales_kpi_plan_items
+                """
+            ),
+        )
+    ).mappings().all()
+    directions = (
+        await conn.execute(
+            text("SELECT id, company_id, name FROM booking_directions"),
+        )
+    ).mappings().all()
+    consult_by_company: dict[int, int] = {}
+    osteo_direction_ids: set[int] = set()
+    for row in directions:
+        did = int(row["id"])
+        label = _norm_kpi_label(row["name"])
+        if "архив" in label:
+            continue
+        if label in _OSTEOPATH_PLAN_NAMES:
+            osteo_direction_ids.add(did)
+        if label == "консультация" and int(row["company_id"]) not in consult_by_company:
+            consult_by_company[int(row["company_id"])] = did
+
+    names_by_slot: dict[tuple[int, int, str], set[str]] = {}
+    for row in plan_rows:
+        slot = (int(row["company_id"]), int(row["pipeline_id"]), _plan_month_key(row["year_month"]))
+        names_by_slot.setdefault(slot, set()).add(_norm_kpi_label(row["name"]))
+
+    for row in plan_rows:
+        month = _plan_month_key(row["year_month"])
+        if month < _OSTEOPATH_PLAN_FROM:
+            continue
+        if _norm_kpi_label(row["name"]) not in _OSTEOPATH_PLAN_NAMES:
+            continue
+        item_id = int(row["id"])
+        slot = (int(row["company_id"]), int(row["pipeline_id"]), month)
+        if "консультация" in names_by_slot.get(slot, set()):
+            linked = (
+                await conn.execute(
+                    text("SELECT 1 FROM sales_kpi_manual_sales WHERE plan_item_id = :id LIMIT 1"),
+                    {"id": item_id},
+                )
+            ).first()
+            if linked is None:
+                await conn.execute(
+                    text("DELETE FROM sales_kpi_plan_item_specialists WHERE plan_item_id = :id"),
+                    {"id": item_id},
+                )
+                await conn.execute(
+                    text("DELETE FROM sales_kpi_plan_item_services WHERE plan_item_id = :id"),
+                    {"id": item_id},
+                )
+                await conn.execute(
+                    text("DELETE FROM sales_kpi_plan_items WHERE id = :id"),
+                    {"id": item_id},
+                )
+            continue
+
+        await conn.execute(
+            text("DELETE FROM sales_kpi_plan_item_specialists WHERE plan_item_id = :id"),
+            {"id": item_id},
+        )
+        await conn.execute(
+            text("DELETE FROM sales_kpi_plan_item_services WHERE plan_item_id = :id"),
+            {"id": item_id},
+        )
+        consult_id = consult_by_company.get(int(row["company_id"]))
+        old_direction = int(row["direction_id"]) if row["direction_id"] is not None else None
+        new_direction = consult_id
+        if new_direction is None and old_direction not in osteo_direction_ids:
+            new_direction = old_direction
+        await conn.execute(
+            text(
+                """
+                UPDATE sales_kpi_plan_items
+                SET name = :name, direction_id = :direction_id
+                WHERE id = :id
+                """
+            ),
+            {"id": item_id, "name": _CONSULTATION_PLAN_NAME, "direction_id": new_direction},
+        )
+        names_by_slot.setdefault(slot, set()).add("консультация")
+
+    if sqlite:
+        await conn.execute(
+            text("INSERT INTO app_data_patches (name, applied_at) VALUES (:n, CURRENT_TIMESTAMP)"),
+            {"n": patch_name},
+        )
+    else:
+        await conn.execute(
+            text("INSERT INTO app_data_patches (name, applied_at) VALUES (:n, NOW())"),
+            {"n": patch_name},
+        )
