@@ -185,31 +185,8 @@
   --mo-medical-chat-bg: var(--mo-surface);
 }
 
-/* Чат: в диалоге нижняя навигация уезжает вниз (тот же ease, что везде) */
-nav[aria-label="Основная навигация"] {
-  transition:
-    opacity var(--mo-duration) var(--mo-ease),
-    transform var(--mo-duration) var(--mo-ease),
-    visibility 0s linear 0s;
-}
-
-html[data-chat-composing="1"] nav[aria-label="Основная навигация"] {
-  opacity: 0;
-  transform: translateY(110%);
-  visibility: hidden;
-  pointer-events: none;
-  transition:
-    opacity var(--mo-duration) var(--mo-ease),
-    transform var(--mo-duration) var(--mo-ease),
-    visibility 0s linear var(--mo-duration);
-}
-
-/* Список диалогов — место под нижнюю панель; открытый диалог — без «дыры» */
+/* Открытый диалог на узком экране занимает высоту окна */
 @media (max-width: 1023px) {
-  html:not([data-chat-composing="1"]) .shell-main:has([data-chat-page]) {
-    padding-bottom: calc(4.25rem + env(safe-area-inset-bottom, 0px)) !important;
-  }
-
   html[data-chat-composing="1"] .shell-main {
     padding-bottom: max(0.15rem, env(safe-area-inset-bottom, 0px)) !important;
     height: calc(100dvh - var(--chat-keyboard-inset, 0px)) !important;
@@ -741,6 +718,9 @@ html {
 
 .shell-sidebar .shell-nav-link {
   @apply rounded-xl;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
   color: var(--mo-sidebar-fg-muted);
   border: 1px solid transparent;
   transition:
@@ -1314,6 +1294,10 @@ html {
 
 .shell-settings-text-link {
   @apply w-full rounded-md px-2 py-1.5 text-left text-sm font-medium transition;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+  border: 0;
   color: var(--mo-sidebar-fg-muted);
 }
 

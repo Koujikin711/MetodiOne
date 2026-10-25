@@ -611,7 +611,7 @@ export function SalesVisitTrackerPage() {
       </section>
 
       {/* Sticky mobile CTA — выше компактного sales-nav */}
-      <div className="fixed inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] z-40 border-t border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]/95 px-3 py-2.5 backdrop-blur sm:hidden">
+      <div className="fixed bottom-0 right-0 left-[4.5rem] z-40 border-t border-[var(--mo-border)] bg-[var(--mo-surface-elevated)]/95 px-3 py-2.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur sm:hidden">
         <button
           type="button"
           disabled={createMutation.isPending || !point || pointQuality === "bad"}

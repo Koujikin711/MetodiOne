@@ -1,7 +1,7 @@
 import type { DraggableAttributes } from "@dnd-kit/core";
 import type { SyntheticListenerMap } from "@dnd-kit/core/dist/hooks/utilities";
 import type { ReactNode } from "react";
-import { NavLink } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import {
   BarChart3,
@@ -80,10 +80,15 @@ function renderIcon(iconKey: ShellSidebarIconKey): ReactNode {
   return <ShellNavIcon iconKey={iconKey} />;
 }
 
+function itemActive(pathname: string, to: string, end?: boolean) {
+  if (pathname === to) return true;
+  if (end) return false;
+  return pathname.startsWith(to.endsWith("/") ? to : `${to}/`);
+}
+
 export function ShellNavLink({
   to,
   end,
-  title,
   labelShort,
   labelFull,
   variant = "crm",
@@ -91,21 +96,22 @@ export function ShellNavLink({
   expanded,
   dragHandleProps,
 }: Props) {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
   const collapsedDragProps = !expanded && dragHandleProps ? { ...dragHandleProps.attributes, ...dragHandleProps.listeners } : {};
+  const active = itemActive(pathname, to, end);
 
   return (
-    <NavLink
-      to={to}
-      end={end}
-      preventScrollReset
-      title={expanded ? undefined : title}
-      className={({ isActive }) => ["shell-nav-link group", isActive ? "is-active" : ""].filter(Boolean).join(" ")}
+    <button
+      type="button"
+      onClick={() => navigate(to)}
+      className={["shell-nav-link group", active ? "is-active" : ""].filter(Boolean).join(" ")}
     >
       <GradientIconBox variant={variant} className="shell-nav-icon-box" {...collapsedDragProps}>
         {renderIcon(iconKey)}
       </GradientIconBox>
       <span className="shell-nav-text">{labelFull}</span>
       <span className="shell-nav-label">{labelShort}</span>
-    </NavLink>
+    </button>
   );
 }

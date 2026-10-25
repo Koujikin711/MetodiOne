@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { GradientIconBox } from "@/components/GradientIconBox";
 import { ChevronDown, Moon, Sun } from "@/components/icons";
@@ -12,6 +12,12 @@ type Props = {
   expanded: boolean;
 };
 
+function itemActive(pathname: string, to: string, end?: boolean) {
+  if (pathname === to) return true;
+  if (end) return false;
+  return pathname.startsWith(to.endsWith("/") ? to : `${to}/`);
+}
+
 function SettingsSubLink({
   item,
   expanded,
@@ -19,36 +25,32 @@ function SettingsSubLink({
   item: ShellSidebarNavItem;
   expanded: boolean;
 }) {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const active = itemActive(pathname, item.to, item.end);
   if (!expanded) {
     return (
-      <NavLink
-        to={item.to}
-        end={item.end}
-        preventScrollReset
-        title={item.title}
-        className={({ isActive }) =>
-          ["shell-nav-link shell-settings-sub-link", isActive ? "is-active" : ""].filter(Boolean).join(" ")
-        }
+      <button
+        type="button"
+        onClick={() => navigate(item.to)}
+        className={["shell-nav-link shell-settings-sub-link", active ? "is-active" : ""].filter(Boolean).join(" ")}
       >
         <GradientIconBox variant={item.variant} className="shell-nav-icon-box">
           <ShellNavIcon iconKey={item.iconKey} />
         </GradientIconBox>
         <span className="shell-nav-label">{item.labelShort}</span>
-      </NavLink>
+      </button>
     );
   }
 
   return (
-    <NavLink
-      to={item.to}
-      end={item.end}
-      preventScrollReset
-      className={({ isActive }) =>
-        ["shell-settings-text-link", isActive ? "is-active" : ""].filter(Boolean).join(" ")
-      }
+    <button
+      type="button"
+      onClick={() => navigate(item.to)}
+      className={["shell-settings-text-link", active ? "is-active" : ""].filter(Boolean).join(" ")}
     >
       {item.labelFull}
-    </NavLink>
+    </button>
   );
 }
 
@@ -89,7 +91,7 @@ export function ShellSidebarSettingsMenu({ items, expanded }: Props) {
     <div className={["shell-settings-root", open ? "is-open" : "", routeActive ? "has-active" : ""].filter(Boolean).join(" ")}>
       <button
         type="button"
-        title={open ? "Скрыть" : "Дополнительно"}
+        aria-label={open ? "Скрыть" : "Дополнительно"}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         className="shell-settings-toggle"

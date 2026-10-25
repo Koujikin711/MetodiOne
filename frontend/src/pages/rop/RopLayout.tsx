@@ -1,7 +1,7 @@
 /** Общая оболочка кабинета РОП: табы + выбор воронки. */
 
 import { useQuery } from "@tanstack/react-query";
-import { NavLink, Outlet, useOutletContext } from "react-router-dom";
+import { Outlet, useLocation, useNavigate, useOutletContext } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 
 import { PrintButton } from "@/components/PrintButton";
@@ -28,6 +28,8 @@ export function useRopContext() {
 }
 
 export function RopLayout() {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
   const pipelinesQuery = useQuery({
     queryKey: ["pipelines"],
     queryFn: () => apiFetch<Pipeline[]>("/api/pipelines"),
@@ -74,23 +76,25 @@ export function RopLayout() {
       </div>
 
       <nav className="print-screen-only flex flex-wrap gap-1 border-b border-[var(--mo-border)] pb-1">
-        {TABS.map((t) => (
-          <NavLink
-            key={t.to}
-            to={t.to}
-            end={"end" in t ? t.end : false}
-            className={({ isActive }) =>
-              [
-                "rounded-lg px-3 py-1.5 text-sm transition",
-                isActive
+        {TABS.map((t) => {
+          const exact = "end" in t ? t.end : false;
+          const active = exact ? pathname === t.to : pathname === t.to || pathname.startsWith(`${t.to}/`);
+          return (
+            <button
+              key={t.to}
+              type="button"
+              onClick={() => navigate(t.to)}
+              className={[
+                "cursor-pointer rounded-lg border-0 bg-transparent px-3 py-1.5 font-[inherit] text-sm transition",
+                active
                   ? "bg-[var(--mo-accent)]/15 font-medium text-[var(--mo-text)]"
                   : "mo-muted hover:bg-[var(--mo-surface)] hover:text-[var(--mo-text)]",
-              ].join(" ")
-            }
-          >
-            {t.label}
-          </NavLink>
-        ))}
+              ].join(" ")}
+            >
+              {t.label}
+            </button>
+          );
+        })}
       </nav>
 
       <Outlet context={ctx} />
