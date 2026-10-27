@@ -46,6 +46,7 @@ import { SalesQuoteCalculatorPage } from "@/pages/SalesQuoteCalculatorPage";
 import { SalesVisitTrackerPage } from "@/pages/SalesVisitTrackerPage";
 import { ExtraServicesPage } from "@/pages/ExtraServicesPage";
 import { CuratorJournalPage } from "@/pages/CuratorJournalPage";
+import { DevCuratorListPreview } from "@/pages/DevCuratorListPreview";
 import { SalesControlPage } from "@/pages/SalesControlPage";
 import { RopLayout } from "@/pages/rop/RopLayout";
 import { RopDashboardPage } from "@/pages/rop/RopDashboardPage";
@@ -61,6 +62,9 @@ export default function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
+        {import.meta.env.DEV ? (
+          <Route path="/dev/ui/curator-list" element={<DevCuratorListPreview />} />
+        ) : null}
         <Route path="/landing" element={<LandingPage />} />
         <Route path="/demos" element={<DemoHubPage />} />
         <Route path="/demo" element={<DemoEnterPage />} />

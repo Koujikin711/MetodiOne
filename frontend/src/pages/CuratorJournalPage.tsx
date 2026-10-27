@@ -236,17 +236,17 @@ function openPauseComment(m: Membership): string | null {
 }
 
 function programPeriodLabel(m: Membership): string | null {
-  if (m.is_paused) return "Курс 90д · пауза";
+  if (m.is_paused) return "Пауза";
   if (!m.program_status || m.program_days_remaining == null) return null;
   const dur = m.program_duration_days ?? 90;
   if (m.program_status === "ended") {
-    return `Курс 90д · завершён (${Math.abs(m.program_days_remaining)} дн. назад)`;
+    return `Завершён · ${Math.abs(m.program_days_remaining)} дн. назад`;
   }
   if (m.program_status === "ending_soon") {
-    return `Курс 90д · осталось ${m.program_days_remaining} дн.`;
+    return `Осталось ${m.program_days_remaining} дн.`;
   }
   const day = m.program_day_index != null ? Math.min(Math.max(m.program_day_index, 1), dur) : null;
-  return day != null ? `Курс 90д · день ${day}/${dur}` : `Курс 90д · ${m.program_days_remaining} дн.`;
+  return day != null ? `День ${day}/${dur}` : `${m.program_days_remaining} дн.`;
 }
 
 function ProgramPeriodHint({ m }: { m: Membership }) {
@@ -254,10 +254,10 @@ function ProgramPeriodHint({ m }: { m: Membership }) {
   if (!label) return null;
   const tone =
     m.program_status === "ended"
-      ? "text-amber-800 dark:text-amber-200"
-      : m.program_status === "ending_soon"
-        ? "text-orange-700 dark:text-orange-300"
-        : "text-[var(--mo-muted)]";
+      ? "is-ended"
+      : m.program_status === "ending_soon" || m.is_paused
+        ? "is-warn"
+        : "";
   const title = [
     m.program_started_on ? `Старт: ${formatRuDate(m.program_started_on)}` : null,
     m.program_expected_end_on ? `Ожид. конец: ${formatRuDate(m.program_expected_end_on)}` : null,
@@ -268,7 +268,7 @@ function ProgramPeriodHint({ m }: { m: Membership }) {
     .filter(Boolean)
     .join(" · ");
   return (
-    <div className={`mt-0.5 text-[10px] font-normal leading-tight tabular-nums ${tone}`} title={title}>
+    <div className={`cj-period-hint tabular-nums ${tone}`.trim()} title={title}>
       {label}
     </div>
   );
@@ -830,17 +830,17 @@ export function CuratorJournalPage() {
                     <th className="cj-sticky-name">
                       <button
                         type="button"
-                        className="text-left font-medium text-[var(--mo-text)] hover:underline"
+                        className="cj-person-name text-left hover:underline"
                         onClick={() => setHistoryMemberId(p.id)}
                       >
                         {p.display_name}
                       </button>
                       <ProgramPeriodHint m={p} />
                       {p.left_on ? null : (
-                        <span className="print-omit mt-1 flex gap-2">
+                        <span className="cj-person-actions print-omit">
                           <button
                             type="button"
-                            className="text-[10px] font-medium text-[var(--mo-accent)] hover:underline"
+                            className="cj-person-action is-accent"
                             onClick={() => {
                               if (p.is_paused) pauseMut.mutate({ id: p.id, resume: true });
                               else setPauseDraft({ id: p.id, name: p.display_name, comment: "" });
@@ -850,7 +850,7 @@ export function CuratorJournalPage() {
                           </button>
                           <button
                             type="button"
-                            className="text-[10px] font-medium text-[var(--mo-muted)] hover:underline"
+                            className="cj-person-action is-muted"
                             disabled={leaveMut.isPending}
                             onClick={() => removeFromFlow(p)}
                           >
@@ -981,23 +981,20 @@ export function CuratorJournalPage() {
             {filteredParticipants.map((p) => {
               const e = entryMap.get(`${p.id}|${mobileDay}`);
               return (
-                <div
-                  key={p.id}
-                  className="rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-3"
-                >
+                <div key={p.id} className="cj-person-card">
                   <button
                     type="button"
-                    className="mb-0.5 font-medium hover:underline"
+                    className="cj-person-name hover:underline"
                     onClick={() => setHistoryMemberId(p.id)}
                   >
                     {p.display_name}
                   </button>
                   <ProgramPeriodHint m={p} />
                   {p.left_on ? null : (
-                    <span className="mt-1 flex gap-3">
+                    <span className="cj-person-actions">
                       <button
                         type="button"
-                        className="text-xs font-medium text-[var(--mo-accent)] hover:underline"
+                        className="cj-person-action is-accent"
                         onClick={() => {
                           if (p.is_paused) pauseMut.mutate({ id: p.id, resume: true });
                           else setPauseDraft({ id: p.id, name: p.display_name, comment: "" });
@@ -1007,7 +1004,7 @@ export function CuratorJournalPage() {
                       </button>
                       <button
                         type="button"
-                        className="text-xs font-medium text-[var(--mo-muted)] hover:underline"
+                        className="cj-person-action is-muted"
                         disabled={leaveMut.isPending}
                         onClick={() => removeFromFlow(p)}
                       >
