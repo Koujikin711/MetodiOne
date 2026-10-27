@@ -247,7 +247,7 @@ export function MainLayout() {
           ref={mainRef}
           className={[
             "shell-main relative min-h-0 min-w-0 flex-1 overflow-y-auto text-[var(--mo-text)] sm:px-10 sm:py-10 sm:pb-10 lg:flex lg:flex-col lg:px-14",
-            deskSalesEnabled || managerChatFirst ? "px-2.5 py-2.5" : "px-3 py-4",
+            deskSalesEnabled || managerChatFirst ? "px-2.5 py-1.5 sm:py-2.5" : "px-3 pt-1.5 pb-3 sm:py-4",
             location.pathname.startsWith("/chat")
               ? [
                   "max-lg:!px-0 max-lg:!pt-0 max-lg:!pb-0 max-lg:overflow-hidden",

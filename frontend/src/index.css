@@ -583,6 +583,39 @@ html {
   }
 }
 
+/* Телефон: меньше пустоты сверху у всех разделов */
+@media (max-width: 639px) {
+  .shell-main {
+    padding-top: 0.35rem !important;
+  }
+
+  .mo-page {
+    padding-top: 0;
+    padding-bottom: 1.25rem;
+    row-gap: 0.75rem;
+    --tw-space-y-reverse: 0;
+  }
+
+  .mo-page > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.75rem;
+  }
+
+  .mo-admin-page-head {
+    padding-bottom: 0.5rem;
+    margin-bottom: 0;
+  }
+
+  .mo-fill-page > .mo-admin-page-head,
+  .mo-fill-page > .analytics-page-header,
+  .crm-page > .crm-toolbar {
+    margin-top: 0;
+  }
+
+  .lux-heading-page {
+    margin-top: 0;
+  }
+}
+
 .shell-sidebar-nav {
   gap: 0;
   padding-top: 2px;
@@ -684,14 +717,24 @@ html {
   @apply justify-center px-1;
 }
 
+/* Не резервируем полосу сверху, если нет колокольчика задач */
 .shell-tools {
-  min-height: 2.75rem;
-  padding: 0.35rem 0.7rem 0.15rem;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+}
+.shell-tools:empty {
+  display: none;
+}
+.shell-tools:has(> *) {
+  display: flex;
+  padding: 0.2rem 0.35rem 0.1rem;
+  margin-bottom: 0.15rem;
 }
 @media (min-width: 640px) {
-  .shell-tools {
-    min-height: 0;
-    padding: 0 0 0.35rem;
+  .shell-tools:has(> *) {
+    padding: 0 0 0.25rem;
+    margin-bottom: 0;
   }
 }
 .shell-tools__theme {
@@ -699,6 +742,17 @@ html {
   width: 2.5rem;
   border-radius: 9999px;
   padding: 0;
+}
+
+/* Баннеры сверху: пустой слот не занимает место */
+.app-banners-slot:not(:has(*)) {
+  display: none;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.app-banners-slot:has(*) {
+  margin-bottom: 0.5rem;
 }
 
 .shell-sidebar-header {

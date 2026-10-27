@@ -58,12 +58,16 @@ export function AppBanners() {
       (b.billing_status === "demo_trial" && daysLeft != null && daysLeft <= 3));
 
   const showOther =
-    demo || showOnboardingBanner || impersonatorId != null || Boolean(showBillingUrgent) || showArchiveEveningBadge;
+    demo || showOnboardingBanner || impersonatorId != null || Boolean(showBillingUrgent);
 
   return (
     <>
-      {showOther ? <div className="mb-4 space-y-2 print:hidden">
-      {showArchiveEveningBadge ? <ArchiveEveningAdminBadge /> : null}
+      {showArchiveEveningBadge ? (
+        <div className="app-banners-slot print:hidden">
+          <ArchiveEveningAdminBadge />
+        </div>
+      ) : null}
+      {showOther ? <div className="app-banners-slot mb-2 space-y-2 print:hidden">
       {impersonatorId != null ? (
         <div className="mo-section border-[var(--mo-warning)]/35 bg-[var(--mo-surface-elevated)] px-4 py-2 text-center text-xs text-[var(--mo-text)]">
           Режим поддержки: вы вошли от имени владельца компании. Сессия помечена супер-владельцем (ID{" "}
