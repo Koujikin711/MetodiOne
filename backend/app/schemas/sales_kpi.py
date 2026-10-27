@@ -565,6 +565,8 @@ class SalesKpiEarningDetailRow(BaseModel):
     pay_status: str  # full | partial | none
     sold_at: datetime | None = None
     in_brought: bool = False
+    brought_amount: Decimal = Decimal("0")
+    is_new: bool = False
     note: str | None = None
 
 
@@ -577,4 +579,5 @@ class SalesKpiEarningDetailOut(BaseModel):
     service_name: str
     sales_count: int = 0
     brought: Decimal = Decimal("0")
+    rows_brought: Decimal = Decimal("0")
     rows: list[SalesKpiEarningDetailRow] = Field(default_factory=list)

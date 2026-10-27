@@ -103,6 +103,7 @@ from app.services.sales_kpi_weighted import (
     completion_ratio,
     contribution,
     course_brought_from_gross,
+    course_stage_credits_for_payments,
     ensure_plan_carried_forward,
     is_full_payment,
     is_main_course_product,
@@ -1238,7 +1239,7 @@ async def _service_earning_detail(
     if direction_ids:
         named_dirs |= {int(d) for d in direction_ids}
 
-    # KPI-продажи месяца (Новых) + активные с оплатой в месяце для контекста «Привёл»
+    # KPI-продажи: «Новых» (открыты в месяце) + те, у кого в этом месяце этап/платёж в «Привёл»
     if (source_type or "manual") != "direction":
         sale_rows = (
             await db.execute(
@@ -1249,44 +1250,100 @@ async def _service_earning_detail(
                     SalesKpiManualSale.pipeline_id == pipeline_id,
                     SalesKpiManualSale.paid_amount > 0,
                     SalesKpiManualSale.status != "refused",
-                    func.coalesce(
-                        SalesKpiManualSale.opened_manager_user_id,
-                        SalesKpiManualSale.manager_user_id,
-                    )
-                    == manager_id,
-                    or_(
-                        and_(
-                            SalesKpiManualSale.sold_at >= start,
-                            SalesKpiManualSale.sold_at < end,
-                        ),
-                        exists(
-                            select(SalesKpiManualSalePayment.id).where(
-                                SalesKpiManualSalePayment.sale_id == SalesKpiManualSale.id,
-                                SalesKpiManualSalePayment.paid_at >= start,
-                                SalesKpiManualSalePayment.paid_at < end,
-                                SalesKpiManualSalePayment.amount > 0,
-                                SalesKpiManualSalePayment.confirmed_at.is_not(None),
-                                SalesKpiManualSalePayment.rejected_at.is_(None),
-                            ),
-                        ),
-                    ),
                 )
                 .order_by(SalesKpiManualSale.sold_at.desc()),
             )
         ).all()
+        sale_ids = [int(s.id) for s, pname in sale_rows if _norm_kpi_label(str(pname or "")) == label]
+        pays_by_sale: dict[int, list[tuple[datetime, Decimal, int]]] = {}
+        if sale_ids:
+            pay_rows = (
+                await db.execute(
+                    select(
+                        SalesKpiManualSalePayment.sale_id,
+                        SalesKpiManualSalePayment.amount,
+                        SalesKpiManualSalePayment.paid_at,
+                        func.coalesce(
+                            SalesKpiManualSalePayment.manager_user_id,
+                            SalesKpiManualSale.opened_manager_user_id,
+                            SalesKpiManualSale.manager_user_id,
+                        ),
+                    )
+                    .join(SalesKpiManualSale, SalesKpiManualSale.id == SalesKpiManualSalePayment.sale_id)
+                    .where(
+                        SalesKpiManualSalePayment.sale_id.in_(sale_ids),
+                        SalesKpiManualSalePayment.amount > 0,
+                        SalesKpiManualSalePayment.confirmed_at.is_not(None),
+                        SalesKpiManualSalePayment.rejected_at.is_(None),
+                        SalesKpiManualSalePayment.paid_at.is_not(None),
+                    )
+                    .order_by(SalesKpiManualSalePayment.paid_at.asc(), SalesKpiManualSalePayment.id.asc()),
+                )
+            ).all()
+            for sale_id, amount, paid_at, mid in pay_rows:
+                if sale_id is None or mid is None or paid_at is None:
+                    continue
+                at = paid_at if paid_at.tzinfo else paid_at.replace(tzinfo=UTC)
+                pays_by_sale.setdefault(int(sale_id), []).append(
+                    (at, Decimal(str(amount or 0)).quantize(Decimal("0.01")), int(mid)),
+                )
+
         for sale, pname in sale_rows:
             if _norm_kpi_label(str(pname or "")) != label:
                 continue
             price = Decimal(str(sale.service_amount or 0)).quantize(Decimal("0.01"))
             paid = Decimal(str(sale.paid_amount or 0)).quantize(Decimal("0.01"))
-            opened = sale.sold_at is not None and start <= sale.sold_at < end
-            if protocol_brought_waits_for_full_price(item.name):
-                in_brought = is_full_payment(price, paid)
-            elif is_main_course_product(item.name):
-                in_brought = course_brought_from_gross(price, paid) > 0
+            opened_mid = int(
+                sale.opened_manager_user_id
+                if sale.opened_manager_user_id is not None
+                else (sale.manager_user_id or 0),
+            )
+            is_new = (
+                opened_mid == manager_id
+                and sale.sold_at is not None
+                and start <= sale.sold_at < end
+                and paid > 0
+            )
+            payments = pays_by_sale.get(int(sale.id), [])
+            brought_amt = Decimal("0.00")
+            if is_main_course_product(item.name):
+                for paid_at, mid, credit in course_stage_credits_for_payments(
+                    service_amount=price,
+                    payments=payments,
+                ):
+                    if mid != manager_id:
+                        continue
+                    if paid_at < start or paid_at >= end:
+                        continue
+                    brought_amt += credit
+            elif protocol_brought_waits_for_full_price(item.name):
+                if is_full_payment(price, paid):
+                    for paid_at, amt, mid in payments:
+                        if mid != manager_id:
+                            continue
+                        if paid_at < start or paid_at >= end:
+                            continue
+                        brought_amt += amt
             else:
-                in_brought = is_full_payment(price, paid)
-            note = "открыт в месяце" if opened else "доплата / ранее открыт"
+                for paid_at, amt, mid in payments:
+                    if mid != manager_id:
+                        continue
+                    if paid_at < start or paid_at >= end:
+                        continue
+                    brought_amt += amt
+
+            # Продажа без строк журнала: legacy — вся оплата в месяц sold_at у opened/manager
+            if not payments and is_new and paid > 0:
+                if is_main_course_product(item.name):
+                    brought_amt = course_brought_from_gross(price, paid)
+                elif protocol_brought_waits_for_full_price(item.name):
+                    brought_amt = paid if is_full_payment(price, paid) else Decimal("0.00")
+                else:
+                    brought_amt = paid if is_full_payment(price, paid) else Decimal("0.00")
+
+            if not is_new and brought_amt <= 0:
+                continue
+            note = "открыт в месяце" if is_new else "этап / доплата в месяце"
             rows.append(
                 SalesKpiEarningDetailRow(
                     source="kpi",
@@ -1296,7 +1353,9 @@ async def _service_earning_detail(
                     paid_amount=paid,
                     pay_status=_pay_status(price, paid),
                     sold_at=sale.sold_at,
-                    in_brought=in_brought,
+                    in_brought=brought_amt > 0,
+                    brought_amount=brought_amt.quantize(Decimal("0.01")),
+                    is_new=is_new,
                     note=note,
                 ),
             )
@@ -1344,17 +1403,18 @@ async def _service_earning_detail(
             if mid != manager_id:
                 continue
             if specs and int(appt.specialist_id or 0) not in specs:
-                # для direction source с выбранными специалистами — фильтр; для manual+named dirs — без фильтра
                 if (source_type or "") == "direction":
                     continue
             if not _labels_same_service(dname, item.name) and int(appt.direction_id) not in named_dirs:
                 continue
             price = Decimal(str(appt.service_amount or 0)).quantize(Decimal("0.01"))
             paid = Decimal(str(appt.paid_amount or 0)).quantize(Decimal("0.01"))
+            is_new = True  # визит месяца с оплатой = «Новых» по записи
             if is_main_course_product(item.name):
-                in_brought = course_brought_from_gross(price, paid) > 0
+                brought_amt = course_brought_from_gross(price, paid)
             else:
-                in_brought = is_full_payment(price, paid)
+                # Курс 15 / протокол / прочее: в Привёл только полная оплата
+                brought_amt = paid if is_full_payment(price, paid) else Decimal("0.00")
             rows.append(
                 SalesKpiEarningDetailRow(
                     source="booking",
@@ -1364,12 +1424,15 @@ async def _service_earning_detail(
                     paid_amount=paid,
                     pay_status=_pay_status(price, paid),
                     sold_at=appt.start_at,
-                    in_brought=in_brought,
+                    in_brought=brought_amt > 0,
+                    brought_amount=brought_amt.quantize(Decimal("0.01")),
+                    is_new=is_new,
                     note=str(dname or ""),
                 ),
             )
 
     rows.sort(key=lambda r: (r.sold_at is None, -(r.sold_at.timestamp() if r.sold_at else 0)))
+    rows_brought = sum((r.brought_amount for r in rows), Decimal("0")).quantize(Decimal("0.01"))
     return SalesKpiEarningDetailOut(
         pipeline_id=pipeline_id,
         year_month=ym.isoformat()[:7],
@@ -1379,6 +1442,7 @@ async def _service_earning_detail(
         service_name=str(item.name or ""),
         sales_count=sales_count,
         brought=brought.quantize(Decimal("0.01")),
+        rows_brought=rows_brought,
         rows=rows,
     )
 

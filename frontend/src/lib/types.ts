@@ -1089,6 +1089,8 @@ export interface SalesKpiEarningDetailRow {
   pay_status: "full" | "partial" | "none" | string;
   sold_at: string | null;
   in_brought: boolean;
+  brought_amount: string | number;
+  is_new?: boolean;
   note: string | null;
 }
 
@@ -1101,6 +1103,7 @@ export interface SalesKpiEarningDetailOut {
   service_name: string;
   sales_count: number;
   brought: string | number;
+  rows_brought?: string | number;
   rows: SalesKpiEarningDetailRow[];
 }
 

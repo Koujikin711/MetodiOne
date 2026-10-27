@@ -2653,7 +2653,7 @@ function SalesReportSection({
                     <p className="mt-0.5 text-xs mo-muted">
                       {yearMonth}
                       {detailQuery.data
-                        ? ` · новых ${detailQuery.data.sales_count} · привёл ${formatMoney(num(detailQuery.data.brought))}`
+                        ? ` · новых ${detailQuery.data.sales_count} · привёл ${formatMoney(num(detailQuery.data.brought))} (в списке этапы ${formatMoney(num(detailQuery.data.rows_brought ?? 0))})`
                         : null}
                     </p>
                   </div>
@@ -2670,20 +2670,23 @@ function SalesReportSection({
                     <p className="text-sm mo-muted">Нет продаж по этой услуге за месяц.</p>
                   ) : (
                     <>
+                      <p className="mb-2 text-[11px] mo-muted">
+                        Колонка «В Привёл» — этап за этот месяц (не вся оплата). Новых — открыты в месяце; доплаты старых тоже в списке, если закрыли этап.
+                      </p>
                       <ul className="space-y-2 sm:hidden">
                         {detailQuery.data.rows.map((r) => (
                           <li key={`${r.source}-${r.source_id}`} className="rounded-xl border border-[var(--mo-border)] px-3 py-2">
                             <div className="flex items-start justify-between gap-2">
                               <p className="truncate text-sm font-semibold text-[var(--mo-text)]">{r.client_name}</p>
                               <span className="shrink-0 text-sm font-semibold tabular-nums">
-                                {formatMoney(num(r.paid_amount))}
+                                {formatMoney(num(r.brought_amount))}
                               </span>
                             </div>
                             <p className="text-[11px] mo-muted">
-                              {formatMoney(num(r.service_amount))} · {payStatusLabel(r.pay_status)}
-                              {r.in_brought ? " · в Привёл" : ""}
+                              оплачено {formatMoney(num(r.paid_amount))} / {formatMoney(num(r.service_amount))} ·{" "}
+                              {payStatusLabel(r.pay_status)}
+                              {r.is_new ? " · новый" : " · доплата"}
                               {r.sold_at ? ` · ${String(r.sold_at).slice(0, 10)}` : ""}
-                              {r.source === "booking" ? " · запись" : " · KPI"}
                             </p>
                           </li>
                         ))}
@@ -2694,6 +2697,7 @@ function SalesReportSection({
                             <th>Клиент</th>
                             <th>Цена</th>
                             <th>Оплачено</th>
+                            <th>В Привёл</th>
                             <th>Статус</th>
                             <th>Дата</th>
                             <th></th>
@@ -2705,10 +2709,13 @@ function SalesReportSection({
                               <td>{r.client_name}</td>
                               <td className="tabular-nums">{formatMoney(num(r.service_amount))}</td>
                               <td className="tabular-nums">{formatMoney(num(r.paid_amount))}</td>
+                              <td className="tabular-nums font-semibold">
+                                {num(r.brought_amount) > 0 ? formatMoney(num(r.brought_amount)) : "—"}
+                              </td>
                               <td>{payStatusLabel(r.pay_status)}</td>
                               <td className="tabular-nums">{r.sold_at ? String(r.sold_at).slice(0, 10) : "—"}</td>
                               <td className="text-[11px] mo-muted">
-                                {r.in_brought ? "Привёл" : ""}
+                                {r.is_new ? "новый" : "доплата"}
                                 {r.source === "booking" ? " · запись" : " · KPI"}
                               </td>
                             </tr>
