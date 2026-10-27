@@ -82,6 +82,8 @@ from app.schemas.sales_kpi import (
     SalesKpiLeadSearchItem,
     SalesKpiLeadSearchOut,
     SalesKpiSalesReport,
+    SalesKpiEarningDetailOut,
+    SalesKpiEarningDetailRow,
     SalesKpiServiceEarningLine,
     SalesKpiServiceEarningManager,
     SalesKpiServiceEarningsReport,
@@ -97,9 +99,13 @@ from app.services.sales_kpi_weighted import (
     _labels_same_service,
     _norm_kpi_label,
     build_manager_lines,
+    brought_booking_manager_id,
     completion_ratio,
     contribution,
+    course_brought_from_gross,
     ensure_plan_carried_forward,
+    is_full_payment,
+    is_main_course_product,
     load_bonus_fund,
     load_desk_sale_facts_full_paid,
     load_direction_facts_full_paid,
@@ -127,6 +133,8 @@ from app.services.sales_kpi_weighted import (
     course_debt_is_due,
     first_course_payment_at,
     parse_year_month,
+    protocol_brought_waits_for_full_price,
+    service_direction_ids,
     shift_year_month,
     sum_service_facts_company,
     sum_specialist_facts_company,
@@ -1145,6 +1153,268 @@ async def service_earnings(
         pipeline_name=pipe.name,
         ym=ym,
         only_manager=only_manager,
+    )
+
+
+def _pay_status(price: Decimal, paid: Decimal) -> str:
+    if paid <= 0:
+        return "none"
+    if is_full_payment(price, paid):
+        return "full"
+    return "partial"
+
+
+async def _service_earning_detail(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    pipeline_id: int,
+    ym: date,
+    manager_id: int,
+    plan_item_id: int,
+) -> SalesKpiEarningDetailOut:
+    items = await _month_plan_items(db, company_id=company_id, pipeline_id=pipeline_id, ym=ym)
+    item = next((x for x in items if int(x.id) == plan_item_id), None)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Услуга плана не найдена")
+    managers = await load_managers(db, company_id=company_id, pipeline_id=pipeline_id)
+    manager_name = next((name for mid, name in managers if mid == manager_id), f"#{manager_id}")
+    item_services = await load_plan_item_services(db, plan_item_ids=[plan_item_id])
+    item_specialists = await load_plan_item_specialists(db, plan_item_ids=[plan_item_id])
+    direction_names = await load_booking_direction_names(db, company_id=company_id)
+    unit_prices = await load_kpi_unit_prices_by_label(
+        db, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
+    )
+    detail, sale_counts = await load_brought_paid_detail(
+        db, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
+    )
+    refund_detail = await load_booking_brought_refunds(
+        db, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
+    )
+    manual = await load_manual_brought_by_label(
+        db, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
+    )
+    manual_refunds = await load_manual_refunds_by_label(
+        db, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
+    )
+    manual_new = await load_manual_new_sales_by_label(
+        db, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
+    )
+    label = _norm_kpi_label(item.name)
+    unit_price = unit_prices.get(label)
+    direction_ids = item_services.get(plan_item_id, [])
+    specialist_ids = item_specialists.get(plan_item_id, [])
+    source_type = item.source_type or "manual"
+    sales_count = new_sales_for_plan_item(
+        manager_id=manager_id,
+        source_type=source_type,
+        name=item.name,
+        direction_id=int(item.direction_id) if item.direction_id is not None else None,
+        direction_ids=direction_ids,
+        specialist_ids=specialist_ids,
+        sale_counts=sale_counts,
+        manual_counts=manual_new,
+        direction_names=direction_names,
+        unit_price=unit_price,
+    )
+    brought = brought_for_plan_item(
+        manager_id=manager_id,
+        source_type=source_type,
+        name=item.name,
+        direction_id=int(item.direction_id) if item.direction_id is not None else None,
+        direction_ids=direction_ids,
+        specialist_ids=specialist_ids,
+        detail=detail,
+        manual=manual,
+        direction_names=direction_names,
+        unit_price=unit_price,
+        refund_detail=refund_detail,
+        manual_refunds=manual_refunds,
+    )
+
+    start, end = month_bounds(ym)
+    rows: list[SalesKpiEarningDetailRow] = []
+    named_dirs = set(service_direction_ids(item.name, direction_names))
+    if direction_ids:
+        named_dirs |= {int(d) for d in direction_ids}
+
+    # KPI-продажи месяца (Новых) + активные с оплатой в месяце для контекста «Привёл»
+    if (source_type or "manual") != "direction":
+        sale_rows = (
+            await db.execute(
+                select(SalesKpiManualSale, SalesKpiPlanItem.name)
+                .join(SalesKpiPlanItem, SalesKpiPlanItem.id == SalesKpiManualSale.plan_item_id)
+                .where(
+                    SalesKpiManualSale.company_id == company_id,
+                    SalesKpiManualSale.pipeline_id == pipeline_id,
+                    SalesKpiManualSale.paid_amount > 0,
+                    SalesKpiManualSale.status != "refused",
+                    func.coalesce(
+                        SalesKpiManualSale.opened_manager_user_id,
+                        SalesKpiManualSale.manager_user_id,
+                    )
+                    == manager_id,
+                    or_(
+                        and_(
+                            SalesKpiManualSale.sold_at >= start,
+                            SalesKpiManualSale.sold_at < end,
+                        ),
+                        exists(
+                            select(SalesKpiManualSalePayment.id).where(
+                                SalesKpiManualSalePayment.sale_id == SalesKpiManualSale.id,
+                                SalesKpiManualSalePayment.paid_at >= start,
+                                SalesKpiManualSalePayment.paid_at < end,
+                                SalesKpiManualSalePayment.amount > 0,
+                                SalesKpiManualSalePayment.confirmed_at.is_not(None),
+                                SalesKpiManualSalePayment.rejected_at.is_(None),
+                            ),
+                        ),
+                    ),
+                )
+                .order_by(SalesKpiManualSale.sold_at.desc()),
+            )
+        ).all()
+        for sale, pname in sale_rows:
+            if _norm_kpi_label(str(pname or "")) != label:
+                continue
+            price = Decimal(str(sale.service_amount or 0)).quantize(Decimal("0.01"))
+            paid = Decimal(str(sale.paid_amount or 0)).quantize(Decimal("0.01"))
+            opened = sale.sold_at is not None and start <= sale.sold_at < end
+            if protocol_brought_waits_for_full_price(item.name):
+                in_brought = is_full_payment(price, paid)
+            elif is_main_course_product(item.name):
+                in_brought = course_brought_from_gross(price, paid) > 0
+            else:
+                in_brought = is_full_payment(price, paid)
+            note = "открыт в месяце" if opened else "доплата / ранее открыт"
+            rows.append(
+                SalesKpiEarningDetailRow(
+                    source="kpi",
+                    source_id=int(sale.id),
+                    client_name=str(sale.client_name or ""),
+                    service_amount=price,
+                    paid_amount=paid,
+                    pay_status=_pay_status(price, paid),
+                    sold_at=sale.sold_at,
+                    in_brought=in_brought,
+                    note=note,
+                ),
+            )
+
+    # Запись месяца
+    if named_dirs or (source_type or "") == "direction":
+        creator = aliased(User)
+        responsible = aliased(User)
+        appt_q = (
+            select(
+                BookingAppointment,
+                BookingDirection.name,
+                creator.role,
+                responsible.role,
+            )
+            .join(BookingDirection, BookingDirection.id == BookingAppointment.direction_id)
+            .join(Lead, Lead.id == BookingAppointment.lead_id, isouter=True)
+            .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
+            .join(creator, creator.id == BookingAppointment.created_by_user_id, isouter=True)
+            .join(responsible, responsible.id == BookingAppointment.responsible_manager_id, isouter=True)
+            .where(
+                BookingAppointment.company_id == company_id,
+                BookingAppointment.start_at >= start,
+                BookingAppointment.start_at < end,
+                BookingAppointment.paid_amount > 0,
+                BookingAppointment.status != "cancelled",
+                or_(
+                    BookingAppointment.pipeline_id == pipeline_id,
+                    PipelineStage.pipeline_id == pipeline_id,
+                ),
+            )
+            .order_by(BookingAppointment.start_at.desc())
+        )
+        if named_dirs:
+            appt_q = appt_q.where(BookingAppointment.direction_id.in_(named_dirs))
+        appt_rows = (await db.execute(appt_q)).all()
+        specs = {int(s) for s in specialist_ids} if specialist_ids else set()
+        for appt, dname, created_role, responsible_role in appt_rows:
+            mid = brought_booking_manager_id(
+                appt.created_by_user_id,
+                created_role,
+                appt.responsible_manager_id,
+                responsible_role,
+            )
+            if mid != manager_id:
+                continue
+            if specs and int(appt.specialist_id or 0) not in specs:
+                # для direction source с выбранными специалистами — фильтр; для manual+named dirs — без фильтра
+                if (source_type or "") == "direction":
+                    continue
+            if not _labels_same_service(dname, item.name) and int(appt.direction_id) not in named_dirs:
+                continue
+            price = Decimal(str(appt.service_amount or 0)).quantize(Decimal("0.01"))
+            paid = Decimal(str(appt.paid_amount or 0)).quantize(Decimal("0.01"))
+            if is_main_course_product(item.name):
+                in_brought = course_brought_from_gross(price, paid) > 0
+            else:
+                in_brought = is_full_payment(price, paid)
+            rows.append(
+                SalesKpiEarningDetailRow(
+                    source="booking",
+                    source_id=int(appt.id),
+                    client_name=str(appt.patient_name or ""),
+                    service_amount=price,
+                    paid_amount=paid,
+                    pay_status=_pay_status(price, paid),
+                    sold_at=appt.start_at,
+                    in_brought=in_brought,
+                    note=str(dname or ""),
+                ),
+            )
+
+    rows.sort(key=lambda r: (r.sold_at is None, -(r.sold_at.timestamp() if r.sold_at else 0)))
+    return SalesKpiEarningDetailOut(
+        pipeline_id=pipeline_id,
+        year_month=ym.isoformat()[:7],
+        manager_id=manager_id,
+        manager_name=manager_name,
+        service_key=f"p:{plan_item_id}",
+        service_name=str(item.name or ""),
+        sales_count=sales_count,
+        brought=brought.quantize(Decimal("0.01")),
+        rows=rows,
+    )
+
+
+@router.get("/service-earnings/detail", response_model=SalesKpiEarningDetailOut)
+async def service_earnings_detail(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    pipeline_id: int = Query(..., ge=1),
+    year_month: str = Query(..., description="YYYY-MM"),
+    manager_id: int = Query(..., ge=1),
+    plan_item_id: int = Query(..., ge=1),
+) -> SalesKpiEarningDetailOut:
+    """Короткий отчёт: кто и на сколько по услуге менеджера (клик по «Новых»)."""
+    _assert_kpi_access(current_user)
+    await _load_pipeline(db, company_id, pipeline_id)
+    try:
+        ym = parse_year_month(year_month)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    if current_user.role == UserRole.manager:
+        if not await _is_user_assigned_pipeline(db, company_id, current_user.id, pipeline_id):
+            raise HTTPException(status_code=403, detail="Вы не назначены на эту воронку")
+        if int(current_user.id) != manager_id:
+            raise HTTPException(status_code=403, detail="Можно смотреть только свой отчёт")
+    elif current_user.role == UserRole.admin:
+        if not await _is_user_assigned_pipeline(db, company_id, current_user.id, pipeline_id):
+            raise HTTPException(status_code=403, detail="Вы не назначены на эту воронку")
+    return await _service_earning_detail(
+        db,
+        company_id=company_id,
+        pipeline_id=pipeline_id,
+        ym=ym,
+        manager_id=manager_id,
+        plan_item_id=plan_item_id,
     )
 
 

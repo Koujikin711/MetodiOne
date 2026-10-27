@@ -406,19 +406,40 @@ def test_protocol_brought_waits_until_the_price_is_closed():
     assert is_full_payment(3000, 3500) is True
 
 
-def test_course_stage_amount_is_price_divided_by_three():
+def test_course_stage_amount_caps_by_price_tier():
+    """15–17 000 → 5000; 10 000 → 3000 (не 3333.33)."""
     assert course_stage_amount(Decimal("15000")) == Decimal("5000.00")
-    assert course_stage_amount(Decimal("17000")) == Decimal("5666.67")
+    assert course_stage_amount(Decimal("17000")) == Decimal("5000.00")
+    assert course_stage_amount(Decimal("16000")) == Decimal("5000.00")
+    assert course_stage_amount(Decimal("10000")) == Decimal("3000.00")
+    assert course_stage_amount(Decimal("6000")) == Decimal("2000.00")
 
 
 def test_course_brought_from_gross_unlocks_thirds():
-    """15000: 5000 → этап; 8000 ещё не 2/3; 10000 → два этапа; 15000 → три; переплата сверху."""
+    """15000: 5000 → этап; 8000 ещё не 2-й; 10000 → два этапа; 15000 → три; переплата сверху."""
     assert course_brought_from_gross(Decimal("15000"), Decimal("5000")) == Decimal("5000.00")
     assert course_brought_from_gross(Decimal("15000"), Decimal("8000")) == Decimal("5000.00")
     assert course_brought_from_gross(Decimal("15000"), Decimal("10000")) == Decimal("10000.00")
     assert course_brought_from_gross(Decimal("15000"), Decimal("15000")) == Decimal("15000.00")
     assert course_brought_from_gross(Decimal("15000"), Decimal("16000")) == Decimal("16000.00")
     assert course_brought_from_gross(Decimal("15000"), Decimal("3000")) == Decimal("0.00")
+
+
+def test_course_brought_17000_accepts_5600_as_first_stage():
+    """Взнос 5600 на курс 17000 закрывает 1-й этап (5000), раньше при 5666.67 — нет."""
+    assert course_brought_from_gross(Decimal("17000"), Decimal("5600")) == Decimal("5000.00")
+    assert course_brought_from_gross(Decimal("17000"), Decimal("5000")) == Decimal("5000.00")
+    assert course_brought_from_gross(Decimal("17000"), Decimal("4999")) == Decimal("0.00")
+    assert course_brought_from_gross(Decimal("17000"), Decimal("10000")) == Decimal("10000.00")
+    assert course_brought_from_gross(Decimal("17000"), Decimal("17000")) == Decimal("17000.00")
+
+
+def test_course_brought_10000_accepts_3000_as_first_stage():
+    """Курс 10 000: этап 3000, не 3333.33."""
+    assert course_brought_from_gross(Decimal("10000"), Decimal("3000")) == Decimal("3000.00")
+    assert course_brought_from_gross(Decimal("10000"), Decimal("2999")) == Decimal("0.00")
+    assert course_brought_from_gross(Decimal("10000"), Decimal("6000")) == Decimal("6000.00")
+    assert course_brought_from_gross(Decimal("10000"), Decimal("10000")) == Decimal("10000.00")
 
 
 def test_course_stage_credits_accumulate_across_payments():
@@ -444,3 +465,18 @@ def test_course_stage_credits_accumulate_across_payments():
     )
     assert sum((c[2] for c in once), Decimal("0")) == Decimal("15000.00")
     assert len(once) == 3
+
+    # 17000: сентябрь 5600 → этап 5000; октябрь +5600 → второй этап 5000
+    t_sep = datetime(2026, 9, 19, 12, 0, tzinfo=UTC)
+    t_oct = datetime(2026, 10, 26, 12, 0, tzinfo=UTC)
+    c17 = course_stage_credits_for_payments(
+        service_amount=Decimal("17000"),
+        payments=[
+            (t_sep, Decimal("5600"), 7),
+            (t_oct, Decimal("5600"), 7),
+        ],
+    )
+    assert c17 == [
+        (t_sep, 7, Decimal("5000.00")),
+        (t_oct, 7, Decimal("5000.00")),
+    ]

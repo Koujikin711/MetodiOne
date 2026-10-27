@@ -30,6 +30,7 @@ import type {
   SalesKpiPaymentJournalRow,
   SalesKpiPipelineMeta,
   SalesKpiReferralServiceCell,
+  SalesKpiEarningDetailOut,
   SalesKpiServiceEarningsReport,
   SalesKpiServiceRates,
   SalesKpiWeightedPlan,
@@ -1417,6 +1418,8 @@ export function KpiPage() {
           loading={earningsQuery.isLoading}
           error={earningsQuery.error as Error | null}
           listQuery={listQuery}
+          pipelineId={pipelineId}
+          yearMonth={yearMonth}
         />
       ) : null}
 
@@ -2439,17 +2442,51 @@ export function KpiPage() {
   );
 }
 
+function parsePlanItemId(serviceKey: string): number | null {
+  const m = /^p:(\d+)$/.exec(serviceKey.trim());
+  return m ? Number(m[1]) : null;
+}
+
+function payStatusLabel(status: string): string {
+  if (status === "full") return "полная";
+  if (status === "partial") return "неполная";
+  return "без оплаты";
+}
+
 function SalesReportSection({
   data,
   loading,
   error,
   listQuery = "",
+  pipelineId = null,
+  yearMonth = "",
 }: {
   data: SalesKpiServiceEarningsReport | undefined;
   loading: boolean;
   error: Error | null;
   listQuery?: string;
+  pipelineId?: number | null;
+  yearMonth?: string;
 }) {
+  const [detailKey, setDetailKey] = useState<{
+    managerId: number;
+    managerName: string;
+    serviceKey: string;
+    serviceName: string;
+  } | null>(null);
+
+  const planItemId = detailKey ? parsePlanItemId(detailKey.serviceKey) : null;
+  const detailQs =
+    pipelineId && yearMonth && detailKey && planItemId
+      ? `pipeline_id=${pipelineId}&year_month=${encodeURIComponent(yearMonth)}&manager_id=${detailKey.managerId}&plan_item_id=${planItemId}`
+      : "";
+
+  const detailQuery = useQuery({
+    queryKey: ["sales-kpi-earning-detail", detailQs],
+    queryFn: () => apiFetch<SalesKpiEarningDetailOut>(`/api/sales-kpi/service-earnings/detail?${detailQs}`),
+    enabled: Boolean(detailQs),
+  });
+
   if (loading) return <p className="text-sm lux-caption">Загрузка заработка…</p>;
   if (error) return <p className="text-sm text-red-300">{error.message}</p>;
   if (!data) return null;
@@ -2483,12 +2520,17 @@ function SalesReportSection({
     );
   }
 
+  const openDetail = (managerId: number, managerName: string, serviceKey: string, serviceName: string) => {
+    if (!pipelineId || !parsePlanItemId(serviceKey)) return;
+    setDetailKey({ managerId, managerName, serviceKey, serviceName });
+  };
+
   return (
     <div className="kpi-sales-board">
       <section className="mo-section px-4 py-3">
         <h2 className="text-[15px] font-semibold text-[var(--mo-text)]">Заработок · {data.year_month}</h2>
         <p className="mt-0.5 text-[11px] lux-caption">
-          Новых — курс открыт один раз тем, кто его привёл. Прошлые оплаты старого менеджера не переходят. Сбор дебиторки считается новому, только если эта оплата подтверждена и записана на него. Привёл по курсу — этапы цена÷3 по накоплению в месяц закрытия этапа. По Курсу 15 и протоколу — после полной оплаты; платежи месяца входят целиком, переплата тоже. По остальным услугам — полная оплата минус возврат. Итого{" "}
+          Новых — курс открыт один раз тем, кто его привёл. Прошлые оплаты старого менеджера не переходят. Сбор дебиторки считается новому, только если эта оплата подтверждена и записана на него. Привёл по курсу — этапы 5 000 (курс 15–17 000) и 3 000 (курс 10 000) по накоплению в месяц закрытия этапа. По Курсу 15 и протоколу — после полной оплаты; платежи месяца входят целиком, переплата тоже. По остальным услугам — полная оплата минус возврат. Нажмите на «Новых» или «Привёл», чтобы увидеть кто и сколько. Итого{" "}
           {formatMoney(num(data.total_earning))}
         </p>
       </section>
@@ -2513,7 +2555,23 @@ function SalesReportSection({
                       </span>
                     </div>
                     <p className="text-[11px] leading-tight tabular-nums mo-muted">
-                      новых {line.sales_count} · привёл {formatMoney(num(line.brought))} · {num(line.manager_percent)}%
+                      <button
+                        type="button"
+                        className="kpi-earn-num-btn"
+                        onClick={() => openDetail(m.manager_id, m.manager_name, line.service_key, line.name)}
+                      >
+                        новых {line.sales_count}
+                      </button>
+                      {" · "}
+                      <button
+                        type="button"
+                        className="kpi-earn-num-btn"
+                        onClick={() => openDetail(m.manager_id, m.manager_name, line.service_key, line.name)}
+                      >
+                        привёл {formatMoney(num(line.brought))}
+                      </button>
+                      {" · "}
+                      {num(line.manager_percent)}%
                     </p>
                   </li>
                 ))}
@@ -2537,8 +2595,24 @@ function SalesReportSection({
                     {m.lines.map((line) => (
                       <tr key={line.service_key}>
                         <td>{line.name}</td>
-                        <td className="tabular-nums">{line.sales_count}</td>
-                        <td>{formatMoney(num(line.brought))}</td>
+                        <td className="tabular-nums">
+                          <button
+                            type="button"
+                            className="kpi-earn-num-btn"
+                            onClick={() => openDetail(m.manager_id, m.manager_name, line.service_key, line.name)}
+                          >
+                            {line.sales_count}
+                          </button>
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="kpi-earn-num-btn"
+                            onClick={() => openDetail(m.manager_id, m.manager_name, line.service_key, line.name)}
+                          >
+                            {formatMoney(num(line.brought))}
+                          </button>
+                        </td>
                         <td>{num(line.manager_percent)}</td>
                         <td>{formatMoney(num(line.earning))}</td>
                       </tr>
@@ -2557,6 +2631,98 @@ function SalesReportSection({
         </section>
       ))}
       </div>
+
+      {detailKey && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-[80] flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-4"
+              onClick={() => setDetailKey(null)}
+            >
+              <div
+                className="flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] shadow-2xl sm:rounded-2xl"
+                role="dialog"
+                aria-modal
+                aria-label="Отчёт по услуге"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <header className="flex items-start justify-between gap-3 border-b border-[var(--mo-border)] px-4 py-3">
+                  <div className="min-w-0">
+                    <h2 className="truncate text-base font-semibold text-[var(--mo-text)]">
+                      {detailKey.serviceName} · {detailKey.managerName}
+                    </h2>
+                    <p className="mt-0.5 text-xs mo-muted">
+                      {yearMonth}
+                      {detailQuery.data
+                        ? ` · новых ${detailQuery.data.sales_count} · привёл ${formatMoney(num(detailQuery.data.brought))}`
+                        : null}
+                    </p>
+                  </div>
+                  <button type="button" className="btn-secondary min-h-10 shrink-0 px-3 text-sm" onClick={() => setDetailKey(null)}>
+                    Закрыть
+                  </button>
+                </header>
+                <div className="min-h-0 flex-1 overflow-auto px-4 py-3">
+                  {detailQuery.isLoading ? (
+                    <p className="text-sm mo-muted">Загрузка…</p>
+                  ) : detailQuery.error ? (
+                    <p className="text-sm text-red-300">{(detailQuery.error as Error).message}</p>
+                  ) : !detailQuery.data?.rows.length ? (
+                    <p className="text-sm mo-muted">Нет продаж по этой услуге за месяц.</p>
+                  ) : (
+                    <>
+                      <ul className="space-y-2 sm:hidden">
+                        {detailQuery.data.rows.map((r) => (
+                          <li key={`${r.source}-${r.source_id}`} className="rounded-xl border border-[var(--mo-border)] px-3 py-2">
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="truncate text-sm font-semibold text-[var(--mo-text)]">{r.client_name}</p>
+                              <span className="shrink-0 text-sm font-semibold tabular-nums">
+                                {formatMoney(num(r.paid_amount))}
+                              </span>
+                            </div>
+                            <p className="text-[11px] mo-muted">
+                              {formatMoney(num(r.service_amount))} · {payStatusLabel(r.pay_status)}
+                              {r.in_brought ? " · в Привёл" : ""}
+                              {r.sold_at ? ` · ${String(r.sold_at).slice(0, 10)}` : ""}
+                              {r.source === "booking" ? " · запись" : " · KPI"}
+                            </p>
+                          </li>
+                        ))}
+                      </ul>
+                      <table className="kpi-data-table hidden w-full text-sm sm:table">
+                        <thead>
+                          <tr>
+                            <th>Клиент</th>
+                            <th>Цена</th>
+                            <th>Оплачено</th>
+                            <th>Статус</th>
+                            <th>Дата</th>
+                            <th></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {detailQuery.data.rows.map((r) => (
+                            <tr key={`${r.source}-${r.source_id}`}>
+                              <td>{r.client_name}</td>
+                              <td className="tabular-nums">{formatMoney(num(r.service_amount))}</td>
+                              <td className="tabular-nums">{formatMoney(num(r.paid_amount))}</td>
+                              <td>{payStatusLabel(r.pay_status)}</td>
+                              <td className="tabular-nums">{r.sold_at ? String(r.sold_at).slice(0, 10) : "—"}</td>
+                              <td className="text-[11px] mo-muted">
+                                {r.in_brought ? "Привёл" : ""}
+                                {r.source === "booking" ? " · запись" : " · KPI"}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

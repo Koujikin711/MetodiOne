@@ -552,3 +552,29 @@ class SalesKpiServiceEarningsReport(BaseModel):
     year_month: str
     managers: list[SalesKpiServiceEarningManager]
     total_earning: Decimal
+
+
+class SalesKpiEarningDetailRow(BaseModel):
+    """Строка короткого отчёта по клику на «Новых» / «Привёл»."""
+
+    source: str  # kpi | booking
+    source_id: int
+    client_name: str
+    service_amount: Decimal
+    paid_amount: Decimal
+    pay_status: str  # full | partial | none
+    sold_at: datetime | None = None
+    in_brought: bool = False
+    note: str | None = None
+
+
+class SalesKpiEarningDetailOut(BaseModel):
+    pipeline_id: int
+    year_month: str
+    manager_id: int
+    manager_name: str
+    service_key: str
+    service_name: str
+    sales_count: int = 0
+    brought: Decimal = Decimal("0")
+    rows: list[SalesKpiEarningDetailRow] = Field(default_factory=list)

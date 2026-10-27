@@ -151,16 +151,29 @@ def is_full_payment(service_amount, paid_amount) -> bool:
     return paid >= service
 
 
+# Взносы на курсе часто ниже строгого цена÷3 (17 000→5667, 10 000→3333).
+COURSE_STAGE_CAP_HIGH = Decimal("5000.00")  # курсы 15–17 тыс.
+COURSE_STAGE_CAP_LOW = Decimal("3000.00")  # курс ~10 тыс.
+COURSE_STAGE_LOW_PRICE_MAX = Decimal("12000.00")
+
+
 def course_stage_amount(service_amount) -> Decimal:
-    """Этап основного курса: цена ÷ 3."""
+    """Этап основного курса с потолком по цене.
+
+    17 000 / 15 000 → этап 5000 (взнос 5000–5600 засчитывается).
+    10 000 → этап 3000 (не 3333.33).
+    Ещё дешевле, где цена÷3 меньше потолка — цена÷3.
+    """
     price = Decimal(str(service_amount or 0))
     if price <= 0:
         return Decimal("0.00")
-    return (price / Decimal("3")).quantize(Decimal("0.01"))
+    third = (price / Decimal("3")).quantize(Decimal("0.01"))
+    cap = COURSE_STAGE_CAP_LOW if price <= COURSE_STAGE_LOW_PRICE_MAX else COURSE_STAGE_CAP_HIGH
+    return min(cap, third)
 
 
 def course_brought_from_gross(service_amount, paid_gross) -> Decimal:
-    """Сколько из оплаты основного курса входит в «Привёл»: завершённые этапы цена÷3 + переплата."""
+    """Сколько из оплаты основного курса входит в «Привёл»: завершённые этапы + переплата."""
     price = Decimal(str(service_amount or 0)).quantize(Decimal("0.01"))
     paid = Decimal(str(paid_gross or 0)).quantize(Decimal("0.01"))
     stage = course_stage_amount(price)
@@ -224,7 +237,7 @@ def course_stage_credits_for_payments(
 
 
 def protocol_brought_waits_for_full_price(product_name: str | None) -> bool:
-    """Протокол и Курс 15: «Привёл» только после полной оплаты. Основной курс — этапы ÷3."""
+    """Протокол и Курс 15: «Привёл» только после полной оплаты. Основной курс — этапы с потолком 3/5 тыс."""
     from app.services.patient_ltv import classify_product_kind
 
     return classify_product_kind(product_name) in {"protocol", "course_15"}
@@ -304,7 +317,7 @@ async def load_brought_paid_detail(
 ) -> tuple[dict[tuple[int, int, int, Decimal], Decimal], dict[tuple[int, int, int, Decimal], int]]:
     """Оплаты визитов месяца и число новых.
 
-    Основной курс: в «Привёл» — завершённые этапы цена÷3 (+ переплата).
+    Основной курс: в «Привёл» — завершённые этапы (10к→3000, 15–17к→5000) (+ переплата).
     Курс 15 и протокол / прочее: только после полной оплаты (gross ≥ цена).
     Возврат вычитается в своём месяце.
     Менеджер — ответственный на визите, если это менеджер. Иначе тот, кто создал запись.
@@ -702,7 +715,7 @@ async def load_manual_brought_by_label(
 ) -> dict[tuple[int, str], Decimal]:
     """«Привёл» по ручным продажам.
 
-    Основной курс: этапы цена÷3 по накоплению — в месяц платежа, который закрыл этап.
+    Основной курс: этапы (10к→3000, 15–17к→5000) по накоплению — в месяц платежа, который закрыл этап.
     Курс 15 и протокол: только когда цена закрыта; тогда платежи месяца входят как есть.
     Прошлые этапы остаются у того, кто их принял.
     """

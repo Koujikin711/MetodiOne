@@ -1080,6 +1080,30 @@ export interface SalesKpiServiceEarningsReport {
   total_earning: string | number;
 }
 
+export interface SalesKpiEarningDetailRow {
+  source: "kpi" | "booking" | string;
+  source_id: number;
+  client_name: string;
+  service_amount: string | number;
+  paid_amount: string | number;
+  pay_status: "full" | "partial" | "none" | string;
+  sold_at: string | null;
+  in_brought: boolean;
+  note: string | null;
+}
+
+export interface SalesKpiEarningDetailOut {
+  pipeline_id: number;
+  year_month: string;
+  manager_id: number;
+  manager_name: string;
+  service_key: string;
+  service_name: string;
+  sales_count: number;
+  brought: string | number;
+  rows: SalesKpiEarningDetailRow[];
+}
+
 export interface SalesKpiManualSalePayment {
   id: number;
   amount: string | number;

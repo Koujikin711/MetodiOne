@@ -48,6 +48,7 @@ import { ExtraServicesPage } from "@/pages/ExtraServicesPage";
 import { CuratorJournalPage } from "@/pages/CuratorJournalPage";
 import { DevCuratorListPreview } from "@/pages/DevCuratorListPreview";
 import { DevBookingAdminPreview } from "@/pages/DevBookingAdminPreview";
+import { DevKpiEarningsClickPreview } from "@/pages/DevKpiEarningsClickPreview";
 import { DevKpiEarningsLogicPreview } from "@/pages/DevKpiEarningsLogicPreview";
 import { SalesControlPage } from "@/pages/SalesControlPage";
 import { RopLayout } from "@/pages/rop/RopLayout";

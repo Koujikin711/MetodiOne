@@ -8052,6 +8052,25 @@ fieldset.extra-services-field {
   min-width: 0;
 }
 
+.kpi-earn-num-btn {
+  appearance: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--mo-accent, #5b8def) 55%, transparent);
+  text-underline-offset: 0.18em;
+  cursor: pointer;
+}
+.kpi-earn-num-btn:hover {
+  color: var(--mo-accent, #5b8def);
+  text-decoration-color: currentColor;
+}
+
 .kpi-sales-card__name {
   margin-bottom: 0.3rem;
   font-size: 0.92rem;
