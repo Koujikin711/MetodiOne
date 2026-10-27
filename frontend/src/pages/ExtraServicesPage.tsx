@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
-import { Link, Navigate } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 
 import { DateField } from "@/components/DateField";
 import { PrintButton } from "@/components/PrintButton";
@@ -327,12 +327,6 @@ export function ExtraServicesPage() {
       <div className="mo-admin-page-head expenses-page__head print-screen-only">
         <div className="min-w-0 flex-1">
           <h1 className="mo-page-title">Доп услуги</h1>
-          <Link
-            to="/booking"
-            className="mo-page-sub mt-0.5 inline-block text-[var(--mo-accent-hover)] hover:underline"
-          >
-            ← К онлайн-записи
-          </Link>
         </div>
         <div className="extra-services-head-actions">
           {tab === "report" || tab === "journal" ? <PrintButton /> : null}
@@ -373,13 +367,6 @@ export function ExtraServicesPage() {
       ) : (
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 pt-3">
           <h2 className="text-sm font-semibold text-[var(--mo-text)]">Настройки %</h2>
-          <button
-            type="button"
-            className="text-xs text-[var(--mo-accent-hover)] underline"
-            onClick={() => setTab("new")}
-          >
-            ← К записям
-          </button>
         </div>
       )}
 

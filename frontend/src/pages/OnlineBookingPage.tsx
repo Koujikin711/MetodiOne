@@ -1317,9 +1317,6 @@ export function OnlineBookingPage() {
       <header className="booking-page-header print-screen-only">
         <div className="booking-page-head">
           <div className="booking-page-brand">
-            <Link to={chatStages ? "/chat" : "/app"} className="booking-page-back">
-              {chatStages ? "← К чатам" : "← К канбану"}
-            </Link>
             <div className="booking-page-title-row">
               <h1 className="booking-page-title">Онлайн-записи</h1>
               {tab === "online" ? (

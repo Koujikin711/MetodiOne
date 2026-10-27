@@ -26,7 +26,7 @@ import toast from "react-hot-toast";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { CrmToolbar } from "@/components/crm/CrmToolbar";
-import { MessageCircle, Phone } from "@/components/icons";
+import { MessageCircle, Phone, Trash2 } from "@/components/icons";
 import { PatientPhone } from "@/components/PatientPhone";
 import { WaitingCallbackModal } from "@/components/WaitingCallbackModal";
 import { apiDownloadBlob, apiFetch, getStoredToken, resolveApiUrl } from "@/lib/api";
@@ -1906,7 +1906,7 @@ export function CrmPage() {
   }, [activeLead, sortedStages]);
 
   return (
-    <div className="crm-page">
+    <div className={currentRole === "manager" ? "crm-page crm-page--manager" : "crm-page"}>
       <CrmToolbar
         isCompanyAdmin={isCompanyAdmin}
         pipelineSettingsOpen={pipelineSettingsOpen}
@@ -1934,6 +1934,7 @@ export function CrmPage() {
         onBoardSearchChange={setBoardSearchInput}
         showBoardSearch={crmView === "board" && sortedStages.length > 0}
         showOnboardingBanner={currentRole === "owner" && !isOnboardingDone()}
+        managerPhone={currentRole === "manager"}
       />
 
       {isCompanyAdmin && pipelineSettingsOpen ? (
@@ -3025,7 +3026,10 @@ export function CrmPage() {
         <>
           {selectedLeadIds.length > 0 ? (
             <div className="crm-bulk-bar" aria-label="Действия с выбранными лидами">
-              <span className="crm-bulk-bar__count">Выбрано: {selectedLeadIds.length}</span>
+              <span className="crm-bulk-bar__count">
+                <span className="crm-bulk-bar__count-label">Выбрано: </span>
+                {selectedLeadIds.length}
+              </span>
               <button
                 type="button"
                 className="crm-bulk-bar__clear"
@@ -3045,7 +3049,7 @@ export function CrmPage() {
                   if (id) void applyBulkStage(id);
                 }}
               >
-                <option value="">Сменить стадию</option>
+                <option value="">Стадия</option>
                 {sortedStages.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name.trim() === "В обработке" ? "В работе" : s.name}
@@ -3063,7 +3067,7 @@ export function CrmPage() {
                     if (id) void applyBulkManager(id);
                   }}
                 >
-                  <option value="">Назначить ответственного</option>
+                  <option value="">Ответственный</option>
                   {(bulkManagersQuery.data?.managers ?? []).map((m) => (
                     <option key={m.user_id} value={m.user_id}>
                       {m.full_name}
@@ -3076,9 +3080,11 @@ export function CrmPage() {
                   type="button"
                   className="crm-bulk-bar__danger"
                   disabled={bulkBusy}
+                  aria-label="Удалить"
+                  title="Удалить"
                   onClick={() => void deleteSelectedLeads()}
                 >
-                  Удалить
+                  <Trash2 className="h-4 w-4" />
                 </button>
               ) : null}
             </div>

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 
 import { apiFetch, getStoredToken } from "@/lib/api";
@@ -9,7 +9,6 @@ import { visitDisplayValue } from "@/lib/bookingVisitDisplay";
 import { decodeRoleFromToken } from "@/lib/auth";
 import { isReferralService } from "@/lib/referralService";
 import { canAccessRop } from "@/lib/clinicRoles";
-import { readLeadReturn, type LeadReturnSpot } from "@/lib/leadReturn";
 import { formatMoney } from "@/lib/money";
 import {
   BOOKING_TIME_ZONE,
@@ -111,15 +110,7 @@ function LeadRopTransfer({
 export function LeadDetailPage() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
   const leadId = Number(id);
-  const [returnSpot, setReturnSpot] = useState<LeadReturnSpot | null>(() => readLeadReturn());
-  useEffect(() => {
-    const next = readLeadReturn();
-    setReturnSpot((prev) =>
-      prev?.leadId === next?.leadId && prev?.path === next?.path ? prev : next,
-    );
-  }, [leadId]);
   const qc = useQueryClient();
   const [auditOpen, setAuditOpen] = useState(false);
   const [closeDealOpen, setCloseDealOpen] = useState(false);
@@ -219,9 +210,6 @@ export function LeadDetailPage() {
   });
   const canEditBooking = role !== "expert" || Boolean(bookingViewerQuery.data?.is_chief_expert);
   const canMarkAttendance = canEditBooking && role !== "manager";
-  const homeLink = role === "manager" || role === "admin" ? "/my-leads" : "/app";
-  const homeLabel = role === "manager" || role === "admin" ? "Мои лиды" : "На главную";
-
   const pipelineId = query.data?.pipeline_id ?? null;
   const stagesQuery = useQuery({
     queryKey: ["stages", "lead-card", pipelineId],
@@ -577,25 +565,6 @@ export function LeadDetailPage() {
   return (
     <div className="relative mx-auto w-full max-w-2xl space-y-3 pb-10 sm:space-y-8">
       <div className="flex flex-wrap items-center gap-3 px-3 text-sm sm:px-0">
-        {returnSpot?.leadId === leadId ? (
-          <button
-            type="button"
-            className="font-medium text-[var(--mo-accent-hover)] underline-offset-4 hover:underline"
-            onClick={() => {
-              if (window.history.length > 1) {
-                navigate(-1);
-                return;
-              }
-              navigate(returnSpot.path);
-            }}
-          >
-            ← Назад
-          </button>
-        ) : (
-          <Link to={homeLink} className="font-medium text-[var(--mo-accent-hover)] underline-offset-4 hover:underline">
-            ← {homeLabel}
-          </Link>
-        )}
         <Link to="/booking" className="mo-muted hover:text-[var(--mo-text)]">
           Онлайн запись
         </Link>

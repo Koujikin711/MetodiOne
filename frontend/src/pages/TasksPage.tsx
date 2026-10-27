@@ -257,8 +257,8 @@ export function TasksPage() {
 
       <div className="mo-fill-page-scroll space-y-5 pt-4">
         <section className="print-screen-only mo-section p-4 sm:p-5">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="mo-tabs">
+          <div className="tasks-toolbar flex flex-wrap items-center gap-2">
+            <div className="mo-tabs tasks-toolbar__status">
               <button type="button" data-active={view === "active"} onClick={() => setView("active")}>
                 Активные
               </button>
@@ -270,7 +270,7 @@ export function TasksPage() {
               </button>
             </div>
             {canTeam ? (
-              <div className="mo-tabs">
+              <div className="mo-tabs tasks-toolbar__scope">
                 <button type="button" data-active={scope === "my"} onClick={() => setScope("my")}>
                   Мои
                 </button>
@@ -283,7 +283,7 @@ export function TasksPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Поиск…"
-              className="mo-input ml-auto min-w-[10rem] flex-1 py-2 text-sm sm:max-w-[16rem]"
+              className="tasks-toolbar__search mo-input ml-auto min-w-[10rem] flex-1 py-2 text-sm sm:max-w-[16rem]"
             />
           </div>
         </section>
@@ -357,7 +357,7 @@ export function TasksPage() {
             </button>
             <div className="sm:col-span-full">
               <span className="mo-admin-toolbar-label">Повтор по дням недели</span>
-              <div className="mt-1.5 flex flex-wrap gap-1">
+              <div className="tasks-weekdays mt-1.5 flex flex-wrap gap-1">
                 {WEEKDAY_LABELS.map((label, day) => {
                   const on = weekdays.includes(day);
                   return (

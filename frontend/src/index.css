@@ -3331,9 +3331,14 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 @media (max-width: 639px) {
+  .crm-toolbar {
+    gap: 0.4rem;
+  }
+
   .crm-toolbar__head {
     flex-direction: column;
     align-items: stretch;
+    gap: 0.35rem;
   }
 
   .crm-toolbar__brand {
@@ -3342,10 +3347,163 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     width: 100%;
   }
 
+  .crm-brand-title {
+    font-size: 1.15rem;
+  }
+
+  .crm-toolbar__subtitle {
+    font-size: 0.68rem;
+  }
+
   .crm-toolbar__actions {
-    width: 100%;
+    display: flex;
     flex-wrap: nowrap;
-    justify-content: flex-start;
+    gap: 0.3rem;
+    width: 100%;
+  }
+
+  .crm-toolbar__actions > .crm-pill-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    width: auto;
+    padding: 0.22rem 0.15rem;
+    font-size: 0.64rem;
+    line-height: 1.15;
+    text-align: center;
+  }
+
+  .crm-toolbar__bar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.35rem 0.45rem;
+    align-items: center;
+  }
+
+  .crm-toolbar__funnels,
+  .crm-toolbar__view {
+    min-width: 0;
+    gap: 0.3rem;
+  }
+
+  .crm-toolbar__label {
+    font-size: 0.58rem;
+  }
+
+  .crm-toolbar__pills .crm-pill-btn,
+  .crm-view-switch button {
+    padding: 0.16rem 0.45rem;
+    font-size: 0.64rem;
+  }
+
+  .crm-toolbar__search {
+    grid-column: 1 / -1;
+    flex-basis: auto;
+  }
+
+  .crm-bulk-bar {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.25rem;
+    padding: 0.22rem 0.3rem;
+  }
+
+  .crm-bulk-bar__count-label {
+    display: none;
+  }
+
+  .crm-bulk-bar__count {
+    font-size: 0.7rem;
+  }
+
+  .crm-bulk-bar__clear {
+    width: 1.25rem;
+    height: 1.25rem;
+    font-size: 0.85rem;
+  }
+
+  .crm-bulk-bar__select {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0.14rem 0.25rem;
+    font-size: 0.62rem;
+  }
+
+  .crm-bulk-bar__danger {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+
+  .expenses-payees {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .payroll-sheet-wrap {
+    padding-left: 0.65rem;
+    padding-right: 0.65rem;
+  }
+
+  .payroll-sheet.kpi-data-table {
+    min-width: 52rem;
+  }
+
+  .tasks-toolbar {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .tasks-toolbar .mo-tabs {
+    display: grid;
+    width: 100%;
+  }
+
+  .tasks-toolbar__status {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .tasks-toolbar__scope {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tasks-toolbar .mo-tabs button {
+    padding: 0.34rem 0.12rem;
+    font-size: 0.62rem;
+    line-height: 1.15;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .tasks-toolbar__search {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    margin: 0;
+  }
+
+  .tasks-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 0.25rem;
+  }
+
+  .tasks-weekdays button {
+    min-width: 0;
+    width: 100%;
+    height: 2rem;
+    padding: 0;
+  }
+
+  .crm-toolbar--manager-phone .crm-toolbar__funnels {
+    display: none;
+  }
+
+  .crm-toolbar--manager-phone .crm-toolbar__bar {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .crm-page--manager .crm-board-pan-bar {
+    display: none;
   }
 }
 
@@ -3788,31 +3946,33 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 .crm-bulk-bar {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.35rem;
   flex: 0 0 auto;
-  padding: 0.45rem 0.65rem;
+  padding: 0.28rem 0.4rem;
   border: 1px solid var(--mo-border);
-  border-radius: 0.85rem;
+  border-radius: 0.75rem;
   background: var(--mo-surface-elevated);
 }
 .crm-bulk-bar__count {
-  font-size: 0.95rem;
+  flex: 0 0 auto;
+  font-size: 0.78rem;
   font-weight: 700;
   color: var(--mo-text);
+  white-space: nowrap;
 }
 .crm-bulk-bar__clear {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.6rem;
-  height: 1.6rem;
+  width: 1.4rem;
+  height: 1.4rem;
   border-radius: 999px;
   border: 1px solid var(--mo-border);
   background: transparent;
   color: var(--mo-text-muted);
-  font-size: 1.1rem;
+  font-size: 1rem;
   line-height: 1;
 }
 .crm-bulk-bar__clear:hover {
@@ -3820,19 +3980,27 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 .crm-bulk-bar__select {
   width: auto;
-  min-width: 11rem;
-  padding-top: 0.3rem;
-  padding-bottom: 0.3rem;
-  font-size: 0.85rem;
+  min-width: 0;
+  flex: 1 1 0;
+  padding-top: 0.22rem;
+  padding-bottom: 0.22rem;
+  font-size: 0.72rem;
 }
 .crm-bulk-bar__danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 1.7rem;
+  height: 1.7rem;
+  padding: 0;
   border: 1px solid color-mix(in srgb, var(--mo-danger) 55%, var(--mo-border));
   background: transparent;
   color: var(--mo-danger);
-  border-radius: 0.65rem;
-  padding: 0.3rem 0.7rem;
-  font-size: 0.85rem;
-  font-weight: 650;
+  border-radius: 0.5rem;
+}
+.crm-bulk-bar__danger:hover {
+  background: color-mix(in srgb, var(--mo-danger) 12%, transparent);
 }
 
 .crm-lead-action {
@@ -5929,6 +6097,23 @@ fieldset.extra-services-field {
   text-align: right;
 }
 
+.kpi-rate-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.55rem;
+}
+
+.kpi-rate-row .mo-input {
+  min-width: 0;
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .kpi-rate-row {
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  }
+}
+
 .marketing-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -5940,6 +6125,32 @@ fieldset.extra-services-field {
   background: var(--mo-surface);
   padding: 0.55rem 0.75rem;
   box-shadow: none;
+}
+
+.marketing-toolbar__meta {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.marketing-toolbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+@media (max-width: 639px) {
+  .marketing-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .marketing-toolbar__actions {
+    flex-direction: column;
+  }
+
+  .marketing-toolbar__actions > button {
+    width: 100%;
+  }
 }
 
 .marketing-period {
@@ -7407,6 +7618,39 @@ li.is-overdue {
   line-height: 1.25;
   padding-top: 0.2rem;
   padding-bottom: 0.2rem;
+}
+
+.kpi-manager-plain {
+  display: flex;
+  min-width: 10.5rem;
+  max-width: 12.5rem;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.kpi-manager-plain__select {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kpi-pay-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.28rem;
+  min-width: 13.5rem;
+}
+
+.sold-course-sheet .kpi-pay-pack {
+  flex-wrap: nowrap;
+  max-width: 100%;
+}
+
+.sold-course-sheet .kpi-pay-pack .date-field button[aria-label="Открыть календарь"] {
+  display: none;
 }
 
 .kpi-course-sheet {

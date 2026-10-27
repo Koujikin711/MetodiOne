@@ -242,19 +242,19 @@ export function MarketingPage() {
 
       {configured && !showConnect ? (
         <div className="marketing-toolbar">
-          <p className="min-w-0 truncate text-sm mo-muted">
+          <p className="marketing-toolbar__meta text-sm mo-muted">
             Meta · {settingsQuery.data?.account_name || "подключено"} · {settingsQuery.data?.ad_account_id}
           </p>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="marketing-toolbar__actions">
             <button
               type="button"
-              className="btn-primary text-xs sm:text-sm"
+              className="btn-primary text-sm"
               disabled={igConnectMutation.isPending}
               onClick={() => igConnectMutation.mutate()}
             >
               {igConnectMutation.isPending ? "Подключение…" : "Подключить Instagram DM"}
             </button>
-            <button type="button" className="btn-secondary text-xs sm:text-sm" onClick={() => setShowConnect(true)}>
+            <button type="button" className="btn-secondary text-sm" onClick={() => setShowConnect(true)}>
               Изменить токен
             </button>
           </div>

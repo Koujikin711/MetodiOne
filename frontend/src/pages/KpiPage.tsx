@@ -302,9 +302,9 @@ function SaleManagerCell({
   const cardId = sale.lead_manager_user_id ?? null;
   const differs = cardId != null && cardId !== sale.manager_user_id;
   return (
-    <div className={plain ? "flex min-w-[9rem] flex-col gap-1" : "kpi-course-manager-cell"}>
+    <div className={plain ? "kpi-manager-plain" : "kpi-course-manager-cell"}>
       <select
-        className={plain ? "mo-input py-1 text-sm" : "mo-input kpi-course-manager"}
+        className={plain ? "mo-input kpi-manager-plain__select" : "mo-input kpi-course-manager"}
         aria-label={`Менеджер продажи ${sale.client_name}`}
         title="Прошлые оплаты остаются. Новые пойдут выбранному."
         value={sale.manager_user_id}
@@ -1379,12 +1379,7 @@ export function KpiPage() {
           {(ratesQuery.data?.items.length ?? 0) > 0 ? (
             <p className="text-[11px] font-medium mo-muted">Название, под ним процент</p>
           ) : null}
-          <div
-            className="kpi-rate-row grid gap-2"
-            style={{
-              gridTemplateColumns: `repeat(${Math.max(ratesQuery.data?.items.length ?? 1, 1)}, minmax(0, 1fr))`,
-            }}
-          >
+          <div className="kpi-rate-row">
             {(ratesQuery.data?.items ?? []).map((row) => (
               <div key={row.service_key} className="flex min-w-0 flex-col gap-1 text-sm">
                 <input
@@ -1965,7 +1960,7 @@ export function KpiPage() {
               <thead>
                 <tr className="border-b border-[var(--mo-border)] text-[11px] uppercase tracking-wide mo-muted">
                   <th className="px-3 py-2 font-medium">Дата</th>
-                  <th className="px-3 py-2 font-medium">Курс</th>
+                  <th className="px-3 py-2 font-medium">Тип</th>
                   <th className="px-3 py-2 font-medium">Поток</th>
                   <th className="px-3 py-2 font-medium">Менеджер</th>
                   <th className="px-3 py-2 font-medium">Пациент</th>
@@ -2040,35 +2035,37 @@ export function KpiPage() {
                       {s.status === "completed" ? <div className="text-[10px] mo-muted">завершён</div> : null}
                     </td>
                     <td className="print-omit px-3 py-2">
-                      {s.status === "active" && num(s.debt_amount) > 0 ? (
-                        <ManualPayPack
-                          showPaid={false}
-                          paid={num(s.paid_amount)}
-                          draft={payDraft[s.id] ?? ""}
-                          date={payDates[s.id] || todayYmd()}
-                          pending={payMutation.isPending}
-                          onDraft={(value) => setPayDraft((prev) => ({ ...prev, [s.id]: value }))}
-                          onDate={(value) => setPayDates((prev) => ({ ...prev, [s.id]: value }))}
-                          onOk={() =>
-                            payMutation.mutate({
-                              id: s.id,
-                              add: Number(payDraft[s.id] || 0),
-                              paid_at: payDates[s.id] || todayYmd(),
-                            })
+                      <div className="kpi-pay-cell">
+                        {s.status === "active" && num(s.debt_amount) > 0 ? (
+                          <ManualPayPack
+                            showPaid={false}
+                            paid={num(s.paid_amount)}
+                            draft={payDraft[s.id] ?? ""}
+                            date={payDates[s.id] || todayYmd()}
+                            pending={payMutation.isPending}
+                            onDraft={(value) => setPayDraft((prev) => ({ ...prev, [s.id]: value }))}
+                            onDate={(value) => setPayDates((prev) => ({ ...prev, [s.id]: value }))}
+                            onOk={() =>
+                              payMutation.mutate({
+                                id: s.id,
+                                add: Number(payDraft[s.id] || 0),
+                                paid_at: payDates[s.id] || todayYmd(),
+                              })
+                            }
+                          />
+                        ) : (
+                          <span className="text-[var(--mo-text-muted)]">—</span>
+                        )}
+                        <PaymentDecisions
+                          dense
+                          sale={s}
+                          canConfirm={isAdminOrOwner}
+                          pending={confirmPayMutation.isPending}
+                          onDecide={(saleId, paymentId, confirmed) =>
+                            confirmPayMutation.mutate({ saleId, paymentId, confirmed })
                           }
                         />
-                      ) : (
-                        <span className="text-[var(--mo-text-muted)]">—</span>
-                      )}
-                      <PaymentDecisions
-                        dense
-                        sale={s}
-                        canConfirm={isAdminOrOwner}
-                        pending={confirmPayMutation.isPending}
-                        onDecide={(saleId, paymentId, confirmed) =>
-                          confirmPayMutation.mutate({ saleId, paymentId, confirmed })
-                        }
-                      />
+                      </div>
                     </td>
                   </tr>
                 ))}

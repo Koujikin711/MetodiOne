@@ -20,6 +20,7 @@ type Props = {
   onBoardSearchChange: (value: string) => void;
   showBoardSearch: boolean;
   showOnboardingBanner?: boolean;
+  managerPhone?: boolean;
 };
 
 export function CrmToolbar({
@@ -38,10 +39,11 @@ export function CrmToolbar({
   onBoardSearchChange,
   showBoardSearch,
   showOnboardingBanner = false,
+  managerPhone = false,
 }: Props) {
   const searchActive = boardSearchInput.trim().length > 0;
   return (
-    <header className="crm-toolbar">
+    <header className={managerPhone ? "crm-toolbar crm-toolbar--manager-phone" : "crm-toolbar"}>
       {showOnboardingBanner ? (
         <div className="executive-banner flex flex-wrap items-center justify-center gap-3">
           <span>Первый день в CRM: пройдите короткий мастер настройки воронки и команды.</span>
