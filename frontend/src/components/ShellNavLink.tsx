@@ -89,6 +89,7 @@ function itemActive(pathname: string, to: string, end?: boolean) {
 export function ShellNavLink({
   to,
   end,
+  title,
   labelShort,
   labelFull,
   variant = "crm",
@@ -104,14 +105,19 @@ export function ShellNavLink({
   return (
     <button
       type="button"
+      title={title || labelFull}
       onClick={() => navigate(to)}
       className={["shell-nav-link group", active ? "is-active" : ""].filter(Boolean).join(" ")}
     >
       <GradientIconBox variant={variant} className="shell-nav-icon-box" {...collapsedDragProps}>
         {renderIcon(iconKey)}
       </GradientIconBox>
-      <span className="shell-nav-text">{labelFull}</span>
-      <span className="shell-nav-label">{labelShort}</span>
+      {/* В свёрнутом меню только короткая подпись — иначе полная строка занимает высоту и «отрывает» текст от значка */}
+      {expanded ? (
+        <span className="shell-nav-text">{labelFull}</span>
+      ) : (
+        <span className="shell-nav-label">{labelShort}</span>
+      )}
     </button>
   );
 }

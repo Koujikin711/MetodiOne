@@ -800,9 +800,9 @@ html {
 
 .shell-sidebar.is-collapsed .shell-nav-link {
   @apply flex w-full flex-col items-center justify-start px-0 text-center;
-  /* иконка + подпись одной группой; небольшой отступ до следующего пункта */
-  gap: 0.12rem;
-  padding: 0.12rem 0 0.28rem;
+  /* иконка + подпись одной группой (телефон и свёрнутый десктоп) */
+  gap: 0.1rem;
+  padding: 0.15rem 0.1rem 0.2rem;
   line-height: 1;
   min-height: 0;
 }
@@ -1209,18 +1209,6 @@ html {
   pointer-events: none;
 }
 
-.shell-sidebar.is-collapsed .shell-nav-text {
-  /* Раньше opacity:0 оставлял высоту полной подписи — текст «висел» между иконками */
-  display: none !important;
-  opacity: 0;
-  max-width: 0;
-  height: 0;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-
 .shell-sidebar.is-collapsed .shell-nav-label {
   display: block;
   opacity: 1;
@@ -1233,6 +1221,12 @@ html {
   letter-spacing: 0;
   text-align: center;
   pointer-events: none;
+  /* подпись всегда сразу под своим значком */
+  order: 2;
+}
+
+.shell-sidebar.is-collapsed .shell-nav-icon-box {
+  order: 1;
 }
 
 /* Очень низкий экран: чуть плотнее иконки, подписи оставляем читаемыми */
@@ -1345,12 +1339,15 @@ html {
 }
 
 .shell-sidebar.is-collapsed .shell-settings-toggle {
-  @apply flex-col justify-center gap-0 px-0 py-0 text-center;
+  @apply flex-col items-center justify-center px-0 text-center;
+  gap: 0.1rem;
+  padding: 0.15rem 0.1rem 0.2rem;
 }
 
 .shell-sidebar.is-collapsed .shell-settings-toggle-text {
   @apply max-w-[4.25rem] text-[10px] leading-none;
-  margin-top: 0;
+  margin: 0;
+  padding: 0;
 }
 
 .shell-sidebar.is-expanded .shell-settings-toggle {
