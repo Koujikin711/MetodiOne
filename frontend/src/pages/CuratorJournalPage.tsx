@@ -387,15 +387,13 @@ export function CuratorJournalPage() {
   }, [flowsQuery.data, selectedFlowId, allowed, section]);
 
   const monthQuery = useQuery({
-    queryKey: ["curator-journal", "month", selectedFlowId, year, month, search],
+    queryKey: ["curator-journal", "month", selectedFlowId, year, month],
     enabled: allowed && section === "course" && selectedFlowId != null,
     placeholderData: (prev) => prev,
-    queryFn: () => {
-      const q = search.trim() ? `&q=${encodeURIComponent(search.trim())}` : "";
-      return apiFetch<MonthJournal>(
-        `/api/curator-journal/flows/${selectedFlowId}/month?year=${year}&month=${month}${q}`,
-      );
-    },
+    queryFn: () =>
+      apiFetch<MonthJournal>(
+        `/api/curator-journal/flows/${selectedFlowId}/month?year=${year}&month=${month}`,
+      ),
   });
 
   const dayForSummary = selectedDay || (monthQuery.data?.days.includes(todayIso()) ? todayIso() : monthQuery.data?.days[0] || null);
@@ -419,7 +417,15 @@ export function CuratorJournalPage() {
   }, [monthQuery.data]);
 
   const filteredParticipants = useMemo(() => {
-    const list = monthQuery.data?.participants || [];
+    let list = monthQuery.data?.participants || [];
+    const needle = search.trim().toLowerCase().replace(/ё/g, "е");
+    if (needle) {
+      // Клиентский поиск: JS toLowerCase корректно складывает кириллицу
+      // (серверный ILIKE в PG с локалью C — нет: «ансор» ≠ «Ансор»).
+      list = list.filter((p) =>
+        (p.display_name || "").toLowerCase().replace(/ё/g, "е").includes(needle),
+      );
+    }
     if (filter === "all") return list;
     return list.filter((p) => {
       const days = monthQuery.data?.days || [];
@@ -454,7 +460,7 @@ export function CuratorJournalPage() {
         return e?.complaints?.some((c) => c.category === filter);
       });
     });
-  }, [filter, monthQuery.data, entryMap]);
+  }, [filter, search, monthQuery.data, entryMap]);
 
   useEffect(() => {
     didScrollToday.current = false;

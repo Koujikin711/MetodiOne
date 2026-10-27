@@ -1294,11 +1294,18 @@ async def get_month_journal(
             CuratorFlowMembership.left_on >= month_start,
         ),
     )
-    if q and q.strip():
-        like = f"%{q.strip()}%"
-        mq = mq.where(CuratorFlowMembership.display_name.ilike(like))
     mq = mq.order_by(CuratorFlowMembership.display_name)
     participants = list((await db.execute(mq)).scalars().all())
+    flow_active_count = len([m for m in participants if m.left_on is None])
+    # ILIKE в PG с локалью C не складывает кириллицу («ансор» ≠ «Ансор»).
+    # Фильтр в Python через casefold — корректно для Tajik/RU ФИО.
+    if q and q.strip():
+        needle = q.strip().casefold().replace("ё", "е")
+        participants = [
+            m
+            for m in participants
+            if needle in (m.display_name or "").casefold().replace("ё", "е")
+        ]
     member_ids = [int(m.id) for m in participants]
     programs = await _program_by_membership(
         db,
@@ -1328,7 +1335,7 @@ async def get_month_journal(
         )
     complaints_map = await _entries_with_complaints(db, [int(e.id) for e in entries])
     return MonthJournalOut(
-        flow=await _flow_out(db, flow, participants_count=len([m for m in participants if m.left_on is None])),
+        flow=await _flow_out(db, flow, participants_count=flow_active_count),
         year=year,
         month=month,
         days=days,
