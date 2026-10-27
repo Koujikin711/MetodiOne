@@ -364,8 +364,8 @@ def test_classify_lead_stage_name():
     )
 
 
-def test_one_missed_visit_does_not_refuse_a_working_client():
-    """Неявка или отмена одной записи не закрывает лида, пока он ещё в работе."""
+def test_missed_visit_never_auto_refuses():
+    """Неявка / отмена не ставят «Отказ» — исход только менеджер кнопкой «Статус»."""
     assert visit_loss_is_genuine_refusal({"no_show"}, has_payment=False, has_active_course=False)
     assert not visit_loss_is_genuine_refusal(
         {"no_show", "booked"}, has_payment=False, has_active_course=False,
@@ -376,11 +376,19 @@ def test_one_missed_visit_does_not_refuse_a_working_client():
     assert not visit_loss_is_genuine_refusal({"no_show"}, has_payment=True, has_active_course=False)
     assert not visit_loss_is_genuine_refusal({"cancelled"}, has_payment=False, has_active_course=True)
 
-    # Другая запись, оплата или курс — стадия не прыгает в «Отказ».
     assert (
         classify_lead_stage_name(
             current_name="Удачно",
-            appointment_statuses={"no_show", "booked"},
+            appointment_statuses={"no_show"},
+            has_outbound=True,
+            last_direction="out",
+        )
+        == "Удачно"
+    )
+    assert (
+        classify_lead_stage_name(
+            current_name="Удачно",
+            appointment_statuses={"cancelled"},
             has_outbound=True,
             last_direction="out",
         )
@@ -389,35 +397,33 @@ def test_one_missed_visit_does_not_refuse_a_working_client():
     assert (
         classify_lead_stage_name(
             current_name="В обработке",
+            appointment_statuses={"no_show"},
+            has_outbound=True,
+            last_direction="out",
+        )
+        == "В обработке"
+    )
+    assert (
+        classify_lead_stage_name(
+            current_name="В ожидании",
             appointment_statuses={"cancelled"},
             has_outbound=True,
             last_direction="out",
-            has_payment=True,
         )
-        == "В обработке"
+        == "В ожидании"
     )
     assert (
         classify_lead_stage_name(
-            current_name="В обработке",
+            current_name="Новый лид",
             appointment_statuses={"no_show"},
-            has_outbound=True,
+            has_outbound=False,
             last_direction="in",
-            has_active_course=True,
+            has_any_chat=True,
         )
-        == "В обработке"
-    )
-    # Одинокая неявка без оплаты и курса — по-прежнему отказ.
-    assert (
-        classify_lead_stage_name(
-            current_name="В обработке",
-            appointment_statuses={"no_show"},
-            has_outbound=True,
-            last_direction="out",
-        )
-        == "Отказ"
+        == "Новый лид"
     )
 
-    # Визит вернули в «пришёл»: автоматический отказ без причины снимается пересчётом.
+    # Визит вернули в «пришёл»: старый авто-отказ без причины снимается пересчётом.
     assert (
         classify_lead_stage_name(
             current_name="Отказ",

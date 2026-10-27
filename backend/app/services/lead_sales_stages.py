@@ -150,21 +150,10 @@ def _latest_activity(*dts: datetime | None) -> datetime | None:
 
 
 # Неявка / отмена одной записи. «Другая запись» — ещё booked или completed.
+# Сами по себе в «Отказ» больше не двигают — отказ только кнопкой менеджера.
 _LOST_APPOINTMENT_STATUSES = frozenset({"cancelled", "no_show", "lost"})
 _OTHER_APPOINTMENT_STATUSES = frozenset({"booked", "completed"})
 _ACTIVE_COURSE_KINDS = frozenset({"course_15", "main_course", "protocol"})
-_LIVE_STAGE_NAMES = frozenset(
-    {
-        "",
-        "Новый лид",
-        "Новый",
-        "В обработке",
-        "В работе",
-        "Не ответили",
-        "В ожидании",
-        "Удачно",
-    }
-)
 
 
 def visit_loss_is_genuine_refusal(
@@ -173,10 +162,10 @@ def visit_loss_is_genuine_refusal(
     has_payment: bool,
     has_active_course: bool,
 ) -> bool:
-    """Отказ по визиту — только если это единственный след и нет оплаты и курса.
+    """След неявки/отмены без другой записи, оплаты и курса.
 
-    Другая запись (записан / пришёл), любая оплата или активный курс/протокол
-    удерживают лида. Одна неявка или отмена без этого — настоящий отказ.
+    Раньше это ставило «Отказ» само. Сейчас отказ только вручную; функция
+    нужна, чтобы старый авто-отказ без причины снять, когда визит поправили.
     """
     statuses = {str(s).strip().lower() for s in appointment_statuses if s}
     if not statuses.intersection(_LOST_APPOINTMENT_STATUSES):
@@ -239,9 +228,9 @@ def classify_lead_stage_name(
     «Удачно» / «Отказ» / «В ожидании» / «В работе» — только вручную (менеджер).
     Запись (booked/completed) НЕ двигает в «Удачно» — иначе тестовые и живые чаты
     сразу уезжают в успех при создании слота.
-    Неявка / отмена → «Отказ» только если нет другой записи, оплаты и активного курса.
-    Автоматический «Отказ» без причины снимается тем же пересчётом, когда визит
-    снова «записан» / «пришёл» или появилась защита. Ручной «Статус» не трогаем.
+    Неявка / отмена стадию в «Отказ» не ставят — отказ только кнопкой «Статус».
+    Старый авто-отказ без причины снимается пересчётом, когда визит снова
+    «записан» / «пришёл» или появилась оплата/курс. Ручной «Статус» не трогаем.
     Склад Bitrix/WhatsApp/GREEN API без свежей активности → Архив (не удалять).
     «Новый лид» только при свежем входящем (или только что созданном без чата).
     Ручные стадии без активности >45 дней → Архив.
@@ -262,7 +251,7 @@ def classify_lead_stage_name(
     )
     had_lost = had_visit_refusal or bool(statuses.intersection(_LOST_APPOINTMENT_STATUSES))
     reasoned_refusal = bool((refusal_reason or "").strip()) or manual_refusal
-    # Автоматический отказ по визиту, который уже не единственный и без причины.
+    # Старый авто-отказ по визиту без причины: визит поправили — стадия считается заново.
     release_automatic_refusal = (
         is_refusal_stage_name(cur)
         and not reasoned_refusal
@@ -270,11 +259,7 @@ def classify_lead_stage_name(
         and not genuine_refusal
     )
 
-    # Одинокая неявка / отмена → Отказ, пока лид в живой воронке.
-    if genuine_refusal and cur in _LIVE_STAGE_NAMES:
-        return "Отказ"
-
-    # booked / completed больше не форсят «Удачно» — исход только кнопкой «Статус».
+    # booked / completed / no_show / cancelled не ставят исход — только кнопка «Статус».
 
     if cur == ARCHIVE_STAGE_NAME:
         if has_outbound:
@@ -316,7 +301,7 @@ def classify_lead_stage_name(
 
     # Ручные стадии (в т.ч. «В ожидании»): без активности >45 дней → Архив.
     # Не перетираем автоматом «В работе» → «В ожидании» по входящему.
-    # Автоматический «Отказ» без причины здесь не залипает: визит поправили
+    # Старый авто-отказ без причины здесь не залипает: визит поправили
     # или есть другая запись / оплата / курс — стадия считается заново ниже.
     if cur in MANAGER_SETTABLE_STAGE_NAMES and not release_automatic_refusal:
         if activity is not None and not _is_recent(activity, now=clock):
