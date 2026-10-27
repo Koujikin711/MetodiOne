@@ -1306,6 +1306,15 @@ async def _service_earning_detail(
             )
             payments = pays_by_sale.get(int(sale.id), [])
             brought_amt = Decimal("0.00")
+            month_pay_for_manager = False
+            for paid_at, amt, mid in payments:
+                if mid != manager_id:
+                    continue
+                if paid_at < start or paid_at >= end:
+                    continue
+                if Decimal(str(amt or 0)) > 0:
+                    month_pay_for_manager = True
+                    break
             if is_main_course_product(item.name):
                 for paid_at, mid, credit in course_stage_credits_for_payments(
                     service_amount=price,
@@ -1341,9 +1350,15 @@ async def _service_earning_detail(
                 else:
                     brought_amt = paid if is_full_payment(price, paid) else Decimal("0.00")
 
-            if not is_new and brought_amt <= 0:
+            # Доплата месяца с Привёл=0 (ниже мин. цены) всё равно показываем — иначе «пропал».
+            if not is_new and brought_amt <= 0 and not month_pay_for_manager:
                 continue
-            note = "открыт в месяце" if is_new else "этап / доплата в месяце"
+            if is_new:
+                note = "открыт в месяце"
+            elif brought_amt > 0:
+                note = "этап / доплата в месяце"
+            else:
+                note = "доплата ниже мин. цены — не в Привёл"
             rows.append(
                 SalesKpiEarningDetailRow(
                     source="kpi",

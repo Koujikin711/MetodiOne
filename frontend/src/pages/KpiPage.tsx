@@ -2680,6 +2680,7 @@ function SalesReportSection({
                               цена {formatMoney(num(r.service_amount))} · оплачено {formatMoney(num(r.paid_amount))}
                               {r.is_new ? " · новый" : " · доплата"}
                               {r.sold_at ? ` · ${String(r.sold_at).slice(0, 10)}` : ""}
+                              {num(r.brought_amount) <= 0 && r.note ? ` · ${r.note}` : ""}
                             </p>
                           </li>
                         ))}
@@ -2706,8 +2707,9 @@ function SalesReportSection({
                               </td>
                               <td className="tabular-nums">{r.sold_at ? String(r.sold_at).slice(0, 10) : "—"}</td>
                               <td className="text-[11px] mo-muted">
-                                {r.is_new ? "новый" : "доплата"}
-                                {r.source === "booking" ? " · запись" : " · KPI"}
+                                {num(r.brought_amount) <= 0 && r.note
+                                  ? r.note
+                                  : `${r.is_new ? "новый" : "доплата"}${r.source === "booking" ? " · запись" : " · KPI"}`}
                               </td>
                             </tr>
                           ))}
