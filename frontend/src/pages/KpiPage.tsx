@@ -2447,12 +2447,6 @@ function parsePlanItemId(serviceKey: string): number | null {
   return m ? Number(m[1]) : null;
 }
 
-function payStatusLabel(status: string): string {
-  if (status === "full") return "полная";
-  if (status === "partial") return "неполная";
-  return "без оплаты";
-}
-
 function SalesReportSection({
   data,
   loading,
@@ -2530,7 +2524,7 @@ function SalesReportSection({
       <section className="mo-section px-4 py-3">
         <h2 className="text-[15px] font-semibold text-[var(--mo-text)]">Заработок · {data.year_month}</h2>
         <p className="mt-0.5 text-[11px] lux-caption">
-          Новых — курс открыт один раз тем, кто его привёл. Прошлые оплаты старого менеджера не переходят. Сбор дебиторки считается новому, только если эта оплата подтверждена и записана на него. Привёл по курсу — этапы 5 000 (курс 15–17 000) и 3 000 (курс 10 000) по накоплению в месяц закрытия этапа. По Курсу 15 и протоколу — после полной оплаты; платежи месяца входят целиком, переплата тоже. По остальным услугам — полная оплата минус возврат. Нажмите на «Новых» или «Привёл», чтобы увидеть кто и сколько. Итого{" "}
+          Новых — курс открыт один раз тем, кто его привёл. Прошлые оплаты старого менеджера не переходят. Сбор дебиторки считается новому, только если эта оплата подтверждена и записана на него. Привёл по курсу — после минимума 5 000 (курс 15–17 000) или 3 000 (курс 10 000) сумма оплаты как есть. По Курсу 15 и протоколу — после полной оплаты; платежи месяца входят целиком. По остальным услугам — полная оплата минус возврат. Нажмите на «Новых» или «Привёл», чтобы увидеть кто и сколько. Итого{" "}
           {formatMoney(num(data.total_earning))}
         </p>
       </section>
@@ -2653,7 +2647,7 @@ function SalesReportSection({
                     <p className="mt-0.5 text-xs mo-muted">
                       {yearMonth}
                       {detailQuery.data
-                        ? ` · новых ${detailQuery.data.sales_count} · привёл ${formatMoney(num(detailQuery.data.brought))} (в списке этапы ${formatMoney(num(detailQuery.data.rows_brought ?? 0))})`
+                        ? ` · новых ${detailQuery.data.sales_count} · привёл ${formatMoney(num(detailQuery.data.brought))}`
                         : null}
                     </p>
                   </div>
@@ -2671,7 +2665,7 @@ function SalesReportSection({
                   ) : (
                     <>
                       <p className="mb-2 text-[11px] mo-muted">
-                        Колонка «В Привёл» — этап за этот месяц (не вся оплата). Новых — открыты в месяце; доплаты старых тоже в списке, если закрыли этап.
+                        «Привёл» — факт за месяц (после мин. 3 000 / 5 000). Ниже минимума — прочерк.
                       </p>
                       <ul className="space-y-2 sm:hidden">
                         {detailQuery.data.rows.map((r) => (
@@ -2679,14 +2673,14 @@ function SalesReportSection({
                             <div className="flex items-start justify-between gap-2">
                               <p className="truncate text-sm font-semibold text-[var(--mo-text)]">{r.client_name}</p>
                               <span className="shrink-0 text-sm font-semibold tabular-nums">
-                                {formatMoney(num(r.brought_amount))}
+                                {num(r.brought_amount) > 0 ? formatMoney(num(r.brought_amount)) : "—"}
                               </span>
                             </div>
                             <p className="text-[11px] mo-muted">
-                              оплачено {formatMoney(num(r.paid_amount))} / {formatMoney(num(r.service_amount))} ·{" "}
-                              {payStatusLabel(r.pay_status)}
+                              цена {formatMoney(num(r.service_amount))}
                               {r.is_new ? " · новый" : " · доплата"}
                               {r.sold_at ? ` · ${String(r.sold_at).slice(0, 10)}` : ""}
+                              {r.source === "booking" ? " · запись" : " · KPI"}
                             </p>
                           </li>
                         ))}
@@ -2696,9 +2690,7 @@ function SalesReportSection({
                           <tr>
                             <th>Клиент</th>
                             <th>Цена</th>
-                            <th>Оплачено</th>
-                            <th>В Привёл</th>
-                            <th>Статус</th>
+                            <th>Привёл</th>
                             <th>Дата</th>
                             <th></th>
                           </tr>
@@ -2708,11 +2700,9 @@ function SalesReportSection({
                             <tr key={`${r.source}-${r.source_id}`}>
                               <td>{r.client_name}</td>
                               <td className="tabular-nums">{formatMoney(num(r.service_amount))}</td>
-                              <td className="tabular-nums">{formatMoney(num(r.paid_amount))}</td>
                               <td className="tabular-nums font-semibold">
                                 {num(r.brought_amount) > 0 ? formatMoney(num(r.brought_amount)) : "—"}
                               </td>
-                              <td>{payStatusLabel(r.pay_status)}</td>
                               <td className="tabular-nums">{r.sold_at ? String(r.sold_at).slice(0, 10) : "—"}</td>
                               <td className="text-[11px] mo-muted">
                                 {r.is_new ? "новый" : "доплата"}
