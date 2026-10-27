@@ -2593,25 +2593,25 @@ function CompanyReportSection({
             ? "Сводка за выбранный месяц (не сумма с прошлых). Выручка = продажи стола + платежи по курсам с датой в этом месяце. Дебиторка — остаток на конец месяца с переносом."
             : "Сводка за месяц. Выручка = оплаты визитов по дате сдачи денег (как ОСВ). Курсы KPI показаны отдельно и в эту сумму не входят. Дебиторка = остаток визитов + долги пакетов."}
         </p>
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-4 sm:gap-3 lg:grid-cols-5">
-          <div className="rounded-xl border border-[var(--mo-border)] p-2.5 sm:p-3">
+        <div className="kpi-report-metrics mt-3 grid grid-cols-2 gap-2 sm:mt-4 sm:gap-3 lg:grid-cols-5">
+          <div className="kpi-report-metric rounded-xl border border-[var(--mo-border)] p-2.5 sm:p-3">
             <div className="text-[11px] mo-muted sm:text-xs">Выполнение плана</div>
-            <div className="mt-1 text-xl font-semibold text-[var(--mo-text)] sm:text-2xl">
+            <div className="kpi-report-metric__value mt-1 font-semibold text-[var(--mo-text)]">
               {num(data.plan_completion_percent).toFixed(1)}%
             </div>
             {data.days_in_month ? (
-              <div className="mt-1 text-[10px] mo-muted sm:text-xs">
+              <div className="kpi-report-metric__hint mt-1 mo-muted">
                 день {data.days_elapsed ?? 0} из {data.days_in_month} (
                 {num(data.month_progress_percent).toFixed(0)}% месяца)
               </div>
             ) : null}
           </div>
-          <div className="rounded-xl border border-[var(--mo-border)] p-2.5 sm:p-3">
+          <div className="kpi-report-metric rounded-xl border border-[var(--mo-border)] p-2.5 sm:p-3">
             <div className="text-[11px] mo-muted sm:text-xs">Выручка (TJS)</div>
-            <div className="mt-1 text-xl font-semibold kpi-actual-value sm:text-2xl">
+            <div className="kpi-report-metric__value mt-1 font-semibold kpi-actual-value">
               {formatMoney(data.revenue_total)}
             </div>
-            <div className="mt-1 text-[10px] mo-muted sm:text-xs">
+            <div className="kpi-report-metric__hint mt-1 mo-muted">
               {hideBookingExperts
                 ? `стол ${formatMoney(data.revenue_booking)} · курсы ${formatMoney(data.revenue_manual)}`
                 : `визиты ${formatMoney(data.revenue_booking)}${
@@ -2621,31 +2621,31 @@ function CompanyReportSection({
                   }`}
             </div>
           </div>
-          <div className="rounded-xl border border-rose-500/30 bg-rose-500/5 p-2.5 sm:p-3">
+          <div className="kpi-report-metric rounded-xl border border-rose-500/30 bg-rose-500/5 p-2.5 sm:p-3">
             <div className="text-[11px] mo-muted sm:text-xs">Возвраты (TJS)</div>
-            <div className="mt-1 text-xl font-semibold tabular-nums text-rose-700 sm:text-2xl dark:text-rose-300">
+            <div className="kpi-report-metric__value mt-1 font-semibold tabular-nums text-rose-700 dark:text-rose-300">
               {formatMoney(data.refunds_total ?? 0)}
             </div>
-            <div className="mt-1 text-[10px] mo-muted sm:text-xs">
+            <div className="kpi-report-metric__hint mt-1 mo-muted">
               {hideBookingExperts
                 ? `стол ${formatMoney(data.refunds_booking ?? 0)} · курсы ${formatMoney(data.refunds_manual ?? 0)}`
                 : `визиты ${formatMoney(data.refunds_booking ?? 0)} · курсы ${formatMoney(data.refunds_manual ?? 0)}`}
             </div>
           </div>
-          <div className="rounded-xl border border-[var(--mo-border)] p-2.5 sm:p-3">
+          <div className="kpi-report-metric rounded-xl border border-[var(--mo-border)] p-2.5 sm:p-3">
             <div className="text-[11px] mo-muted sm:text-xs">Дебиторка (остаток)</div>
-            <div className="mt-1 text-xl font-semibold text-amber-600 sm:text-2xl dark:text-amber-200">
+            <div className="kpi-report-metric__value mt-1 font-semibold text-amber-600 dark:text-amber-200">
               {formatMoney(data.debtor_total)}
             </div>
-            <div className="mt-1 text-[10px] mo-muted sm:text-xs">
+            <div className="kpi-report-metric__hint mt-1 mo-muted">
               {hideBookingExperts
                 ? `запись ${formatMoney(data.debtor_booking)} · курсы ${formatMoney(data.debtor_manual)}`
                 : `визиты ${formatMoney(data.debtor_booking)} · курсы ${formatMoney(data.debtor_manual)}`}
             </div>
           </div>
-          <div className="rounded-xl border border-[var(--mo-border)] p-2.5 sm:p-3">
+          <div className="kpi-report-metric rounded-xl border border-[var(--mo-border)] p-2.5 sm:p-3">
             <div className="text-[11px] mo-muted sm:text-xs">Кредиторка</div>
-            <div className="mt-1 text-xl font-semibold text-[var(--mo-text)] sm:text-2xl">
+            <div className="kpi-report-metric__value mt-1 font-semibold text-[var(--mo-text)]">
               {formatMoney(data.creditor_total)}
             </div>
             <div className="mt-1 hidden text-xs mo-muted sm:block">оплачено, срок визита ещё не наступил</div>

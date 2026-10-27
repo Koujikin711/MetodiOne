@@ -103,12 +103,12 @@ export function RopReportPage() {
   return (
     <div className="mo-print-doc flex flex-col gap-4">
       <PrintMasthead title="Отчёт отдела продаж" meta={printPeriod(from, to)} />
-      <div className="print-screen-only flex flex-wrap items-end gap-3">
-        <label className="text-sm mo-muted">
+      <div className="print-screen-only rop-date-row">
+        <label className="rop-date-field text-sm mo-muted">
           С
           <DateField value={from} onChange={setFrom} className="mo-input mt-1" />
         </label>
-        <label className="text-sm mo-muted">
+        <label className="rop-date-field text-sm mo-muted">
           По
           <DateField value={to} onChange={setTo} className="mo-input mt-1" />
         </label>

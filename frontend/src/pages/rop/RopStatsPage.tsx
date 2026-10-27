@@ -45,12 +45,12 @@ export function RopStatsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap gap-3">
-        <label className="text-sm mo-muted">
+      <div className="rop-date-row">
+        <label className="rop-date-field text-sm mo-muted">
           С
           <DateField value={from} onChange={setFrom} className="mo-input mt-1" />
         </label>
-        <label className="text-sm mo-muted">
+        <label className="rop-date-field text-sm mo-muted">
           По
           <DateField value={to} onChange={setTo} className="mo-input mt-1" />
         </label>

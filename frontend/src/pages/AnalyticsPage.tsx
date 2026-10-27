@@ -388,13 +388,7 @@ export function AnalyticsPage() {
               <option value="custom">Свой период</option>
             </select>
           </label>
-          {period === "month" ? (
-            <label className="analytics-toolbar-field">
-              <span>Месяц</span>
-              <MonthYearPicker value={yearMonth} onChange={setYearMonth} />
-            </label>
-          ) : null}
-          <label className="analytics-toolbar-field">
+          <label className="analytics-toolbar-field analytics-toolbar-field--funnel">
             <span>Воронка</span>
             <select
               value={
@@ -424,32 +418,44 @@ export function AnalyticsPage() {
               ))}
             </select>
           </label>
-          <label
-            className={["analytics-toolbar-field", period === "custom" && !dateFrom ? "is-needed" : ""]
-              .filter(Boolean)
-              .join(" ")}
-          >
-            <span>С</span>
-            <DateField
-              value={dateFrom}
-              onChange={setDateFrom}
-              disabled={period !== "custom"}
-              aria-label="Дата с"
-            />
-          </label>
-          <label
-            className={["analytics-toolbar-field", period === "custom" && !dateTo ? "is-needed" : ""]
-              .filter(Boolean)
-              .join(" ")}
-          >
-            <span>По</span>
-            <DateField
-              value={dateTo}
-              onChange={setDateTo}
-              disabled={period !== "custom"}
-              aria-label="Дата по"
-            />
-          </label>
+          <div className="analytics-dates-row analytics-dates-row--with-month">
+            <label className="analytics-toolbar-field">
+              <span>Месяц</span>
+              <MonthYearPicker
+                value={yearMonth}
+                onChange={(ym) => {
+                  setYearMonth(ym);
+                  setPeriod("month");
+                }}
+              />
+            </label>
+            <label
+              className={["analytics-toolbar-field", period === "custom" && !dateFrom ? "is-needed" : ""]
+                .filter(Boolean)
+                .join(" ")}
+            >
+              <span>С</span>
+              <DateField
+                value={dateFrom}
+                onChange={setDateFrom}
+                disabled={period !== "custom"}
+                aria-label="Дата с"
+              />
+            </label>
+            <label
+              className={["analytics-toolbar-field", period === "custom" && !dateTo ? "is-needed" : ""]
+                .filter(Boolean)
+                .join(" ")}
+            >
+              <span>По</span>
+              <DateField
+                value={dateTo}
+                onChange={setDateTo}
+                disabled={period !== "custom"}
+                aria-label="Дата по"
+              />
+            </label>
+          </div>
           {servicesMode ? (
             <a
               className="btn-secondary analytics-export-btn analytics-html-link"
