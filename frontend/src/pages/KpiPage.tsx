@@ -111,7 +111,7 @@ function PaymentDecisions({
           </p>
         ) : canConfirm ? (
           <div key={p.id} className={dense ? "kpi-pay-decisions__row" : "flex flex-col items-start gap-1"}>
-            <span className="text-[10px] text-amber-200">{dense ? formatMoney(num(p.amount), { digits: 0 }) : `Ждёт: ${formatMoney(num(p.amount))}`}</span>
+            <span className="kpi-pay-wait">{dense ? formatMoney(num(p.amount), { digits: 0 }) : `Ждёт: ${formatMoney(num(p.amount))}`}</span>
             <span className="flex flex-nowrap gap-1">
               <button
                 type="button"
@@ -132,7 +132,7 @@ function PaymentDecisions({
             </span>
           </div>
         ) : (
-          <p key={p.id} className="text-[10px] text-amber-200">
+          <p key={p.id} className="kpi-pay-wait">
             Ждёт подтверждения админа · {formatMoney(num(p.amount))}
           </p>
         ),
@@ -1520,7 +1520,7 @@ export function KpiPage() {
           </div>
 
           {saleFormOpen && manualPlanItems.length === 0 ? (
-            <p className="text-sm text-amber-200/90">
+            <p className="text-sm text-amber-700 dark:text-amber-200">
               {salesSpace
                 ? "Сначала владелец должен добавить продукты во вкладке «План»."
                 : "Сначала владелец должен добавить продукты с источником «Курс / протокол» во вкладке «План»."}
@@ -1956,7 +1956,7 @@ export function KpiPage() {
             Прошлые оплаты остаются у прежнего менеджера. Новая доплата идёт выбранному.
           </p>
           <div className="mo-table-scroll hidden rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)] sm:block">
-            <table className="sold-course-sheet w-full min-w-[1100px] text-left">
+            <table className="sold-course-sheet w-full min-w-[1280px] text-left">
               <thead>
                 <tr className="border-b border-[var(--mo-border)] text-[11px] uppercase tracking-wide mo-muted">
                   <th className="px-3 py-2 font-medium">Дата</th>
