@@ -429,10 +429,11 @@ def test_course_brought_from_gross_as_paid_after_minimum():
 
 
 def test_course_stage_credits_as_paid_after_minimum():
-    """5000 открывает — +5000; дальше платежи как есть. Полная 15000 — как есть."""
+    """5000 открывает; доплата < мин. цены (3000 на 17к) сама не в Привёл — копится до мин."""
     t0 = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
     t1 = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
     t2 = datetime(2026, 10, 20, 12, 0, tzinfo=UTC)
+    # 5000 открыл; 3000 копится; +2000 → пакет 5000 (не 3000 отдельно на курс 15к)
     credits = course_stage_credits_for_payments(
         service_amount=Decimal("15000"),
         payments=[
@@ -443,9 +444,21 @@ def test_course_stage_credits_as_paid_after_minimum():
     )
     assert [(c[0], c[2]) for c in credits] == [
         (t0, Decimal("5000.00")),
-        (t1, Decimal("3000.00")),
-        (t2, Decimal("2000.00")),
+        (t2, Decimal("5000.00")),
     ]
+
+    # Махмадов: 17 000, уже 5400, доплата 3000 — 3000 НЕ в Привёл (мин. 5000)
+    t_open = datetime(2026, 9, 14, 12, 0, tzinfo=UTC)
+    t_top = datetime(2026, 10, 19, 12, 0, tzinfo=UTC)
+    makh = course_stage_credits_for_payments(
+        service_amount=Decimal("17000"),
+        payments=[
+            (t_open, Decimal("5400"), 7),
+            (t_top, Decimal("3000"), 7),
+        ],
+    )
+    assert makh == [(t_open, 7, Decimal("5400.00"))]
+
     once = course_stage_credits_for_payments(
         service_amount=Decimal("15000"),
         payments=[(t0, Decimal("15000"), 7)],
@@ -480,3 +493,16 @@ def test_course_stage_credits_as_paid_after_minimum():
         payments=[(t_a, Decimal("3000"), 7), (t_b, Decimal("3000"), 7)],
     )
     assert split == [(t_b, 7, Decimal("6000.00"))]
+
+    # Курс ~10 000: мин. 3000 — доплата 3000 уже проходит
+    low = course_stage_credits_for_payments(
+        service_amount=Decimal("10000"),
+        payments=[
+            (t0, Decimal("3000"), 7),
+            (t1, Decimal("3000"), 7),
+        ],
+    )
+    assert low == [
+        (t0, 7, Decimal("3000.00")),
+        (t1, 7, Decimal("3000.00")),
+    ]
