@@ -4669,6 +4669,27 @@ async def ensure_marketing_meta_settings(conn: AsyncConnection, database_url: st
             await conn.execute(text("ALTER TABLE marketing_meta_settings ADD COLUMN ig_verify_token VARCHAR(128)"))
         except Exception:
             pass
+        await conn.execute(
+            text(
+                """CREATE TABLE IF NOT EXISTS marketing_meta_snapshots (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    company_id INTEGER NOT NULL,
+                    period_key VARCHAR(80) NOT NULL,
+                    period VARCHAR(16) NOT NULL DEFAULT 'month',
+                    period_start DATE NOT NULL,
+                    period_end DATE NOT NULL,
+                    payload TEXT NOT NULL DEFAULT '{}',
+                    fetched_at DATETIME,
+                    UNIQUE (company_id, period_key)
+                )"""
+            )
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_marketing_meta_snapshots_company_id "
+                "ON marketing_meta_snapshots (company_id)"
+            )
+        )
         return
     await conn.execute(
         text(
@@ -4688,6 +4709,27 @@ async def ensure_marketing_meta_settings(conn: AsyncConnection, database_url: st
     await conn.execute(
         text(
             "ALTER TABLE marketing_meta_settings ADD COLUMN IF NOT EXISTS ig_verify_token VARCHAR(128)"
+        )
+    )
+    await conn.execute(
+        text(
+            """CREATE TABLE IF NOT EXISTS marketing_meta_snapshots (
+                id SERIAL PRIMARY KEY,
+                company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+                period_key VARCHAR(80) NOT NULL,
+                period VARCHAR(16) NOT NULL DEFAULT 'month',
+                period_start DATE NOT NULL,
+                period_end DATE NOT NULL,
+                payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+                fetched_at TIMESTAMPTZ,
+                UNIQUE (company_id, period_key)
+            )"""
+        )
+    )
+    await conn.execute(
+        text(
+            "CREATE INDEX IF NOT EXISTS ix_marketing_meta_snapshots_company_id "
+            "ON marketing_meta_snapshots (company_id)"
         )
     )
 

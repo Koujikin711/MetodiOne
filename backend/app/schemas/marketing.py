@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, Field
@@ -83,6 +83,9 @@ class MarketingOverviewRead(BaseModel):
     daily: list[MarketingDailyPoint] = Field(default_factory=list)
     managers: list[MarketingManagerConversionRow] = Field(default_factory=list)
     managers_total: MarketingManagerConversionRow | None = None
+    # Когда последний раз тянули Meta Ads (фон 4–6×/сутки или refresh=1)
+    synced_at: datetime | None = None
+    from_cache: bool = False
 
 
 class MarketingInstagramAccountConnected(BaseModel):

@@ -40,20 +40,11 @@ from app.schemas.marketing import (
 )
 from app.services.green_api_settings import resolve_public_api_base
 from app.services.instagram_connect import fetch_target_pages, upsert_instagram_integrations
-from app.services.meta_ads_client import (
-    brand_subscriber_rows,
-    campaign_rows,
-    daily_series,
-    fetch_account_meta,
-    fetch_ad_campaigns,
-    fetch_campaign_instagram_ids,
-    fetch_insights_range,
-    fetch_instagram_follower_gains,
-    keep_rows_for_instagram_accounts,
-    merge_campaign_catalog,
-    normalize_ad_account_id,
-    resolve_ig_account_labels,
-    summarize_rows,
+from app.services.meta_ads_client import fetch_account_meta, normalize_ad_account_id
+from app.services.meta_ads_sync import (
+    get_snapshot,
+    pull_meta_ads_payload,
+    upsert_snapshot,
 )
 
 router = APIRouter(prefix="/marketing", tags=["marketing"])
@@ -417,6 +408,10 @@ async def meta_overview(
     date_from: str | None = Query(default=None, description="YYYY-MM-DD для custom"),
     date_to: str | None = Query(default=None, description="YYYY-MM-DD для custom"),
     year_month: str | None = Query(default=None, description="legacy YYYY-MM"),
+    refresh: bool = Query(
+        True,
+        description="Тянуть Meta Ads сейчас (по умолчанию да — свежие цифры при открытии)",
+    ),
 ) -> MarketingOverviewRead:
     _assert_marketing_access(current_user)
     resolved, since, until = _resolve_period(period, date_from, date_to, year_month)
@@ -430,61 +425,57 @@ async def meta_overview(
             detail="Сначала сохраните Meta Ads: ad account и токен в настройках маркетинга",
         )
 
-    use_daily = (until - since).days >= 1
-    try:
-        meta = await fetch_account_meta(row.access_token or "", row.ad_account_id)
-        rows = await fetch_insights_range(
-            row.access_token or "",
-            row.ad_account_id,
-            since=since,
-            until=until,
-            level="campaign",
-            time_increment=1 if use_daily else None,
-        )
-        token = row.access_token or ""
-        campaign_ig = await fetch_campaign_instagram_ids(token, row.ad_account_id)
-        ig_labels = await resolve_ig_account_labels(token, set(campaign_ig.values()))
-        brand_by_campaign = {
-            cid: ig_labels[ig] for cid, ig in campaign_ig.items() if ig in ig_labels
-        }
-        rows = keep_rows_for_instagram_accounts(rows, campaign_ig, ig_labels)
-        catalog = await fetch_ad_campaigns(token, row.ad_account_id)
-        rows = merge_campaign_catalog(
-            rows,
-            catalog,
-            since=since,
-            until=until,
-            brand_by_campaign=brand_by_campaign,
-        )
-        follower_gains = await fetch_instagram_follower_gains(
-            token, ig_labels, since=since, until=until
-        )
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Meta API: {e}") from e
+    payload: dict | None = None
+    synced_at: datetime | None = None
+    from_cache = False
+    snap = await get_snapshot(db, company_id=company_id, period=resolved, since=since, until=until)
 
-    summary = summarize_rows(rows)
-    follower_total = sum(int(item.get("total") or 0) for item in follower_gains.values())
-    camps = [MarketingCampaignRow(**c) for c in campaign_rows(rows)]
-    brand_rows = brand_subscriber_rows(rows)
-    for brand in brand_rows:
-        gained = follower_gains.get(str(brand.get("account") or ""))
-        brand["followers"] = int(gained["total"]) if gained else 0
-    brands = [MarketingBrandRow(**b) for b in brand_rows]
-    daily_pts: list[MarketingDailyPoint] = []
-    for d in daily_series(rows):
+    # При обращении к разделу — всегда тянем Meta (свежее под рукой).
+    # Кэш оставляем как запасной и для фонового тика 4–6×/сутки.
+    if refresh or snap is None:
         try:
-            day_key = str(d["date"])[:10]
-            day_followers = sum(
-                int((item.get("by_day") or {}).get(day_key) or 0) for item in follower_gains.values()
+            payload = await pull_meta_ads_payload(
+                access_token=row.access_token or "",
+                ad_account_id=row.ad_account_id,
+                since=since,
+                until=until,
             )
+            snap = await upsert_snapshot(
+                db,
+                company_id=company_id,
+                period=resolved,
+                since=since,
+                until=until,
+                payload=payload,
+            )
+            await db.commit()
+            synced_at = snap.fetched_at
+        except Exception as e:
+            if snap is not None and isinstance(snap.payload, dict):
+                payload = snap.payload
+                synced_at = snap.fetched_at
+                from_cache = True
+            else:
+                raise HTTPException(status_code=502, detail=f"Meta API: {e}") from e
+    elif snap is not None and isinstance(snap.payload, dict):
+        payload = snap.payload
+        synced_at = snap.fetched_at
+        from_cache = True
+
+    assert payload is not None
+    camps = [MarketingCampaignRow(**c) for c in (payload.get("campaigns") or [])]
+    brands = [MarketingBrandRow(**b) for b in (payload.get("brands") or [])]
+    daily_pts: list[MarketingDailyPoint] = []
+    for d in payload.get("daily") or []:
+        try:
             daily_pts.append(
                 MarketingDailyPoint(
-                    date=date.fromisoformat(day_key),
-                    spend=d["spend"],
-                    leads=int(d["leads"]),
-                    followers=day_followers,
-                    clicks=int(d["clicks"]),
-                    impressions=int(d["impressions"]),
+                    date=date.fromisoformat(str(d["date"])[:10]),
+                    spend=d.get("spend") or 0,
+                    leads=int(d.get("leads") or 0),
+                    followers=int(d.get("followers") or 0),
+                    clicks=int(d.get("clicks") or 0),
+                    impressions=int(d.get("impressions") or 0),
                 )
             )
         except Exception:
@@ -499,20 +490,24 @@ async def meta_overview(
         period=resolved,
         period_start=since,
         period_end=until,
-        currency=str(meta.get("currency") or "USD"),
-        account_name=str(meta.get("name") or "") or None,
-        ad_account_id=normalize_ad_account_id(row.ad_account_id),
-        spend=summary["spend"],
-        impressions=summary["impressions"],
-        clicks=summary["clicks"],
-        leads=summary["leads"],
-        followers=follower_total,
-        cost_per_lead=summary["cost_per_lead"],
+        currency=str(payload.get("currency") or "USD"),
+        account_name=str(payload.get("account_name") or "") or None,
+        ad_account_id=normalize_ad_account_id(
+            str(payload.get("ad_account_id") or row.ad_account_id)
+        ),
+        spend=payload.get("spend") or 0,
+        impressions=int(payload.get("impressions") or 0),
+        clicks=int(payload.get("clicks") or 0),
+        leads=int(payload.get("leads") or 0),
+        followers=int(payload.get("followers") or 0),
+        cost_per_lead=payload.get("cost_per_lead"),
         campaigns=camps,
         brands=brands,
         daily=daily_pts,
         managers=managers,
         managers_total=managers_total,
+        synced_at=synced_at,
+        from_cache=from_cache,
     )
 
 

@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     google_service_account_email: str = ""
     google_service_account_private_key: str = ""
     google_sheets_poll_seconds: int = 120
+    # Meta Ads: снимок day/week/month в фоне (секунды). 14400 = 4 ч → 6 раз/сутки.
+    meta_ads_sync_seconds: int = 14400
 
     # SMTP (если хотите реальную отправку писем)
     smtp_host: str = ""

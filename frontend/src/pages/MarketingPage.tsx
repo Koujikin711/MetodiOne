@@ -77,6 +77,8 @@ type Overview = {
   daily: DailyPoint[];
   managers: ManagerRow[];
   managers_total?: ManagerRow | null;
+  synced_at?: string | null;
+  from_cache?: boolean;
 };
 
 type PeriodKind = "day" | "week" | "month" | "custom";
@@ -143,11 +145,32 @@ export function MarketingPage() {
 
   const overviewQuery = useQuery({
     queryKey: ["marketing-meta-overview", qs],
-    queryFn: () =>
-      apiFetch<Overview>(`/api/marketing/meta/overview?${qs}`, {
+    queryFn: () => {
+      const p = new URLSearchParams(qs);
+      p.set("refresh", "1");
+      return apiFetch<Overview>(`/api/marketing/meta/overview?${p.toString()}`, {
         timeoutMs: 90_000,
-      }),
+      });
+    },
     enabled: Boolean(settingsQuery.data?.configured) && periodReady,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+  });
+
+  const refreshAdsMutation = useMutation({
+    mutationFn: () => {
+      const p = new URLSearchParams(qs);
+      p.set("refresh", "1");
+      return apiFetch<Overview>(`/api/marketing/meta/overview?${p.toString()}`, {
+        timeoutMs: 90_000,
+      });
+    },
+    onSuccess: (data) => {
+      qc.setQueryData(["marketing-meta-overview", qs], data);
+      toast.success("Данные Ads обновлены");
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const saveMutation = useMutation({
@@ -242,10 +265,35 @@ export function MarketingPage() {
 
       {configured && !showConnect ? (
         <div className="marketing-toolbar">
-          <p className="marketing-toolbar__meta text-sm mo-muted">
-            Meta · {settingsQuery.data?.account_name || "подключено"} · {settingsQuery.data?.ad_account_id}
-          </p>
+          <div className="marketing-toolbar__meta space-y-0.5 text-sm mo-muted">
+            <p>
+              Meta · {settingsQuery.data?.account_name || "подключено"} · {settingsQuery.data?.ad_account_id}
+            </p>
+            {data?.synced_at ? (
+              <p className="text-xs">
+                Ads обновлено{" "}
+                {new Date(data.synced_at).toLocaleString("ru-RU", {
+                  day: "numeric",
+                  month: "short",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  timeZone: "Asia/Dushanbe",
+                })}
+                {data.from_cache ? " · запасной кэш" : " · при открытии"} · плюс авто 4–6 раз/сутки
+              </p>
+            ) : (
+              <p className="text-xs">При открытии тянем Ads с Meta · плюс авто 4–6 раз/сутки</p>
+            )}
+          </div>
           <div className="marketing-toolbar__actions">
+            <button
+              type="button"
+              className="btn-secondary text-sm"
+              disabled={refreshAdsMutation.isPending || overviewQuery.isFetching}
+              onClick={() => refreshAdsMutation.mutate()}
+            >
+              {refreshAdsMutation.isPending ? "Обновление…" : "Обновить Ads"}
+            </button>
             <button
               type="button"
               className="btn-primary text-sm"

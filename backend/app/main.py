@@ -113,6 +113,7 @@ from app.routers import (
 from app.services.background_events import record_background_event
 from app.services.google_sheets_finance_sync import run_finance_sheets_sync_tick
 from app.services.google_sheets_sync import run_google_sheets_import_tick
+from app.services.meta_ads_sync import run_meta_ads_sync_tick, sync_interval_seconds
 from app.services.runtime_metrics import runtime_metrics
 from app.services.waiting_callback_reminders import run_waiting_callback_tick
 from app.services.archive_evening_reactivate import run_archive_evening_reactivate_tick
@@ -669,6 +670,7 @@ async def lifespan(_: FastAPI):
 
     async def _reminder_loop() -> None:
         next_sheets_run = 0.0
+        next_meta_ads_run = 0.0
         try:
             await asyncio.sleep(8)
         except asyncio.CancelledError:
@@ -740,6 +742,29 @@ async def lifespan(_: FastAPI):
                                 pass
                         period = max(int(settings.google_sheets_poll_seconds), 30)
                         next_sheets_run = now + float(period)
+                    if now >= next_meta_ads_run:
+                        try:
+                            meta_synced = await run_meta_ads_sync_tick(session)
+                            await session.commit()
+                            if meta_synced:
+                                logger.info("meta ads sync tick: periods=%s", meta_synced)
+                                record_background_event(
+                                    source="meta_ads_sync",
+                                    ok=True,
+                                    message=f"Обновлено снимков Meta Ads: {meta_synced}",
+                                )
+                        except Exception as meta_exc:
+                            logger.warning("meta ads tick skipped due to error: %s", meta_exc)
+                            record_background_event(
+                                source="meta_ads_sync",
+                                ok=False,
+                                message=str(meta_exc)[:400],
+                            )
+                            try:
+                                await session.rollback()
+                            except Exception:
+                                pass
+                        next_meta_ads_run = now + float(max(sync_interval_seconds(), 60))
             except Exception as exc:
                 logger.exception("background tick failed")
                 record_background_event(
