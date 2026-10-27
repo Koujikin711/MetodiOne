@@ -18,7 +18,7 @@ import { MiniMonthCalendar } from "@/components/MiniMonthCalendar";
 import { PatientPhone } from "@/components/PatientPhone";
 import { BookingSpecialistsFilter } from "@/components/BookingSpecialistsFilter";
 import { SpecialistModal, type SpecialistFormValues } from "@/components/SpecialistModal";
-import { Trash2 } from "@/components/icons";
+import { Search, Trash2 } from "@/components/icons";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeDisplayNameFromToken, decodeRoleFromToken, decodeUserIdFromToken } from "@/lib/auth";
 import {
@@ -172,6 +172,7 @@ export function OnlineBookingPage() {
   const [filterDate, setFilterDate] = useState(() => ymdInBookingTz(Date.now()));
   const [journalDate, setJournalDate] = useState(() => ymdInBookingTz(Date.now()));
   const [journalSearch, setJournalSearch] = useState("");
+  const [patientCard, setPatientCard] = useState<BookingPatientHistoryItem | null>(null);
   const [journalCalendarOpen, setJournalCalendarOpen] = useState(false);
   const journalDateWrapRef = useRef<HTMLDivElement>(null);
   const formPanelRef = useRef<HTMLDivElement>(null);
@@ -230,6 +231,12 @@ export function OnlineBookingPage() {
     currentRole === "administrator" ||
     currentRole === "owner" ||
     currentRole === "super_owner";
+  /** Админ: без вкладок «Журнал» / «Отчёт» — поиск пациента в расписании. */
+  const isClinicAdmin =
+    currentRole === "admin" || currentRole === "administrator";
+  const showJournalTabs = !isClinicAdmin;
+  const scheduleSearchActive =
+    isClinicAdmin && tab === "online" && journalSearch.trim().length >= 2;
 
   useEffect(() => {
     if (leadFromQuery == null || !canEditBooking) return;
@@ -423,8 +430,19 @@ export function OnlineBookingPage() {
       apiFetch<BookingPatientHistoryItem[]>(
         `/api/booking/patient-history?q=${encodeURIComponent(journalSearch.trim())}&limit=20`,
       ),
-    enabled: tab === "journal" && journalSearch.trim().length >= 2,
+    enabled:
+      journalSearch.trim().length >= 2 &&
+      (tab === "journal" || (isClinicAdmin && tab === "online")),
   });
+
+  useEffect(() => {
+    if (!isClinicAdmin) return;
+    if (tab === "journal" || tab === "upcoming") setTab("online");
+  }, [isClinicAdmin, tab]);
+
+  useEffect(() => {
+    setPatientCard(null);
+  }, [journalSearch]);
 
   useEffect(() => {
     if (!journalCalendarOpen) return;
@@ -1341,27 +1359,29 @@ export function OnlineBookingPage() {
               </p>
             ) : null}
           </div>
-          <div className="crm-view-switch booking-page-tabs flex flex-wrap items-center gap-2" role="tablist" aria-label="Раздел записи">
-            {tabBtn("online", "Расписание")}
-            {tabBtn("journal", "Журнал")}
-            {tabBtn("upcoming", "Отчёт по услугам")}
-            {tab === "journal" || tab === "upcoming" ? <PrintButton /> : null}
-            {canEditBooking ? (
-              <button
-                type="button"
-                className="btn-secondary ml-auto px-3 py-1.5 text-xs sm:text-sm"
-                onClick={() => setDirectionsPanelOpen(true)}
-              >
-                Направление записи
-              </button>
-            ) : null}
-          </div>
+          {showJournalTabs ? (
+            <div className="crm-view-switch booking-page-tabs flex flex-wrap items-center gap-2" role="tablist" aria-label="Раздел записи">
+              {tabBtn("online", "Расписание")}
+              {tabBtn("journal", "Журнал")}
+              {tabBtn("upcoming", "Отчёт по услугам")}
+              {tab === "journal" || tab === "upcoming" ? <PrintButton /> : null}
+              {canEditBooking ? (
+                <button
+                  type="button"
+                  className="btn-secondary ml-auto px-3 py-1.5 text-xs sm:text-sm"
+                  onClick={() => setDirectionsPanelOpen(true)}
+                >
+                  Направление записи
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </header>
 
       {tab === "online" && (
         <div className="space-y-3">
-          <div className="booking-page-toolbar-row">
+          <div className={isClinicAdmin ? "booking-admin-bar print-screen-only" : "booking-page-toolbar-row"}>
             <div className="booking-page-date-nav" aria-label="Неделя записи">
               <button
                 type="button"
@@ -1381,7 +1401,78 @@ export function OnlineBookingPage() {
                 ›
               </button>
             </div>
+            {isClinicAdmin ? (
+              <label className="booking-schedule-search">
+                <Search className="booking-schedule-search__icon" aria-hidden />
+                <input
+                  type="search"
+                  value={journalSearch}
+                  onChange={(e) => setJournalSearch(e.target.value)}
+                  placeholder="Найти пациента — ФИО или телефон"
+                  aria-label="Поиск клиента по ФИО или телефону"
+                  className="booking-schedule-search__input"
+                />
+              </label>
+            ) : null}
           </div>
+          {scheduleSearchActive ? (
+            <div className="booking-patient-find print-screen-only">
+              <div className="booking-patient-find__head">
+                <h3 className="booking-patient-find__title">Найденные пациенты</h3>
+                <span className="booking-patient-find__hint">
+                  по запросу «{journalSearch.trim()}» · нажмите — открыть карточку
+                </span>
+              </div>
+              {patientHistoryQuery.isLoading && <p className="text-sm lux-caption">Ищем…</p>}
+              {patientHistoryQuery.isError && (
+                <p className="text-sm text-red-300">{(patientHistoryQuery.error as Error).message}</p>
+              )}
+              {patientHistoryQuery.data && patientHistoryQuery.data.length === 0 && (
+                <p className="booking-patient-find__empty">Никого не нашли. Проверьте ФИО или номер.</p>
+              )}
+              {patientHistoryQuery.data && patientHistoryQuery.data.length > 0 ? (
+                <ul className="booking-patient-find__list">
+                  {patientHistoryQuery.data.map((item) => {
+                    const key = `${item.patient_name}|${item.patient_phone}`;
+                    const came = item.visits.filter((v) => v.status === "completed").length;
+                    const missed = item.visits.filter((v) => v.status === "no_show").length;
+                    return (
+                      <li key={key} className="booking-patient-find__card">
+                        <button
+                          type="button"
+                          className="booking-patient-find__toggle"
+                          onClick={() => setPatientCard(item)}
+                        >
+                          <div className="booking-patient-find__main">
+                            <p className="booking-patient-find__name">{item.patient_name}</p>
+                            <p className="booking-patient-find__phone">
+                              <PatientPhone value={item} />
+                            </p>
+                          </div>
+                          <div className="booking-patient-find__meta">
+                            <span>
+                              Записей <b>{item.total_visits}</b>
+                              {came || missed ? (
+                                <>
+                                  {" "}
+                                  · <span className="booking-patient-find__stat is-ok">пришёл {came}</span>
+                                  {" / "}
+                                  <span className="booking-patient-find__stat is-miss">неявка {missed}</span>
+                                </>
+                              ) : null}
+                            </span>
+                            <span className="booking-patient-find__chevron" aria-hidden>
+                              Открыть ▸
+                            </span>
+                          </div>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
           <div className="booking-page-shell">
             <div className="min-w-0">
               <BookingWeekSpecialistGrid
@@ -2214,6 +2305,100 @@ export function OnlineBookingPage() {
       )}
 
       {canEditDirectionStreams ? <DirectionStreamsPanel /> : null}
+
+      {patientCard ? (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-[var(--mo-text)]/40 p-3 backdrop-blur-[2px]"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="booking-patient-card-title"
+          onClick={() => setPatientCard(null)}
+        >
+          <div
+            className="booking-appt-detail-modal booking-patient-card-modal mo-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="booking-appt-detail-modal__body">
+              <p className="booking-appt-detail-modal__eyebrow">Карточка пациента</p>
+              <p id="booking-patient-card-title" className="booking-appt-detail-modal__name">
+                {patientCard.patient_name}
+              </p>
+              <div className="booking-appt-detail-modal__meta-row">
+                <span>
+                  <PatientPhone value={patientCard} />
+                </span>
+                <span>
+                  Записей: <b>{patientCard.total_visits}</b>
+                </span>
+              </div>
+              <div className="booking-patient-card-modal__summary">
+                <span className="booking-patient-find__stat is-ok">
+                  Пришёл {patientCard.visits.filter((v) => v.status === "completed").length}
+                </span>
+                <span className="booking-patient-find__stat is-miss">
+                  Неявка {patientCard.visits.filter((v) => v.status === "no_show").length}
+                </span>
+                <span className="mo-muted text-xs">
+                  Запись {patientCard.visits.filter((v) => v.status === "booked").length}
+                </span>
+                <span className="mo-muted text-xs">
+                  Отмена {patientCard.visits.filter((v) => v.status === "cancelled").length}
+                </span>
+              </div>
+              <h4 className="booking-patient-card-modal__visits-title">Визиты</h4>
+              {patientCard.visits.length === 0 ? (
+                <p className="text-sm mo-muted">Нет визитов в истории</p>
+              ) : (
+                <ul className="booking-patient-find__visits booking-patient-card-modal__visits">
+                  {patientCard.visits.map((v) => {
+                    const inWeek = (gridAppointmentsQuery.data ?? []).find(
+                      (a) => a.id === v.appointment_id,
+                    );
+                    return (
+                      <li key={v.appointment_id}>
+                        <button
+                          type="button"
+                          className={`booking-patient-find__visit is-${v.status} booking-patient-card-modal__visit-btn`}
+                          onClick={() => {
+                            if (inWeek) {
+                              setPatientCard(null);
+                              setApptDetail(inWeek);
+                              return;
+                            }
+                            toast("Эта запись не в текущей неделе — откройте нужную дату в расписании");
+                          }}
+                        >
+                          <div className="booking-patient-find__visit-when">
+                            <span className="booking-patient-find__visit-date">{formatDt(v.start_at)}</span>
+                            <span className="booking-patient-find__visit-spec">
+                              {v.specialist_name || "—"}
+                            </span>
+                          </div>
+                          <span className={`booking-patient-find__badge is-${v.status}`}>
+                            {statusLabels[v.status] ?? v.status}
+                          </span>
+                          <span className="booking-patient-find__visit-svc">
+                            {(v.service_title || "").trim() || "—"}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+            <footer className="booking-appt-detail-modal__foot">
+              <button
+                type="button"
+                className="btn-primary px-3 py-1.5 text-xs"
+                onClick={() => setPatientCard(null)}
+              >
+                Закрыть
+              </button>
+            </footer>
+          </div>
+        </div>
+      ) : null}
 
       {apptDetail ? (
         <div

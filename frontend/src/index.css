@@ -2195,6 +2195,438 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   line-height: 1.25;
 }
 
+.booking-schedule-search-input {
+  flex: 1 1 12rem;
+  width: 12rem;
+  max-width: 100%;
+  min-width: 9rem;
+  height: 2rem;
+  padding: 0.25rem 0.625rem !important;
+  font-size: 0.8125rem !important;
+  line-height: 1.25;
+}
+
+/* Админ: одна полоса — неделя · поиск · действие */
+.booking-admin-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 0.75rem;
+  padding: 0.65rem 0.8rem;
+  border-radius: 0.95rem;
+  border: 1px solid color-mix(in srgb, var(--mo-border) 88%, transparent);
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--mo-surface-elevated) 92%, var(--mo-accent-soft)) 0%,
+      var(--mo-surface) 100%
+    );
+}
+
+.booking-admin-bar .booking-page-date-nav {
+  flex: 0 0 auto;
+  border-color: color-mix(in srgb, var(--mo-border) 70%, transparent);
+  background: color-mix(in srgb, var(--mo-surface) 70%, transparent);
+}
+
+.booking-schedule-search {
+  position: relative;
+  flex: 1 1 18rem;
+  min-width: min(100%, 12rem);
+  max-width: 36rem;
+}
+
+.booking-schedule-search__icon {
+  position: absolute;
+  left: 0.85rem;
+  top: 50%;
+  width: 1rem;
+  height: 1rem;
+  transform: translateY(-50%);
+  color: var(--mo-text-muted);
+  pointer-events: none;
+}
+
+.booking-schedule-search__input {
+  width: 100%;
+  height: 2.45rem;
+  margin: 0;
+  padding: 0.4rem 0.9rem 0.4rem 2.45rem !important;
+  border-radius: 0.75rem !important;
+  border: 1px solid color-mix(in srgb, var(--mo-border) 85%, var(--mo-accent) 15%) !important;
+  background: var(--mo-surface) !important;
+  color: var(--mo-text) !important;
+  font-size: 0.9rem !important;
+  font-weight: 500;
+  line-height: 1.3;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.booking-schedule-search__input::placeholder {
+  color: color-mix(in srgb, var(--mo-text-muted) 88%, transparent);
+  font-weight: 450;
+}
+
+.booking-schedule-search__input:focus {
+  border-color: color-mix(in srgb, var(--mo-accent) 55%, var(--mo-border)) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--mo-accent) 18%, transparent);
+}
+
+.booking-patient-find {
+  padding: 0.85rem 0.95rem;
+  border-radius: 0.95rem;
+  border: 1px solid color-mix(in srgb, var(--mo-border) 80%, transparent);
+  background: var(--mo-surface-elevated);
+}
+
+.booking-patient-find__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.75rem;
+  margin-bottom: 0.7rem;
+}
+
+.booking-patient-find__title {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--mo-text);
+}
+
+.booking-patient-find__hint {
+  font-size: 0.78rem;
+  color: var(--mo-text-muted);
+}
+
+.booking-patient-find__empty {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--mo-text-muted);
+}
+
+.booking-patient-find__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+@media (min-width: 720px) {
+  .booking-patient-find__list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.booking-patient-find__card {
+  border-radius: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--mo-border) 75%, transparent);
+  background: color-mix(in srgb, var(--mo-surface) 88%, transparent);
+  border-left: 3px solid color-mix(in srgb, var(--mo-accent) 70%, transparent);
+  overflow: hidden;
+}
+
+.booking-patient-find__card.is-open {
+  border-left-color: color-mix(in srgb, var(--mo-accent) 90%, #22c55e 20%);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--mo-accent) 16%, transparent);
+}
+
+.booking-patient-find__toggle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.45rem 1rem;
+  width: 100%;
+  margin: 0;
+  padding: 0.7rem 0.85rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.booking-patient-find__toggle:hover {
+  background: color-mix(in srgb, var(--mo-accent-soft) 55%, transparent);
+}
+
+.booking-patient-find__name {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--mo-text);
+}
+
+.booking-patient-find__phone {
+  margin: 0.15rem 0 0;
+  font-size: 0.8rem;
+  color: var(--mo-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.booking-patient-find__meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.2rem;
+  font-size: 0.75rem;
+  color: var(--mo-text-muted);
+  text-align: right;
+}
+
+.booking-patient-find__meta b {
+  color: var(--mo-text);
+  font-weight: 650;
+}
+
+.booking-patient-find__stat.is-ok {
+  color: #4ade80;
+  font-weight: 650;
+}
+
+.booking-patient-find__stat.is-miss {
+  color: #fb7185;
+  font-weight: 650;
+}
+
+.booking-patient-find__chevron {
+  font-size: 0.72rem;
+  font-weight: 650;
+  color: color-mix(in srgb, var(--mo-accent) 75%, var(--mo-text-muted));
+}
+
+.booking-patient-find__visits {
+  list-style: none;
+  margin: 0;
+  padding: 0 0.65rem 0.7rem;
+  display: grid;
+  gap: 0.35rem;
+  border-top: 1px solid color-mix(in srgb, var(--mo-border) 70%, transparent);
+}
+
+.booking-patient-find__visit-empty {
+  padding: 0.55rem 0.2rem 0.15rem;
+  font-size: 0.8rem;
+  color: var(--mo-text-muted);
+}
+
+.booking-patient-find__visit {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "when badge"
+    "svc svc";
+  gap: 0.15rem 0.65rem;
+  align-items: center;
+  padding: 0.45rem 0.55rem;
+  border-radius: 0.55rem;
+  background: color-mix(in srgb, var(--mo-surface-elevated) 70%, transparent);
+}
+
+.booking-patient-find__visit-when {
+  grid-area: when;
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  min-width: 0;
+}
+
+.booking-patient-find__visit-date {
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: var(--mo-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.booking-patient-find__visit-spec {
+  font-size: 0.72rem;
+  color: var(--mo-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.booking-patient-find__visit-svc {
+  grid-area: svc;
+  font-size: 0.72rem;
+  color: var(--mo-text-muted);
+}
+
+.booking-patient-find__badge {
+  grid-area: badge;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.booking-patient-find__badge.is-completed,
+.booking-patient-find__visit.is-completed .booking-patient-find__badge {
+  background: color-mix(in srgb, #22c55e 22%, transparent);
+  color: #86efac;
+}
+
+.booking-patient-find__badge.is-no_show {
+  background: color-mix(in srgb, #f43f5e 22%, transparent);
+  color: #fda4af;
+}
+
+.booking-patient-find__badge.is-booked {
+  background: color-mix(in srgb, #60a5fa 20%, transparent);
+  color: #93c5fd;
+}
+
+.booking-patient-find__badge.is-cancelled {
+  background: color-mix(in srgb, #a8a29e 18%, transparent);
+  color: #d6d3d1;
+}
+
+.booking-patient-find__visit.is-completed {
+  box-shadow: inset 3px 0 0 #22c55e;
+}
+
+.booking-patient-find__visit.is-no_show {
+  box-shadow: inset 3px 0 0 #f43f5e;
+}
+
+.booking-patient-find__visit.is-booked {
+  box-shadow: inset 3px 0 0 #60a5fa;
+}
+
+.booking-patient-find__visit.is-cancelled {
+  box-shadow: inset 3px 0 0 #a8a29e;
+  opacity: 0.78;
+}
+
+.booking-patient-card-modal {
+  width: min(28rem, calc(100vw - 1.5rem));
+  max-height: min(88dvh, 40rem);
+  display: flex;
+  flex-direction: column;
+}
+
+.booking-patient-card-modal .booking-appt-detail-modal__body {
+  overflow-y: auto;
+  flex: 1 1 auto;
+}
+
+.booking-patient-card-modal__summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.9rem;
+  margin-top: 0.75rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.65rem;
+  background: color-mix(in srgb, var(--mo-surface) 80%, transparent);
+  border: 1px solid color-mix(in srgb, var(--mo-border) 75%, transparent);
+  font-size: 0.8rem;
+}
+
+.booking-patient-card-modal__visits-title {
+  margin: 1rem 0 0.45rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--mo-text-muted);
+}
+
+.booking-patient-card-modal__visits {
+  padding: 0;
+  border-top: 0;
+  max-height: none;
+}
+
+.booking-patient-card-modal__visit-btn {
+  width: 100%;
+  margin: 0;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+
+.booking-patient-card-modal__visit-btn:hover {
+  filter: brightness(1.08);
+}
+
+:root[data-theme="dark"] .booking-admin-bar {
+  background:
+    linear-gradient(145deg, #1c2940 0%, #152033 100%);
+  border-color: rgba(186, 198, 220, 0.22);
+}
+
+:root[data-theme="dark"] .booking-schedule-search__input {
+  background: #121a2b !important;
+  border-color: rgba(148, 175, 220, 0.28) !important;
+}
+
+:root[data-theme="dark"] .booking-patient-find {
+  background: #1a263c;
+  border-color: rgba(186, 198, 220, 0.24);
+}
+
+:root[data-theme="dark"] .booking-patient-find__card {
+  background: #152033;
+  border-color: rgba(186, 198, 220, 0.2);
+  border-left-color: #60a5fa;
+}
+
+:root[data-theme="dark"] .booking-patient-find__toggle:hover {
+  background: rgba(96, 165, 250, 0.08);
+}
+
+:root:not([data-theme="dark"]) .booking-patient-find__badge.is-completed {
+  background: color-mix(in srgb, #16a34a 14%, white);
+  color: #166534;
+}
+
+:root:not([data-theme="dark"]) .booking-patient-find__badge.is-no_show {
+  background: color-mix(in srgb, #e11d48 12%, white);
+  color: #9f1239;
+}
+
+:root:not([data-theme="dark"]) .booking-patient-find__badge.is-booked {
+  background: color-mix(in srgb, #2563eb 12%, white);
+  color: #1e40af;
+}
+
+:root:not([data-theme="dark"]) .booking-patient-find__stat.is-ok {
+  color: #15803d;
+}
+
+:root:not([data-theme="dark"]) .booking-patient-find__stat.is-miss {
+  color: #be123c;
+}
+
+@media (max-width: 639px) {
+  .booking-admin-bar {
+    padding: 0.55rem;
+  }
+
+  .booking-schedule-search {
+    flex-basis: 100%;
+    max-width: none;
+  }
+
+  .booking-patient-find__meta {
+    align-items: flex-start;
+    text-align: left;
+  }
+}
+
 .booking-journal-calendar-popover {
   position: absolute;
   top: calc(100% + 0.25rem);
