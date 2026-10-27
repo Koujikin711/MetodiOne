@@ -1,0 +1,19 @@
+{
+  "name": "MetodiOne",
+  "short_name": "MetodiOne",
+  "description": "CRM MetodiOne",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0c1222",
+  "theme_color": "#0c1222",
+  "icons": [
+    {
+      "src": "/pwa-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

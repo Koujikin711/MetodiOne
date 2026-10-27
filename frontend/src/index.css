@@ -614,6 +614,13 @@ html {
   .lux-heading-page {
     margin-top: 0;
   }
+
+  /* На телефоне длинное описание под заголовком съедает экран */
+  .mo-admin-page-head .lux-body,
+  .page-header .lux-body,
+  header .lux-body {
+    display: none;
+  }
 }
 
 .shell-sidebar-nav {
