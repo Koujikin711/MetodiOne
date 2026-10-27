@@ -2665,7 +2665,7 @@ function SalesReportSection({
                   ) : (
                     <>
                       <p className="mb-2 text-[11px] mo-muted">
-                        Цена — за сколько продали. Оплачено — факт. В заработок «Привёл» после мин. 3 000 / 5 000 идёт оплата как есть.
+                        Цена — за сколько продали. Оплачено — всего по карточке. Привёл — только сумма за этот месяц (доплата = новая часть).
                       </p>
                       <ul className="space-y-2 sm:hidden">
                         {detailQuery.data.rows.map((r) => (
@@ -2673,14 +2673,13 @@ function SalesReportSection({
                             <div className="flex items-start justify-between gap-2">
                               <p className="truncate text-sm font-semibold text-[var(--mo-text)]">{r.client_name}</p>
                               <span className="shrink-0 text-sm font-semibold tabular-nums">
-                                {formatMoney(num(r.paid_amount))}
+                                {num(r.brought_amount) > 0 ? formatMoney(num(r.brought_amount)) : "—"}
                               </span>
                             </div>
                             <p className="text-[11px] mo-muted">
-                              цена {formatMoney(num(r.service_amount))}
+                              цена {formatMoney(num(r.service_amount))} · оплачено {formatMoney(num(r.paid_amount))}
                               {r.is_new ? " · новый" : " · доплата"}
                               {r.sold_at ? ` · ${String(r.sold_at).slice(0, 10)}` : ""}
-                              {r.source === "booking" ? " · запись" : " · KPI"}
                             </p>
                           </li>
                         ))}
@@ -2691,6 +2690,7 @@ function SalesReportSection({
                             <th>Клиент</th>
                             <th>Цена</th>
                             <th>Оплачено</th>
+                            <th>Привёл</th>
                             <th>Дата</th>
                             <th></th>
                           </tr>
@@ -2700,7 +2700,10 @@ function SalesReportSection({
                             <tr key={`${r.source}-${r.source_id}`}>
                               <td>{r.client_name}</td>
                               <td className="tabular-nums">{formatMoney(num(r.service_amount))}</td>
-                              <td className="tabular-nums font-semibold">{formatMoney(num(r.paid_amount))}</td>
+                              <td className="tabular-nums">{formatMoney(num(r.paid_amount))}</td>
+                              <td className="tabular-nums font-semibold">
+                                {num(r.brought_amount) > 0 ? formatMoney(num(r.brought_amount)) : "—"}
+                              </td>
                               <td className="tabular-nums">{r.sold_at ? String(r.sold_at).slice(0, 10) : "—"}</td>
                               <td className="text-[11px] mo-muted">
                                 {r.is_new ? "новый" : "доплата"}
