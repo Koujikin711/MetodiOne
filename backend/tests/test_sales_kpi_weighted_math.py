@@ -10,6 +10,9 @@ from app.services.sales_kpi_weighted import (
     bonus_amount,
     brought_booking_manager_id,
     brought_for_plan_item,
+    course_brought_from_gross,
+    course_stage_amount,
+    course_stage_credits_for_payments,
     earning_from_brought,
     is_full_payment,
     new_sales_for_plan_item,
@@ -19,6 +22,7 @@ from app.services.sales_kpi_weighted import (
     kpi_booking_created_cutoff,
     manual_sale_counts_in_kpi,
     manual_sale_threshold_crossed_at,
+    protocol_brought_waits_for_full_price,
     sum_specialist_facts_company,
     sum_specialist_facts_for_manager,
 )
@@ -395,10 +399,48 @@ def test_selected_services_ignore_name_price():
 
 
 def test_protocol_brought_waits_until_the_price_is_closed():
-    from app.services.sales_kpi_weighted import protocol_brought_waits_for_full_price
-
     assert protocol_brought_waits_for_full_price("Протокол") is True
     assert protocol_brought_waits_for_full_price("Курс") is False
-    assert protocol_brought_waits_for_full_price("Курс 15") is False
+    assert protocol_brought_waits_for_full_price("Курс 15") is True
     assert is_full_payment(3000, 1000) is False
     assert is_full_payment(3000, 3500) is True
+
+
+def test_course_stage_amount_is_price_divided_by_three():
+    assert course_stage_amount(Decimal("15000")) == Decimal("5000.00")
+    assert course_stage_amount(Decimal("17000")) == Decimal("5666.67")
+
+
+def test_course_brought_from_gross_unlocks_thirds():
+    """15000: 5000 → этап; 8000 ещё не 2/3; 10000 → два этапа; 15000 → три; переплата сверху."""
+    assert course_brought_from_gross(Decimal("15000"), Decimal("5000")) == Decimal("5000.00")
+    assert course_brought_from_gross(Decimal("15000"), Decimal("8000")) == Decimal("5000.00")
+    assert course_brought_from_gross(Decimal("15000"), Decimal("10000")) == Decimal("10000.00")
+    assert course_brought_from_gross(Decimal("15000"), Decimal("15000")) == Decimal("15000.00")
+    assert course_brought_from_gross(Decimal("15000"), Decimal("16000")) == Decimal("16000.00")
+    assert course_brought_from_gross(Decimal("15000"), Decimal("3000")) == Decimal("0.00")
+
+
+def test_course_stage_credits_accumulate_across_payments():
+    """Платежи 5000 → +5000; +3000 → 0; +2000 → +5000; разовая 15000 → три этапа."""
+    t0 = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
+    t1 = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
+    t2 = datetime(2026, 10, 20, 12, 0, tzinfo=UTC)
+    credits = course_stage_credits_for_payments(
+        service_amount=Decimal("15000"),
+        payments=[
+            (t0, Decimal("5000"), 7),
+            (t1, Decimal("3000"), 7),
+            (t2, Decimal("2000"), 7),
+        ],
+    )
+    assert [(c[0], c[2]) for c in credits] == [
+        (t0, Decimal("5000.00")),
+        (t2, Decimal("5000.00")),
+    ]
+    once = course_stage_credits_for_payments(
+        service_amount=Decimal("15000"),
+        payments=[(t0, Decimal("15000"), 7)],
+    )
+    assert sum((c[2] for c in once), Decimal("0")) == Decimal("15000.00")
+    assert len(once) == 3

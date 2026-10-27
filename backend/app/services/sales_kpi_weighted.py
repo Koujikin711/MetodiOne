@@ -151,11 +151,89 @@ def is_full_payment(service_amount, paid_amount) -> bool:
     return paid >= service
 
 
+def course_stage_amount(service_amount) -> Decimal:
+    """Этап основного курса: цена ÷ 3."""
+    price = Decimal(str(service_amount or 0))
+    if price <= 0:
+        return Decimal("0.00")
+    return (price / Decimal("3")).quantize(Decimal("0.01"))
+
+
+def course_brought_from_gross(service_amount, paid_gross) -> Decimal:
+    """Сколько из оплаты основного курса входит в «Привёл»: завершённые этапы цена÷3 + переплата."""
+    price = Decimal(str(service_amount or 0)).quantize(Decimal("0.01"))
+    paid = Decimal(str(paid_gross or 0)).quantize(Decimal("0.01"))
+    stage = course_stage_amount(price)
+    if price <= 0 or stage <= 0 or paid <= 0:
+        return Decimal("0.00")
+    thresholds = [stage, (stage * 2).quantize(Decimal("0.01")), price]
+    total = Decimal("0.00")
+    for i, thr in enumerate(thresholds):
+        if paid < thr:
+            break
+        if i < 2:
+            total += stage
+        else:
+            total += (price - stage * 2).quantize(Decimal("0.01"))
+    if paid > price:
+        total += (paid - price).quantize(Decimal("0.01"))
+    return total.quantize(Decimal("0.01"))
+
+
+def course_stage_credits_for_payments(
+    *,
+    service_amount,
+    payments: list[tuple[datetime, Decimal, int]],
+) -> list[tuple[datetime, int, Decimal]]:
+    """Этапы основного курса по накоплению.
+
+    payments: (paid_at, amount, manager_id), по времени.
+    Возвращает (paid_at, manager_id, credit) — зачисление этапа / переплаты в месяц платежа.
+    """
+    price = Decimal(str(service_amount or 0)).quantize(Decimal("0.01"))
+    stage = course_stage_amount(price)
+    if price <= 0 or stage <= 0:
+        return []
+    thresholds = [stage, (stage * 2).quantize(Decimal("0.01")), price]
+    ordered = sorted(payments, key=lambda row: row[0])
+    cum = Decimal("0.00")
+    unlocked = 0
+    credits: list[tuple[datetime, int, Decimal]] = []
+    for paid_at, amount, manager_id in ordered:
+        amt = Decimal(str(amount or 0)).quantize(Decimal("0.01"))
+        if amt <= 0 or manager_id is None:
+            continue
+        prev = cum
+        cum = (cum + amt).quantize(Decimal("0.01"))
+        while unlocked < 3 and cum >= thresholds[unlocked]:
+            if unlocked < 2:
+                credit = stage
+            else:
+                credit = (price - stage * 2).quantize(Decimal("0.01"))
+            if credit > 0:
+                credits.append((paid_at, int(manager_id), credit))
+            unlocked += 1
+        if unlocked >= 3:
+            if prev < price <= cum:
+                over = (cum - price).quantize(Decimal("0.01"))
+                if over > 0:
+                    credits.append((paid_at, int(manager_id), over))
+            elif prev >= price and amt > 0:
+                credits.append((paid_at, int(manager_id), amt))
+    return credits
+
+
 def protocol_brought_waits_for_full_price(product_name: str | None) -> bool:
-    """Протокол входит в «Привёл» только после полной оплаты. Курс — каждым этапом."""
+    """Протокол и Курс 15: «Привёл» только после полной оплаты. Основной курс — этапы ÷3."""
     from app.services.patient_ltv import classify_product_kind
 
-    return classify_product_kind(product_name) == "protocol"
+    return classify_product_kind(product_name) in {"protocol", "course_15"}
+
+
+def is_main_course_product(product_name: str | None) -> bool:
+    from app.services.patient_ltv import classify_product_kind
+
+    return classify_product_kind(product_name) == "main_course"
 
 
 def earning_from_brought(brought: Decimal, percent: Decimal) -> Decimal:
@@ -226,8 +304,9 @@ async def load_brought_paid_detail(
 ) -> tuple[dict[tuple[int, int, int, Decimal], Decimal], dict[tuple[int, int, int, Decimal], int]]:
     """Оплаты визитов месяца и число новых.
 
-    Курс и Курс 15: в «Привёл» входит уже внесённая сумма, не только закрытая цена.
-    Остальные услуги — когда оплата закрыла цену. Возврат вычитается в своём месяце.
+    Основной курс: в «Привёл» — завершённые этапы цена÷3 (+ переплата).
+    Курс 15 и протокол / прочее: только после полной оплаты (gross ≥ цена).
+    Возврат вычитается в своём месяце.
     Менеджер — ответственный на визите, если это менеджер. Иначе тот, кто создал запись.
     """
     start, end = month_bounds(ym)
@@ -289,8 +368,11 @@ async def load_brought_paid_detail(
         price = Decimal(str(service_amount or 0)).quantize(Decimal("0.01"))
         key = (int(manager_id), int(specialist_id), int(direction_id), price)
         kind = classify_product_kind(direction_names.get(int(direction_id)))
-        # Курс считает каждый внесённый этап. Протокол и остальные услуги — после полной оплаты.
-        if kind in {"course_15", "main_course"} or is_full_payment(service_amount, gross):
+        if kind == "main_course":
+            brought = course_brought_from_gross(price, gross)
+            if brought > 0:
+                out[key] = (out.get(key, Decimal("0")) + brought).quantize(Decimal("0.01"))
+        elif is_full_payment(service_amount, gross):
             out[key] = (out.get(key, Decimal("0")) + gross).quantize(Decimal("0.01"))
         if (status or "").strip() != "cancelled":
             counts[key] = counts.get(key, 0) + 1
@@ -618,12 +700,11 @@ async def load_manual_brought_by_label(
     pipeline_id: int,
     ym: date,
 ) -> dict[tuple[int, str], Decimal]:
-    """Курс: каждый подтверждённый этап в месяц оплаты.
+    """«Привёл» по ручным продажам.
 
-    Протокол: только когда цена закрыта. Если принесли больше цены, в «Привёл»
-    входит вся оплата этого месяца, не обрезанная до цены.
-    Прошлые этапы остаются у того, кто их принял. Новому менеджеру считается
-    только подтверждённый сбор дебиторки, который записан на него.
+    Основной курс: этапы цена÷3 по накоплению — в месяц платежа, который закрыл этап.
+    Курс 15 и протокол: только когда цена закрыта; тогда платежи месяца входят как есть.
+    Прошлые этапы остаются у того, кто их принял.
     """
     start, end = month_bounds(ym)
     credited = func.coalesce(
@@ -634,9 +715,11 @@ async def load_manual_brought_by_label(
     rows = (
         await db.execute(
             select(
+                SalesKpiManualSalePayment.sale_id,
                 credited,
                 SalesKpiPlanItem.name,
                 SalesKpiManualSalePayment.amount,
+                SalesKpiManualSalePayment.paid_at,
                 SalesKpiManualSale.paid_amount,
                 SalesKpiManualSale.service_amount,
             )
@@ -656,19 +739,79 @@ async def load_manual_brought_by_label(
         )
     ).all()
     out: dict[tuple[int, str], Decimal] = {}
-    for manager_id, name, paid, sale_paid, sale_service in rows:
+    main_course_sale_ids: set[int] = set()
+    for sale_id, manager_id, name, paid, _paid_at, sale_paid, sale_service in rows:
         if manager_id is None:
-            continue
-        if protocol_brought_waits_for_full_price(str(name or "")) and not is_full_payment(sale_service, sale_paid):
             continue
         label = _norm_kpi_label(str(name or ""))
         if not label:
+            continue
+        if is_main_course_product(str(name or "")):
+            if sale_id is not None:
+                main_course_sale_ids.add(int(sale_id))
+            continue
+        if protocol_brought_waits_for_full_price(str(name or "")) and not is_full_payment(sale_service, sale_paid):
             continue
         amount = Decimal(str(paid or 0)).quantize(Decimal("0.01"))
         if amount <= 0:
             continue
         key = (int(manager_id), label)
         out[key] = (out.get(key, Decimal("0")) + amount).quantize(Decimal("0.01"))
+
+    if main_course_sale_ids:
+        hist = (
+            await db.execute(
+                select(
+                    SalesKpiManualSalePayment.sale_id,
+                    credited,
+                    SalesKpiPlanItem.name,
+                    SalesKpiManualSalePayment.amount,
+                    SalesKpiManualSalePayment.paid_at,
+                    SalesKpiManualSale.service_amount,
+                )
+                .select_from(SalesKpiManualSalePayment)
+                .join(SalesKpiManualSale, SalesKpiManualSale.id == SalesKpiManualSalePayment.sale_id)
+                .join(SalesKpiPlanItem, SalesKpiPlanItem.id == SalesKpiManualSale.plan_item_id)
+                .where(
+                    SalesKpiManualSale.id.in_(main_course_sale_ids),
+                    SalesKpiManualSalePayment.amount > 0,
+                    SalesKpiManualSalePayment.confirmed_at.is_not(None),
+                    SalesKpiManualSalePayment.rejected_at.is_(None),
+                    SalesKpiManualSalePayment.paid_at.is_not(None),
+                )
+                .order_by(SalesKpiManualSalePayment.paid_at.asc(), SalesKpiManualSalePayment.id.asc()),
+            )
+        ).all()
+        by_sale: dict[int, list[tuple[datetime, Decimal, int, str, Decimal]]] = {}
+        for sale_id, manager_id, name, amount, paid_at, sale_service in hist:
+            if sale_id is None or manager_id is None or paid_at is None:
+                continue
+            by_sale.setdefault(int(sale_id), []).append(
+                (
+                    paid_at if paid_at.tzinfo else paid_at.replace(tzinfo=UTC),
+                    Decimal(str(amount or 0)),
+                    int(manager_id),
+                    str(name or ""),
+                    Decimal(str(sale_service or 0)),
+                )
+            )
+        for sale_rows in by_sale.values():
+            name = sale_rows[0][3]
+            service = sale_rows[0][4]
+            label = _norm_kpi_label(name)
+            if not label:
+                continue
+            payments = [(paid_at, amt, mid) for paid_at, amt, mid, _n, _s in sale_rows]
+            for paid_at, mid, credit in course_stage_credits_for_payments(
+                service_amount=service,
+                payments=payments,
+            ):
+                if paid_at < start or paid_at >= end:
+                    continue
+                if credit <= 0:
+                    continue
+                key = (int(mid), label)
+                out[key] = (out.get(key, Decimal("0")) + credit).quantize(Decimal("0.01"))
 
     # Продажа месяца без строк журнала: оплата всё равно считается в месяц заведения.
     legacy_rows = (
@@ -701,12 +844,15 @@ async def load_manual_brought_by_label(
     for manager_id, name, paid, sale_service in legacy_rows:
         if manager_id is None:
             continue
-        if protocol_brought_waits_for_full_price(str(name or "")) and not is_full_payment(sale_service, paid):
-            continue
         label = _norm_kpi_label(str(name or ""))
         if not label:
             continue
-        amount = Decimal(str(paid or 0)).quantize(Decimal("0.01"))
+        if is_main_course_product(str(name or "")):
+            amount = course_brought_from_gross(sale_service, paid)
+        else:
+            if protocol_brought_waits_for_full_price(str(name or "")) and not is_full_payment(sale_service, paid):
+                continue
+            amount = Decimal(str(paid or 0)).quantize(Decimal("0.01"))
         if amount <= 0:
             continue
         key = (int(manager_id), label)
