@@ -59,6 +59,10 @@ AUTO_ONLY_STAGE_NAMES: frozenset[str] = frozenset(
     {"Новый лид", "Архив"},
 )
 ARCHIVE_STAGE_NAME = "Архив"
+# Без активности >45 дней → Архив только «холодные» / отказные. «Удачно» и «В работе» не трогаем.
+INACTIVITY_ARCHIVE_STAGE_NAMES: frozenset[str] = frozenset(
+    {"Не ответили", "Отказ", "В ожидании"},
+)
 # Закрытые исходы: из Архива не возвращаем в «Новый лид» (ни раздачей, ни входящим).
 CLOSED_OUTCOME_STAGE_NAMES: frozenset[str] = frozenset({"Удачно", "Отказ"})
 
@@ -233,7 +237,8 @@ def classify_lead_stage_name(
     «записан» / «пришёл» или появилась оплата/курс. Ручной «Статус» не трогаем.
     Склад Bitrix/WhatsApp/GREEN API без свежей активности → Архив (не удалять).
     «Новый лид» только при свежем входящем (или только что созданном без чата).
-    Ручные стадии без активности >45 дней → Архив.
+    «Не ответили» / «Отказ» / «В ожидании» без активности >45 дней → Архив.
+    «Удачно» и «В обработке» при тишине в Архив не уходят.
     Активность: чат + дата записи/явка + created_at.
     После дневной реактивации из Архива — grace по reactivated_at.
     Исходящий/ответ клиента → «В обработке» (не «В ожидании»).
@@ -299,12 +304,17 @@ def classify_lead_stage_name(
                 return ARCHIVE_STAGE_NAME
             return ARCHIVE_STAGE_NAME
 
-    # Ручные стадии (в т.ч. «В ожидании»): без активности >45 дней → Архив.
+    # Ручные стадии: «Не ответили» / «Отказ» / «В ожидании» без активности → Архив.
+    # «Удачно» и «В обработке» при тишине остаются как есть.
     # Не перетираем автоматом «В работе» → «В ожидании» по входящему.
     # Старый авто-отказ без причины здесь не залипает: визит поправили
     # или есть другая запись / оплата / курс — стадия считается заново ниже.
     if cur in MANAGER_SETTABLE_STAGE_NAMES and not release_automatic_refusal:
-        if activity is not None and not _is_recent(activity, now=clock):
+        if (
+            cur in INACTIVITY_ARCHIVE_STAGE_NAMES
+            and activity is not None
+            and not _is_recent(activity, now=clock)
+        ):
             return ARCHIVE_STAGE_NAME
         return cur
 

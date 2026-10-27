@@ -309,7 +309,7 @@ def test_classify_lead_stage_name():
         )
         == "Архив"
     )
-    # «Удачно» без активности >45 дней → Архив.
+    # «Удачно» при тишине >45 дней остаётся «Удачно» (в Архив не уходит).
     assert (
         classify_lead_stage_name(
             current_name="Удачно",
@@ -321,9 +321,8 @@ def test_classify_lead_stage_name():
             lead_created_at=old,
             now=now,
         )
-        == "Архив"
+        == "Удачно"
     )
-    # Явка completed, но активность старая → Архив (запись больше не держит «Удачно»).
     assert (
         classify_lead_stage_name(
             current_name="Удачно",
@@ -332,35 +331,51 @@ def test_classify_lead_stage_name():
             last_direction=None,
             last_message_at=old,
             lead_created_at=old,
-            now=now,
-        )
-        == "Архив"
-    )
-    # booked сам по себе не удерживает «Удачно» при старом чате → Архив.
-    assert (
-        classify_lead_stage_name(
-            current_name="Удачно",
-            appointment_statuses={"booked"},
-            has_outbound=False,
-            last_direction=None,
-            last_message_at=old,
-            now=now,
-        )
-        == "Архив"
-    )
-    # Свежая дата записи (appointment_activity_at) удерживает ручное «Удачно» при старом чате.
-    assert (
-        classify_lead_stage_name(
-            current_name="Удачно",
-            appointment_statuses={"completed"},
-            has_outbound=False,
-            last_direction=None,
-            last_message_at=old,
-            lead_created_at=old,
-            appointment_activity_at=fresh,
             now=now,
         )
         == "Удачно"
+    )
+    # «Не ответили» / «Отказ» / «В ожидании» без активности → Архив.
+    for cold in ("Не ответили", "Отказ", "В ожидании"):
+        assert (
+            classify_lead_stage_name(
+                current_name=cold,
+                appointment_statuses=set(),
+                has_outbound=True,
+                last_direction="out",
+                has_any_chat=True,
+                last_message_at=old,
+                lead_created_at=old,
+                now=now,
+            )
+            == "Архив"
+        ), cold
+    # «В обработке» при тишине тоже не архивируем.
+    assert (
+        classify_lead_stage_name(
+            current_name="В обработке",
+            appointment_statuses=set(),
+            has_outbound=True,
+            last_direction="out",
+            has_any_chat=True,
+            last_message_at=old,
+            lead_created_at=old,
+            now=now,
+        )
+        == "В обработке"
+    )
+    # Свежая активность удерживает «В ожидании» от Архива.
+    assert (
+        classify_lead_stage_name(
+            current_name="В ожидании",
+            appointment_statuses=set(),
+            has_outbound=True,
+            last_direction="out",
+            has_any_chat=True,
+            last_message_at=fresh,
+            now=now,
+        )
+        == "В ожидании"
     )
 
 
