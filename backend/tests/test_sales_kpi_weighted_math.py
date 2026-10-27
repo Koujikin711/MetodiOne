@@ -407,7 +407,7 @@ def test_protocol_brought_waits_until_the_price_is_closed():
 
 
 def test_course_stage_amount_mins_by_price_tier():
-    """Мин. для зачёта: 15–17 000 → 5000; 10 000 → 3000."""
+    """Мин. для зачёта: 15–17 000 → 5000; 10 000 → 3000. Потолка нет."""
     assert course_stage_amount(Decimal("15000")) == Decimal("5000.00")
     assert course_stage_amount(Decimal("17000")) == Decimal("5000.00")
     assert course_stage_amount(Decimal("16000")) == Decimal("5000.00")
@@ -416,19 +416,20 @@ def test_course_stage_amount_mins_by_price_tier():
 
 
 def test_course_brought_from_gross_as_paid_after_minimum():
-    """Ниже мин. — 0; от мин. и выше — вся оплата как есть (не потолок 5000)."""
+    """Ниже мин. — 0; от мин. и выше — вся оплата как есть (в т.ч. 15к/17к)."""
     assert course_brought_from_gross(Decimal("17000"), Decimal("4999")) == Decimal("0.00")
     assert course_brought_from_gross(Decimal("17000"), Decimal("5000")) == Decimal("5000.00")
     assert course_brought_from_gross(Decimal("17000"), Decimal("5600")) == Decimal("5600.00")
     assert course_brought_from_gross(Decimal("17000"), Decimal("11200")) == Decimal("11200.00")
     assert course_brought_from_gross(Decimal("17000"), Decimal("17000")) == Decimal("17000.00")
+    assert course_brought_from_gross(Decimal("15000"), Decimal("15000")) == Decimal("15000.00")
     assert course_brought_from_gross(Decimal("10000"), Decimal("2999")) == Decimal("0.00")
     assert course_brought_from_gross(Decimal("10000"), Decimal("3000")) == Decimal("3000.00")
     assert course_brought_from_gross(Decimal("10000"), Decimal("6000")) == Decimal("6000.00")
 
 
 def test_course_stage_credits_as_paid_after_minimum():
-    """5000 открывает — +5000; дальше платежи как есть. 5600+5600 → 5600 и 5600."""
+    """5000 открывает — +5000; дальше платежи как есть. Полная 15000 — как есть."""
     t0 = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
     t1 = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
     t2 = datetime(2026, 10, 20, 12, 0, tzinfo=UTC)
@@ -450,6 +451,12 @@ def test_course_stage_credits_as_paid_after_minimum():
         payments=[(t0, Decimal("15000"), 7)],
     )
     assert once == [(t0, 7, Decimal("15000.00"))]
+
+    full17 = course_stage_credits_for_payments(
+        service_amount=Decimal("17000"),
+        payments=[(t0, Decimal("17000"), 7)],
+    )
+    assert full17 == [(t0, 7, Decimal("17000.00"))]
 
     t_sep = datetime(2026, 9, 19, 12, 0, tzinfo=UTC)
     t_oct = datetime(2026, 10, 26, 12, 0, tzinfo=UTC)

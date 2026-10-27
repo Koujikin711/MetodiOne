@@ -152,16 +152,16 @@ def is_full_payment(service_amount, paid_amount) -> bool:
 
 
 # Взносы на курсе часто ниже строгого цена÷3 (17 000→5667, 10 000→3333).
-COURSE_STAGE_CAP_HIGH = Decimal("5000.00")  # курсы 15–17 тыс.
-COURSE_STAGE_CAP_LOW = Decimal("3000.00")  # курс ~10 тыс.
+COURSE_STAGE_CAP_HIGH = Decimal("5000.00")  # курсы 15–17 тыс. — минимум
+COURSE_STAGE_CAP_LOW = Decimal("3000.00")  # курс ~10 тыс. — минимум
 COURSE_STAGE_LOW_PRICE_MAX = Decimal("12000.00")
 
 
 def course_stage_amount(service_amount) -> Decimal:
-    """Минимум, с которого курс идёт в «Привёл».
+    """Минимум, с которого курс идёт в «Привёл» (потолка нет).
 
     15–17 000 → мин. 5000; ~10 000 → мин. 3000.
-    Меньше минимума — 0; от минимума и больше — в «Привёл» фактическая оплата.
+    Меньше минимума — 0; от минимума и больше (в т.ч. вся цена) — фактическая оплата.
     """
     price = Decimal(str(service_amount or 0))
     if price <= 0:
@@ -172,7 +172,7 @@ def course_stage_amount(service_amount) -> Decimal:
 
 
 def course_brought_from_gross(service_amount, paid_gross) -> Decimal:
-    """«Привёл» по курсу: 0 пока оплата < мин. (3к/5к); иначе вся оплата как есть."""
+    """«Привёл» по курсу: 0 пока оплата < мин. (3к/5к); иначе вся оплата как есть (макс нет)."""
     price = Decimal(str(service_amount or 0)).quantize(Decimal("0.01"))
     paid = Decimal(str(paid_gross or 0)).quantize(Decimal("0.01"))
     minimum = course_stage_amount(price)
@@ -192,6 +192,7 @@ def course_stage_credits_for_payments(
 
     Пока накопление < мин. (3к/5к) — 0. Как только набралось — в «Привёл» идёт
     фактическая сумма (накопление при первом пороге, дальше каждый платёж как есть).
+    Потолка нет: 15 000 / 17 000 тоже целиком.
     """
     price = Decimal(str(service_amount or 0)).quantize(Decimal("0.01"))
     minimum = course_stage_amount(price)
@@ -218,7 +219,7 @@ def course_stage_credits_for_payments(
 
 
 def protocol_brought_waits_for_full_price(product_name: str | None) -> bool:
-    """Протокол и Курс 15: «Привёл» только после полной оплаты. Курс — после мин. 3к/5к сумма как есть."""
+    """Протокол и Курс 15: «Привёл» только после полной оплаты. Курс — после мин. 3к/5к, сумма как есть."""
     from app.services.patient_ltv import classify_product_kind
 
     return classify_product_kind(product_name) in {"protocol", "course_15"}
