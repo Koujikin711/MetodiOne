@@ -52,6 +52,7 @@ from app.services.lead_assignment import assign_manager_for_new_lead
 from app.services.lead_extra_phones import (
     find_lead_by_any_phone,
     lead_has_contact_phone,
+    list_extra_phones,
     norm_phone,
     sync_lead_extra_phones,
 )
@@ -453,7 +454,13 @@ async def _manager_names_map(db: AsyncSession, manager_ids: set[int]) -> dict[in
 async def _lead_to_read_with_manager(db: AsyncSession, lead: Lead, user: User) -> LeadRead:
     mids = {lead.manager_id} if lead.manager_id else set()
     managers = await _manager_names_map(db, mids)
-    base = _lead_to_read(lead).model_copy(update={"manager_name": managers.get(lead.manager_id or -1)})
+    extras = await list_extra_phones(db, int(lead.id))
+    base = _lead_to_read(lead).model_copy(
+        update={
+            "manager_name": managers.get(lead.manager_id or -1),
+            "extra_phones": extras,
+        },
+    )
     return await _apply_phone_visibility_to_read(db, user, base)
 
 
@@ -2075,6 +2082,14 @@ async def patch_lead(
         lead.email = str(body.email).strip() if body.email else None
     if "source" in patch:
         lead.source = (body.source or "").strip() or None
+    if "extra_phones" in patch and body.extra_phones is not None:
+        await sync_lead_extra_phones(
+            db,
+            company_id=company_id,
+            lead_id=int(lead.id),
+            extra_phones=list(body.extra_phones),
+            primary_phone=lead.phone,
+        )
 
     await db.flush()
     await _audit_lead(
@@ -2082,7 +2097,7 @@ async def patch_lead(
         lead_id=lead.id,
         action="lead_profile_updated",
         current_user=current_user,
-        details="Обновлены поля карточки клиента (ФИО/телефон/email/источник)",
+        details="Обновлены поля карточки клиента (ФИО/телефон/доп. номера/email/источник)",
     )
     await db.refresh(lead, ["stage"])
     base = await _lead_to_read_with_manager(db, lead, current_user)

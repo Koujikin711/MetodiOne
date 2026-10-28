@@ -28,6 +28,11 @@ class LeadUpdate(BaseModel):
     phone: str | None = Field(None, max_length=64)
     email: RelaxedEmailStr | None = None
     source: str | None = Field(None, max_length=120)
+    extra_phones: list[str] | None = Field(
+        default=None,
+        max_length=5,
+        description="Доп. номера того же клиента (родитель / второй WhatsApp). Не сливает чужие карточки.",
+    )
 
 
 class LeadRead(BaseModel):
@@ -36,6 +41,7 @@ class LeadRead(BaseModel):
     phone: str | None
     phone_display: str | None = None
     phone_can_view_full: bool = False
+    extra_phones: list[str] = Field(default_factory=list)
     email: str | None
     source: str | None
     status_id: int

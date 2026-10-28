@@ -119,6 +119,7 @@ export function LeadDetailPage() {
   const [editLeadOpen, setEditLeadOpen] = useState(false);
   const [editName, setEditName] = useState("");
   const [editPhone, setEditPhone] = useState("");
+  const [editExtraPhones, setEditExtraPhones] = useState<string[]>([""]);
   const [editEmail, setEditEmail] = useState("");
   const [editSource, setEditSource] = useState("");
   const [moveModalAppointment, setMoveModalAppointment] = useState<BookingAppointment | null>(null);
@@ -407,7 +408,13 @@ export function LeadDetailPage() {
   });
 
   const patchLeadMutation = useMutation({
-    mutationFn: (body: { name: string; phone: string | null; email: string | null; source: string | null }) =>
+    mutationFn: (body: {
+      name: string;
+      phone: string | null;
+      email: string | null;
+      source: string | null;
+      extra_phones: string[];
+    }) =>
       apiFetch<Lead>(`/api/leads/${leadId}`, {
         method: "PATCH",
         body: JSON.stringify(body),
@@ -440,6 +447,8 @@ export function LeadDetailPage() {
     if (!query.data) return;
     setEditName(query.data.name ?? "");
     setEditPhone(query.data.phone ?? "");
+    const extras = (query.data.extra_phones ?? []).filter(Boolean);
+    setEditExtraPhones(extras.length ? extras : [""]);
     setEditEmail(query.data.email ?? "");
     setEditSource(query.data.source ?? "");
     setEditLeadOpen(true);
@@ -456,6 +465,7 @@ export function LeadDetailPage() {
       phone: editPhone.trim() || null,
       email: editEmail.trim() || null,
       source: editSource.trim() || null,
+      extra_phones: editExtraPhones.map((p) => p.trim()).filter(Boolean),
     });
   }
 
@@ -617,6 +627,13 @@ export function LeadDetailPage() {
             <p className="text-[1.55rem] font-semibold tabular-nums tracking-wide text-[var(--mo-text)] sm:text-2xl">
               <PatientPhone value={query.data} />
             </p>
+            {(query.data.extra_phones ?? []).filter(Boolean).length > 0 ? (
+              <ul className="space-y-1 text-sm tabular-nums mo-muted">
+                {(query.data.extra_phones ?? []).filter(Boolean).map((p) => (
+                  <li key={p}>доп. {p}</li>
+                ))}
+              </ul>
+            ) : null}
 
             <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
               <Link
@@ -1053,7 +1070,8 @@ export function LeadDetailPage() {
           >
             <h3 className="lux-subheading">Редактировать клиента</h3>
             <p className="mt-2 text-sm lux-caption">
-              Можно обновить ФИО, телефон, email и источник прямо из карточки.
+              ФИО, основной и доп. телефоны (до 5), email и источник. Два номера — один клиент, не две
+              карточки.
             </p>
             <div className="mt-4 grid gap-3">
               <label className="text-sm mo-muted">
@@ -1070,8 +1088,47 @@ export function LeadDetailPage() {
                   value={editPhone}
                   onChange={(e) => setEditPhone(e.target.value)}
                   className="mo-input mt-1 w-full"
+                  inputMode="tel"
                 />
               </label>
+              <div className="space-y-2">
+                <span className="text-sm mo-muted">Доп. номера</span>
+                {editExtraPhones.map((ep, idx) => (
+                  <div key={idx} className="flex gap-2">
+                    <input
+                      type="tel"
+                      value={ep}
+                      onChange={(e) => {
+                        const next = [...editExtraPhones];
+                        next[idx] = e.target.value;
+                        setEditExtraPhones(next);
+                      }}
+                      placeholder={idx === 0 ? "+992 … второй номер" : "Ещё номер"}
+                      className="min-w-0 flex-1 mo-input text-sm"
+                      autoComplete="off"
+                      inputMode="tel"
+                    />
+                    {editExtraPhones.length > 1 ? (
+                      <button
+                        type="button"
+                        className="shrink-0 rounded-lg border border-[var(--mo-border)] px-2 text-xs mo-muted hover:bg-[var(--mo-accent-soft)]"
+                        onClick={() => setEditExtraPhones(editExtraPhones.filter((_, i) => i !== idx))}
+                      >
+                        ✕
+                      </button>
+                    ) : null}
+                  </div>
+                ))}
+                {editExtraPhones.length < 5 ? (
+                  <button
+                    type="button"
+                    className="text-xs font-medium text-[var(--mo-warning)] hover:underline"
+                    onClick={() => setEditExtraPhones([...editExtraPhones, ""])}
+                  >
+                    + Добавить номер
+                  </button>
+                ) : null}
+              </div>
               <label className="text-sm mo-muted">
                 Email
                 <input

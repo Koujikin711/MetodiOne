@@ -181,6 +181,8 @@ export interface Lead {
   phone: string | null;
   phone_display?: string | null;
   phone_can_view_full?: boolean;
+  /** Доп. номера того же клиента (не отдельные карточки) */
+  extra_phones?: string[];
   pipeline_id?: number | null;
   email: string | null;
   source: string | null;
