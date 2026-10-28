@@ -946,8 +946,51 @@ async def rop_transfer_lead(
         current_user=current_user,
         details=f"from_manager_id={from_id}, to_manager_id={target.id}, via=rop_transfer",
     )
+    # Разовое исключение (#41470 Файзалиев): KPI-продажа тоже на нового менеджера.
+    from app.services.phone_match import phone_digits
+    from app.services.sales_kpi_weighted import (
+        KPI_OWNER_FOLLOW_CRM_FIO_KEYS,
+        KPI_OWNER_FOLLOW_CRM_LEAD_IDS,
+        fio_key,
+    )
+
+    if int(lead.id) in KPI_OWNER_FOLLOW_CRM_LEAD_IDS:
+        lead_fk = fio_key(str(lead.name or ""))
+        lead_phone = phone_digits(lead.phone)
+        name_hint = (lead_fk.split()[0] if lead_fk else "") or "файзалиев"
+        sale_rows = (
+            await db.execute(
+                select(SalesKpiManualSale).where(
+                    SalesKpiManualSale.company_id == company_id,
+                    or_(
+                        SalesKpiManualSale.lead_id == int(lead.id),
+                        SalesKpiManualSale.client_name.ilike(f"%{name_hint}%"),
+                    ),
+                ),
+            )
+        ).scalars().all()
+        now = datetime.now(UTC)
+        for sale in sale_rows:
+            match = int(sale.lead_id or 0) == int(lead.id)
+            if not match:
+                sfk = fio_key(str(sale.client_name or ""))
+                match = bool(sfk) and (
+                    sfk == lead_fk or sfk in KPI_OWNER_FOLLOW_CRM_FIO_KEYS
+                )
+            if not match and lead_phone:
+                sp = phone_digits(sale.client_phone)
+                match = bool(sp) and (
+                    sp == lead_phone
+                    or (len(sp) >= 9 and len(lead_phone) >= 9 and sp[-9:] == lead_phone[-9:])
+                )
+            if not match:
+                continue
+            sale.manager_user_id = int(target.id)
+            sale.opened_manager_user_id = int(target.id)
+            sale.lead_id = int(lead.id)
+            sale.updated_at = now
     if from_id is not None:
-        # Продажи / KPI не переносим — только открытые задачи.
+        # Продажи / KPI не переносим — только открытые задачи (кроме исключения выше).
         await db.execute(
             update(Task)
             .where(

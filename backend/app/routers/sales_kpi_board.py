@@ -1297,6 +1297,7 @@ async def _service_earning_detail(
                     sale_manager_id=int(sale_mid) if sale_mid is not None else None,
                     lead_manager_id=int(lead_mid) if lead_mid is not None else None,
                     fio_crm_manager_id=fio_owners.get(fk) if fk else None,
+                    client_name=str(client_name or ""),
                 )
                 if sale_id is None or mid is None or paid_at is None:
                     continue
@@ -1316,6 +1317,7 @@ async def _service_earning_detail(
                 sale_manager_id=int(sale.manager_user_id) if sale.manager_user_id is not None else None,
                 lead_manager_id=int(lead_mid) if lead_mid is not None else None,
                 fio_crm_manager_id=fio_owners.get(fk) if fk else None,
+                client_name=str(sale.client_name or ""),
             )
             if owner_mid != manager_id:
                 continue

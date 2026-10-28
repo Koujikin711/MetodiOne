@@ -36,6 +36,10 @@ DEFAULT_BONUS_FUND = Decimal("10000")
 # С отчётов за июль 2026+: июньские (и более ранние) записи в факт не входят.
 # Бонус всегда в месяц явки (start_at); «записали в июле → пришли в августе» = август.
 KPI_EXCLUDE_PRE_JULY_BOOKINGS_FROM = date(2026, 7, 1)
+# Разовое исключение: Файзалиев Хабибулло (#41470) — KPI за менеджером карточки CRM,
+# даже если продажу открыла другая (Ситора) и lead_id указывает не туда.
+KPI_OWNER_FOLLOW_CRM_LEAD_IDS = frozenset({41470})
+KPI_OWNER_FOLLOW_CRM_FIO_KEYS = frozenset({"файзалиев хабибулло"})
 
 
 def parse_year_month(s: str) -> date:
@@ -625,6 +629,7 @@ def kpi_client_owner_manager_id(
     sale_manager_id: int | None,
     lead_manager_id: int | None,
     fio_crm_manager_id: int | None = None,
+    client_name: str | None = None,
 ) -> int | None:
     """Чей клиент для «Новых» / «Привёл».
 
@@ -632,7 +637,13 @@ def kpi_client_owner_manager_id(
     2) менеджер CRM/записи по тому же ФИО (без ручной связи продажи),
     3) кто открыл продажу.
     Чужие клиенты не попадают в отчёт текущего менеджера.
+
+    Исключение KPI_OWNER_FOLLOW_CRM_FIO_KEYS: сначала ФИО→карточка CRM
+    (перебивает чужой lead_id / opened).
     """
+    fk = fio_key(client_name) if client_name else ""
+    if fk and fk in KPI_OWNER_FOLLOW_CRM_FIO_KEYS and fio_crm_manager_id is not None:
+        return int(fio_crm_manager_id)
     if lead_manager_id is not None:
         return int(lead_manager_id)
     if fio_crm_manager_id is not None:
@@ -642,6 +653,27 @@ def kpi_client_owner_manager_id(
     if sale_manager_id is not None:
         return int(sale_manager_id)
     return None
+
+
+async def apply_kpi_owner_follow_crm_exceptions(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    fio_owners: dict[str, int],
+) -> None:
+    """Перебивает карту ФИО для разовых исключений — менеджер актуальной карточки."""
+    for lead_id in KPI_OWNER_FOLLOW_CRM_LEAD_IDS:
+        lead = await db.get(Lead, lead_id)
+        if lead is None or int(lead.company_id) != int(company_id) or lead.manager_id is None:
+            continue
+        mid = int(lead.manager_id)
+        keys = set(KPI_OWNER_FOLLOW_CRM_FIO_KEYS)
+        own = fio_key(str(lead.name or ""))
+        if own:
+            keys.add(own)
+        for fk in keys:
+            if fk:
+                fio_owners[fk] = mid
 
 
 async def load_fio_crm_owner_managers(
@@ -691,6 +723,7 @@ async def load_fio_crm_owner_managers(
         fk = fio_key(str(patient_name or ""))
         if fk and mid is not None and fk not in out:
             out[fk] = int(mid)
+    await apply_kpi_owner_follow_crm_exceptions(db, company_id=company_id, fio_owners=out)
     return out
 
 
@@ -961,6 +994,7 @@ async def load_manual_brought_by_label(
             sale_manager_id=int(sale_mid) if sale_mid is not None else None,
             lead_manager_id=int(lead_mid) if lead_mid is not None else None,
             fio_crm_manager_id=fio_owners.get(fk) if fk else None,
+            client_name=str(client_name or ""),
         )
         if manager_id is None:
             continue
@@ -1019,6 +1053,7 @@ async def load_manual_brought_by_label(
                 sale_manager_id=int(sale_mid) if sale_mid is not None else None,
                 lead_manager_id=int(lead_mid) if lead_mid is not None else None,
                 fio_crm_manager_id=fio_owners.get(fk) if fk else None,
+                client_name=str(client_name or ""),
             )
             if sale_id is None or mid is None or paid_at is None:
                 continue
@@ -1095,6 +1130,7 @@ async def load_manual_brought_by_label(
             sale_manager_id=int(sale_mid) if sale_mid is not None else None,
             lead_manager_id=int(lead_mid) if lead_mid is not None else None,
             fio_crm_manager_id=fio_owners.get(fk) if fk else None,
+            client_name=str(client_name or ""),
         )
         if manager_id is None:
             continue
@@ -1153,6 +1189,7 @@ async def load_manual_new_sales_by_label(
             sale_manager_id=int(sale_mid) if sale_mid is not None else None,
             lead_manager_id=int(lead_mid) if lead_mid is not None else None,
             fio_crm_manager_id=fio_owners.get(fk) if fk else None,
+            client_name=str(client_name or ""),
         )
         if manager_id is None:
             continue

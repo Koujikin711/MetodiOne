@@ -68,6 +68,31 @@ def test_kpi_owner_prefers_lead_then_fio_crm():
     )
 
 
+def test_kpi_owner_fayzaliev_exception_follows_crm_card():
+    # Исключение: Файзалиев — KPI у менеджера карточки, не у открывшего и не у чужого lead_id.
+    assert (
+        kpi_client_owner_manager_id(
+            opened_manager_id=10,  # Ситора открыла
+            sale_manager_id=10,
+            lead_manager_id=10,
+            fio_crm_manager_id=7,  # Мулкия на карточке #41470
+            client_name="Файзалиев Хабибулло",
+        )
+        == 7
+    )
+    # Без исключения обычный порядок: lead_id важнее fio.
+    assert (
+        kpi_client_owner_manager_id(
+            opened_manager_id=10,
+            sale_manager_id=10,
+            lead_manager_id=10,
+            fio_crm_manager_id=7,
+            client_name="Другой Клиент",
+        )
+        == 10
+    )
+
+
 def test_booking_owner_prefers_lead_over_creator():
     assert (
         booking_client_owner_manager_id(
