@@ -566,6 +566,8 @@ class SalesKpiEarningDetailRow(BaseModel):
     sold_at: datetime | None = None
     in_brought: bool = False
     brought_amount: Decimal = Decimal("0")
+    # Платёж(и) менеджера за месяц — для показа в колонке, даже если в заработок не вошло.
+    month_paid_amount: Decimal = Decimal("0")
     is_new: bool = False
     note: str | None = None
 

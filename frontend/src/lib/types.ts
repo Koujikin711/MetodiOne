@@ -1090,6 +1090,8 @@ export interface SalesKpiEarningDetailRow {
   sold_at: string | null;
   in_brought: boolean;
   brought_amount: string | number;
+  /** Платёж месяца для показа; в заработок идёт только brought_amount. */
+  month_paid_amount?: string | number;
   is_new?: boolean;
   note: string | null;
 }

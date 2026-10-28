@@ -1306,15 +1306,15 @@ async def _service_earning_detail(
             )
             payments = pays_by_sale.get(int(sale.id), [])
             brought_amt = Decimal("0.00")
-            month_pay_for_manager = False
+            month_paid_amt = Decimal("0.00")
             for paid_at, amt, mid in payments:
                 if mid != manager_id:
                     continue
                 if paid_at < start or paid_at >= end:
                     continue
-                if Decimal(str(amt or 0)) > 0:
-                    month_pay_for_manager = True
-                    break
+                pay = Decimal(str(amt or 0)).quantize(Decimal("0.01"))
+                if pay > 0:
+                    month_paid_amt = (month_paid_amt + pay).quantize(Decimal("0.01"))
             if is_main_course_product(item.name):
                 for paid_at, mid, credit in course_stage_credits_for_payments(
                     service_amount=price,
@@ -1343,6 +1343,7 @@ async def _service_earning_detail(
 
             # Продажа без строк журнала: legacy — вся оплата в месяц sold_at у opened/manager
             if not payments and is_new and paid > 0:
+                month_paid_amt = paid
                 if is_main_course_product(item.name):
                     brought_amt = course_brought_from_gross(price, paid)
                 elif protocol_brought_waits_for_full_price(item.name):
@@ -1350,15 +1351,17 @@ async def _service_earning_detail(
                 else:
                     brought_amt = paid if is_full_payment(price, paid) else Decimal("0.00")
 
-            # Доплата месяца с Привёл=0 (ниже мин. цены) всё равно показываем — иначе «пропал».
-            if not is_new and brought_amt <= 0 and not month_pay_for_manager:
+            # Доплата месяца с зачётом 0 всё равно показываем (сумма в колонке, в оплату менеджеру нет).
+            if not is_new and brought_amt <= 0 and month_paid_amt <= 0:
+                continue
+            if is_new and brought_amt <= 0 and month_paid_amt <= 0 and paid <= 0:
                 continue
             if is_new:
-                note = "открыт в месяце"
+                note = "открыт в месяце" if brought_amt > 0 else "ниже мин. — показано, не в оплату"
             elif brought_amt > 0:
                 note = "этап / доплата в месяце"
             else:
-                note = "доплата ниже мин. цены — не в Привёл"
+                note = "показано, не в оплату менеджеру"
             rows.append(
                 SalesKpiEarningDetailRow(
                     source="kpi",
@@ -1370,6 +1373,7 @@ async def _service_earning_detail(
                     sold_at=sale.sold_at,
                     in_brought=brought_amt > 0,
                     brought_amount=brought_amt.quantize(Decimal("0.01")),
+                    month_paid_amount=month_paid_amt.quantize(Decimal("0.01")),
                     is_new=is_new,
                     note=note,
                 ),
@@ -1441,6 +1445,7 @@ async def _service_earning_detail(
                     sold_at=appt.start_at,
                     in_brought=brought_amt > 0,
                     brought_amount=brought_amt.quantize(Decimal("0.01")),
+                    month_paid_amount=paid.quantize(Decimal("0.01")),
                     is_new=is_new,
                     note=str(dname or ""),
                 ),

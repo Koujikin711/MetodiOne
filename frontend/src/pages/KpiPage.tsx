@@ -2665,25 +2665,32 @@ function SalesReportSection({
                   ) : (
                     <>
                       <p className="mb-2 text-[11px] mo-muted">
-                        Цена — за сколько продали. Оплачено — всего по карточке. Привёл — только сумма за этот месяц (доплата = новая часть).
+                        Цена — за сколько продали. Оплачено — всего по карточке. Привёл — платёж месяца; серым «не в оплату» — видно, но в % менеджеру не входит. Итого в шапке — только зачтённое.
                       </p>
                       <ul className="space-y-2 sm:hidden">
-                        {detailQuery.data.rows.map((r) => (
+                        {detailQuery.data.rows.map((r) => {
+                          const credited = num(r.brought_amount);
+                          const monthPay = num(r.month_paid_amount);
+                          const showAmt = credited > 0 ? credited : monthPay;
+                          const notPaid = credited <= 0 && monthPay > 0;
+                          return (
                           <li key={`${r.source}-${r.source_id}`} className="rounded-xl border border-[var(--mo-border)] px-3 py-2">
                             <div className="flex items-start justify-between gap-2">
                               <p className="truncate text-sm font-semibold text-[var(--mo-text)]">{r.client_name}</p>
-                              <span className="shrink-0 text-sm font-semibold tabular-nums">
-                                {num(r.brought_amount) > 0 ? formatMoney(num(r.brought_amount)) : "—"}
+                              <span className={`shrink-0 text-sm tabular-nums ${notPaid ? "mo-muted" : "font-semibold text-[var(--mo-text)]"}`}>
+                                {showAmt > 0 ? formatMoney(showAmt) : "—"}
+                                {notPaid ? " · не в оплату" : ""}
                               </span>
                             </div>
                             <p className="text-[11px] mo-muted">
                               цена {formatMoney(num(r.service_amount))} · оплачено {formatMoney(num(r.paid_amount))}
                               {r.is_new ? " · новый" : " · доплата"}
                               {r.sold_at ? ` · ${String(r.sold_at).slice(0, 10)}` : ""}
-                              {num(r.brought_amount) <= 0 && r.note ? ` · ${r.note}` : ""}
+                              {notPaid && r.note ? ` · ${r.note}` : ""}
                             </p>
                           </li>
-                        ))}
+                          );
+                        })}
                       </ul>
                       <table className="kpi-data-table hidden w-full text-sm sm:table">
                         <thead>
@@ -2697,22 +2704,31 @@ function SalesReportSection({
                           </tr>
                         </thead>
                         <tbody>
-                          {detailQuery.data.rows.map((r) => (
+                          {detailQuery.data.rows.map((r) => {
+                            const credited = num(r.brought_amount);
+                            const monthPay = num(r.month_paid_amount);
+                            const showAmt = credited > 0 ? credited : monthPay;
+                            const notPaid = credited <= 0 && monthPay > 0;
+                            return (
                             <tr key={`${r.source}-${r.source_id}`}>
                               <td>{r.client_name}</td>
                               <td className="tabular-nums">{formatMoney(num(r.service_amount))}</td>
                               <td className="tabular-nums">{formatMoney(num(r.paid_amount))}</td>
-                              <td className="tabular-nums font-semibold">
-                                {num(r.brought_amount) > 0 ? formatMoney(num(r.brought_amount)) : "—"}
+                              <td className={`tabular-nums ${notPaid ? "mo-muted" : "font-semibold"}`}>
+                                {showAmt > 0 ? formatMoney(showAmt) : "—"}
+                                {notPaid ? (
+                                  <span className="mt-0.5 block text-[10px] font-normal mo-muted">не в оплату</span>
+                                ) : null}
                               </td>
                               <td className="tabular-nums">{r.sold_at ? String(r.sold_at).slice(0, 10) : "—"}</td>
                               <td className="text-[11px] mo-muted">
-                                {num(r.brought_amount) <= 0 && r.note
+                                {notPaid && r.note
                                   ? r.note
                                   : `${r.is_new ? "новый" : "доплата"}${r.source === "booking" ? " · запись" : " · KPI"}`}
                               </td>
                             </tr>
-                          ))}
+                            );
+                          })}
                         </tbody>
                       </table>
                     </>

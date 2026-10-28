@@ -12,10 +12,13 @@ type Row = {
   client: string;
   price: number;
   paid: number;
-  status: "full" | "partial";
+  /** Зачтено в оплату менеджеру */
+  brought: number;
+  /** Платёж месяца (для показа, даже если brought=0) */
+  monthPaid: number;
   day: string;
-  inBrought: boolean;
-  source: "kpi" | "booking";
+  kind: "new" | "topup";
+  note?: string;
 };
 
 type Line = {
@@ -32,55 +35,70 @@ type Mgr = { id: number; name: string; lines: Line[] };
 
 const MOCK: Mgr[] = [
   {
-    id: 20,
-    name: "Алибекзода Мавлуда",
+    id: 12,
+    name: "Хайдарзода Мулкия",
     lines: [
-      {
-        key: "c15",
-        name: "Курс 15",
-        sales: 21,
-        brought: 26000,
-        percent: 10,
-        earning: 2600,
-        rows: [
-          { client: "Файзуллозода Сумая", price: 1300, paid: 1300, status: "full", day: "2026-10-07", inBrought: true, source: "booking" },
-          { client: "Манонзода Абдурахмон", price: 1300, paid: 1300, status: "full", day: "2026-10-08", inBrought: true, source: "booking" },
-          { client: "Абдурашидзода Мусо", price: 1300, paid: 200, status: "partial", day: "2026-10-29", inBrought: false, source: "booking" },
-        ],
-      },
-      {
-        key: "proto",
-        name: "Протокол",
-        sales: 3,
-        brought: 3000,
-        percent: 4,
-        earning: 120,
-        rows: [
-          { client: "Мачидзода Усмон", price: 3000, paid: 3000, status: "full", day: "2026-10-19", inBrought: true, source: "kpi" },
-          { client: "Умарзода Алия", price: 3000, paid: 300, status: "partial", day: "2026-10-19", inBrought: false, source: "kpi" },
-          { client: "Дживонзода Закия", price: 3000, paid: 1900, status: "partial", day: "2026-10-02", inBrought: false, source: "kpi" },
-        ],
-      },
       {
         key: "course",
         name: "Курс",
-        sales: 5,
-        brought: 5666.67,
+        sales: 6,
+        // Только зачтённые: 5600+5000+5600+5519+5600 = 27319
+        brought: 27319,
         percent: 4,
-        earning: 226.67,
+        earning: 1092.76,
         rows: [
-          { client: "Химатов Холид", price: 17000, paid: 5600, status: "partial", day: "2026-10-26", inBrought: true, source: "kpi" },
-          { client: "Хикматов Холид", price: 17000, paid: 11200, status: "partial", day: "2026-10-26", inBrought: true, source: "kpi" },
-          { client: "Шарипова Назокат", price: 17000, paid: 300, status: "partial", day: "2026-10-24", inBrought: false, source: "kpi" },
+          {
+            client: "Закияи Алишер",
+            price: 17000,
+            paid: 500,
+            brought: 0,
+            monthPaid: 500,
+            day: "2026-10-24",
+            kind: "new",
+            note: "ниже мин. — показано, не в оплату",
+          },
+          {
+            client: "Мухаммади Абдурахим",
+            price: 17000,
+            paid: 5600,
+            brought: 5600,
+            monthPaid: 5600,
+            day: "2026-10-19",
+            kind: "new",
+          },
+          {
+            client: "Гулмахмадова Ниссо",
+            price: 15000,
+            paid: 5000,
+            brought: 5000,
+            monthPaid: 5000,
+            day: "2026-10-17",
+            kind: "new",
+          },
+          {
+            client: "Махмадов Мавлончон",
+            price: 17000,
+            paid: 8400,
+            brought: 0,
+            monthPaid: 3000,
+            day: "2026-09-14",
+            kind: "topup",
+            note: "показано, не в оплату менеджеру",
+          },
+          {
+            client: "Хуршедзода Абдулло",
+            price: 17000,
+            paid: 11200,
+            brought: 5600,
+            monthPaid: 5600,
+            day: "2026-08-31",
+            kind: "topup",
+          },
         ],
       },
     ],
   },
 ];
-
-function payLabel(s: Row["status"]) {
-  return s === "full" ? "полная" : "неполная";
-}
 
 export function DevKpiEarningsClickPreview() {
   const [open, setOpen] = useState<{ mgr: string; line: Line } | null>(null);
@@ -91,19 +109,19 @@ export function DevKpiEarningsClickPreview() {
 
   return (
     <div className="app-shell-bg min-h-[100dvh] px-4 py-5 text-[var(--mo-text)] sm:px-6">
-      <p className="mo-muted mb-2 text-[11px] tracking-wide">Локально · клик по цифрам «Новых» / «Привёл»</p>
+      <p className="mo-muted mb-2 text-[11px] tracking-wide">
+        Локально · Привёл: показать сумму, в % менеджеру — только зачтённое
+      </p>
       <h1 className="lux-heading-page text-[1.35rem]">KPI — короткий отчёт по клику</h1>
       <p className="mo-muted mt-2 max-w-2xl text-sm leading-relaxed">
-        Нажмите на число в колонке «Новых» или «Привёл» — откроется список: кто, цена, оплачено.
-        На проде данные с API; здесь мок по Мавлуде.
+        Серым «не в оплату» — сумма видна в колонке Привёл, но в итог шапки и заработок не входит.
+        Итого {formatMoney(totalEarning)}.
       </p>
 
       <div className="kpi-sales-board mt-4">
         <section className="mo-section px-4 py-3">
           <h2 className="text-[15px] font-semibold">Заработок · 2026-10</h2>
-          <p className="mt-0.5 text-[11px] lux-caption">
-            Нажмите на «Новых» или «Привёл». Итого {formatMoney(totalEarning)}
-          </p>
+          <p className="mt-0.5 text-[11px] lux-caption">Нажмите на «Привёл» у Курса · Мулкия</p>
         </section>
         <div className="kpi-sales-grid">
           {MOCK.map((m) => (
@@ -124,26 +142,14 @@ export function DevKpiEarningsClickPreview() {
                     {m.lines.map((line) => (
                       <tr key={line.key}>
                         <td>{line.name}</td>
-                        <td className="tabular-nums">
-                          <button
-                            type="button"
-                            className="kpi-earn-num-btn"
-                            onClick={() => setOpen({ mgr: m.name, line })}
-                          >
-                            {line.sales}
-                          </button>
-                        </td>
+                        <td className="tabular-nums">{line.sales}</td>
                         <td>
-                          <button
-                            type="button"
-                            className="kpi-earn-num-btn"
-                            onClick={() => setOpen({ mgr: m.name, line })}
-                          >
+                          <button type="button" className="kpi-earn-num-btn tabular-nums" onClick={() => setOpen({ mgr: m.name, line })}>
                             {formatMoney(line.brought)}
                           </button>
                         </td>
-                        <td>{line.percent}</td>
-                        <td>{formatMoney(line.earning)}</td>
+                        <td className="tabular-nums">{line.percent}%</td>
+                        <td className="tabular-nums font-semibold">{formatMoney(line.earning)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -157,9 +163,7 @@ export function DevKpiEarningsClickPreview() {
                       <span className="text-[12px] font-semibold tabular-nums">{formatMoney(line.earning)}</span>
                     </div>
                     <p className="text-[11px] tabular-nums mo-muted">
-                      <button type="button" className="kpi-earn-num-btn" onClick={() => setOpen({ mgr: m.name, line })}>
-                        новых {line.sales}
-                      </button>
+                      новых {line.sales}
                       {" · "}
                       <button type="button" className="kpi-earn-num-btn" onClick={() => setOpen({ mgr: m.name, line })}>
                         привёл {formatMoney(line.brought)}
@@ -193,8 +197,7 @@ export function DevKpiEarningsClickPreview() {
                       {open.line.name} · {open.mgr}
                     </h2>
                     <p className="mt-0.5 text-xs mo-muted">
-                      мок · новых {open.line.sales} · привёл {formatMoney(open.line.brought)} · в списке{" "}
-                      {open.line.rows.length} (фрагмент)
+                      мок · новых {open.line.sales} · привёл (в оплату) {formatMoney(open.line.brought)}
                     </p>
                   </div>
                   <button type="button" className="btn-secondary min-h-10 px-3 text-sm" onClick={() => setOpen(null)}>
@@ -202,31 +205,42 @@ export function DevKpiEarningsClickPreview() {
                   </button>
                 </header>
                 <div className="min-h-0 flex-1 overflow-auto px-4 py-3">
+                  <p className="mb-2 text-[11px] mo-muted">
+                    Привёл — платёж месяца. Серым «не в оплату» — видно, в % менеджеру не входит. Шапка — только зачтённое.
+                  </p>
                   <table className="kpi-data-table w-full text-sm">
                     <thead>
                       <tr>
                         <th>Клиент</th>
                         <th>Цена</th>
                         <th>Оплачено</th>
-                        <th>Статус</th>
+                        <th>Привёл</th>
                         <th>Дата</th>
                         <th></th>
                       </tr>
                     </thead>
                     <tbody>
-                      {open.line.rows.map((r) => (
-                        <tr key={r.client + r.day}>
-                          <td>{r.client}</td>
-                          <td className="tabular-nums">{formatMoney(r.price)}</td>
-                          <td className="tabular-nums">{formatMoney(r.paid)}</td>
-                          <td>{payLabel(r.status)}</td>
-                          <td className="tabular-nums">{r.day}</td>
-                          <td className="text-[11px] mo-muted">
-                            {r.inBrought ? "Привёл" : ""}
-                            {r.source === "booking" ? " · запись" : " · KPI"}
-                          </td>
-                        </tr>
-                      ))}
+                      {open.line.rows.map((r) => {
+                        const notPaid = r.brought <= 0 && r.monthPaid > 0;
+                        const show = r.brought > 0 ? r.brought : r.monthPaid;
+                        return (
+                          <tr key={r.client + r.day}>
+                            <td>{r.client}</td>
+                            <td className="tabular-nums">{formatMoney(r.price)}</td>
+                            <td className="tabular-nums">{formatMoney(r.paid)}</td>
+                            <td className={`tabular-nums ${notPaid ? "mo-muted" : "font-semibold"}`}>
+                              {show > 0 ? formatMoney(show) : "—"}
+                              {notPaid ? (
+                                <span className="mt-0.5 block text-[10px] font-normal mo-muted">не в оплату</span>
+                              ) : null}
+                            </td>
+                            <td className="tabular-nums">{r.day}</td>
+                            <td className="text-[11px] mo-muted">
+                              {notPaid && r.note ? r.note : r.kind === "new" ? "новый · KPI" : "доплата · KPI"}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

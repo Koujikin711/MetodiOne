@@ -70,6 +70,7 @@ export default function App() {
             <Route path="/dev/ui/curator-list" element={<DevCuratorListPreview />} />
             <Route path="/dev/ui/booking-admin" element={<DevBookingAdminPreview />} />
             <Route path="/dev/ui/kpi-earnings-logic" element={<DevKpiEarningsLogicPreview />} />
+            <Route path="/dev/ui/kpi-earnings-click" element={<DevKpiEarningsClickPreview />} />
           </>
         ) : null}
         <Route path="/landing" element={<LandingPage />} />
