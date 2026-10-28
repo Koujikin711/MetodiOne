@@ -478,6 +478,30 @@ function paymentKindLabel(kind: string): string {
   return "оплата";
 }
 
+/** Карточка пациента из продажи курса/протокола — полная история оплат. */
+function manualSaleToPatientCard(sale: SalesKpiManualSale): SalesKpiDebtorRow {
+  return {
+    source: "manual",
+    source_id: sale.id,
+    lead_id: sale.lead_id ?? null,
+    sold_at: sale.sold_at ?? null,
+    client_name: sale.client_name,
+    client_phone: sale.client_phone || "",
+    indicator_name: sale.plan_item_name,
+    manager_id: sale.manager_user_id,
+    manager_name: sale.manager_name,
+    service_amount: sale.service_amount,
+    paid_amount: sale.paid_amount,
+    debt_amount: sale.debt_amount,
+    status: sale.status,
+    payments: (sale.payments ?? []).map((p) => ({
+      paid_at: p.paid_at,
+      amount: p.amount,
+      kind: p.is_first ? "first" : "topup",
+    })),
+  };
+}
+
 function daysSincePayment(iso: string): number | null {
   const stamp = new Date(iso).getTime();
   if (Number.isNaN(stamp)) return null;
@@ -1438,7 +1462,8 @@ export function KpiPage() {
           <div>
             <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Курсы и проданные протоколы</h2>
             <p className="mt-1 text-[11px] leading-snug text-[var(--mo-text-muted)] sm:text-sm">
-              Здесь оплаты: курс и уже купленный протокол в одном списке. Срок 30 дней — отдельный блок ниже.
+              Здесь оплаты: курс и уже купленный протокол в одном списке. Нажмите на пациента — полная история
+              оплат. Срок 30 дней — отдельный блок ниже.
             </p>
           </div>
 
@@ -1833,7 +1858,13 @@ export function KpiPage() {
               <li key={s.id} className="kpi-sale-card">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-[var(--mo-text)]">{s.client_name}</p>
+                    <button
+                      type="button"
+                      className="truncate text-sm font-semibold text-[var(--mo-text)] underline-offset-2 hover:underline"
+                      onClick={() => setPatientCard(manualSaleToPatientCard(s))}
+                    >
+                      {s.client_name}
+                    </button>
                     <p className="truncate text-[11px] text-[var(--mo-text-muted)]">
                       {s.plan_item_name}
                     </p>
@@ -2015,7 +2046,16 @@ export function KpiPage() {
                         s.manager_name
                       )}
                     </td>
-                    <td className="px-3 py-2 font-medium">{s.client_name}</td>
+                    <td className="px-3 py-2 font-medium">
+                      <button
+                        type="button"
+                        className="text-left font-medium text-[var(--mo-text)] underline-offset-2 hover:underline"
+                        title="История оплат пациента"
+                        onClick={() => setPatientCard(manualSaleToPatientCard(s))}
+                      >
+                        {s.client_name}
+                      </button>
+                    </td>
                     <td className="px-3 py-2 tabular-nums">{s.client_phone || "—"}</td>
                     <td className="whitespace-nowrap px-3 py-2 tabular-nums">{formatMoney(num(s.service_amount))}</td>
                     <td className="whitespace-nowrap px-3 py-2 tabular-nums">

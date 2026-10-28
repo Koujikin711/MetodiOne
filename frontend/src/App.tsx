@@ -48,6 +48,7 @@ import { ExtraServicesPage } from "@/pages/ExtraServicesPage";
 import { CuratorJournalPage } from "@/pages/CuratorJournalPage";
 import { DevCuratorListPreview } from "@/pages/DevCuratorListPreview";
 import { DevBookingAdminPreview } from "@/pages/DevBookingAdminPreview";
+import { DevKpiCoursePatientCardPreview } from "@/pages/DevKpiCoursePatientCardPreview";
 import { DevKpiEarningsClickPreview } from "@/pages/DevKpiEarningsClickPreview";
 import { DevKpiEarningsLogicPreview } from "@/pages/DevKpiEarningsLogicPreview";
 import { SalesControlPage } from "@/pages/SalesControlPage";
@@ -71,6 +72,7 @@ export default function App() {
             <Route path="/dev/ui/booking-admin" element={<DevBookingAdminPreview />} />
             <Route path="/dev/ui/kpi-earnings-logic" element={<DevKpiEarningsLogicPreview />} />
             <Route path="/dev/ui/kpi-earnings-click" element={<DevKpiEarningsClickPreview />} />
+            <Route path="/dev/ui/kpi-course-patient" element={<DevKpiCoursePatientCardPreview />} />
           </>
         ) : null}
         <Route path="/landing" element={<LandingPage />} />
