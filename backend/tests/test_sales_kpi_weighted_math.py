@@ -12,6 +12,7 @@ from app.services.sales_kpi_weighted import (
     brought_booking_manager_id,
     brought_for_plan_item,
     course_brought_from_gross,
+    course_brought_month_override,
     course_stage_amount,
     course_stage_credits_for_payments,
     earning_from_brought,
@@ -66,6 +67,19 @@ def test_kpi_owner_prefers_lead_then_fio_crm():
         )
         == 10
     )
+
+
+def test_makhmadshoev_october_brought_override_3500():
+    assert course_brought_month_override(
+        ym=date(2026, 10, 1),
+        client_name="Махмадшоев Мустафо",
+        computed=Decimal("5520.00"),
+    ) == Decimal("3500.00")
+    assert course_brought_month_override(
+        ym=date(2026, 9, 1),
+        client_name="Махмадшоев Мустафо",
+        computed=Decimal("5520.00"),
+    ) == Decimal("5520.00")
 
 
 def test_kpi_owner_fayzaliev_exception_follows_crm_card():

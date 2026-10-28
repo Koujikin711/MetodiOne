@@ -105,6 +105,7 @@ from app.services.sales_kpi_weighted import (
     completion_ratio,
     contribution,
     course_brought_from_gross,
+    course_brought_month_override,
     course_stage_credits_for_payments,
     ensure_plan_carried_forward,
     fio_key,
@@ -1345,6 +1346,11 @@ async def _service_earning_detail(
                     if paid_at < start or paid_at >= end:
                         continue
                     brought_amt += credit
+                brought_amt = course_brought_month_override(
+                    ym=ym,
+                    client_name=str(sale.client_name or ""),
+                    computed=brought_amt,
+                )
             elif protocol_brought_waits_for_full_price(item.name):
                 for paid_at, mid, credit in protocol_full_pay_credits_for_payments(
                     service_amount=price,

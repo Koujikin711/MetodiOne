@@ -40,6 +40,22 @@ KPI_EXCLUDE_PRE_JULY_BOOKINGS_FROM = date(2026, 7, 1)
 # даже если продажу открыла другая (Ситора) и lead_id указывает не туда.
 KPI_OWNER_FOLLOW_CRM_LEAD_IDS = frozenset({41470})
 KPI_OWNER_FOLLOW_CRM_FIO_KEYS = frozenset({"файзалиев хабибулло"})
+# Разовое: Махмадшоев Мустафо — в октябре 2026 в «Привёл» только 3500 (не 5520 с хвостом pending).
+KPI_COURSE_BROUGHT_MONTH_OVERRIDES: dict[tuple[str, str], Decimal] = {
+    ("2026-10", "махмадшоев мустафо"): Decimal("3500.00"),
+}
+
+
+def course_brought_month_override(
+    *,
+    ym: date,
+    client_name: str | None,
+    computed: Decimal,
+) -> Decimal:
+    key = (f"{ym.year:04d}-{ym.month:02d}", fio_key(client_name))
+    if key in KPI_COURSE_BROUGHT_MONTH_OVERRIDES:
+        return KPI_COURSE_BROUGHT_MONTH_OVERRIDES[key]
+    return computed
 
 
 def parse_year_month(s: str) -> date:
@@ -1046,6 +1062,7 @@ async def load_manual_brought_by_label(
             )
         ).all()
         by_sale: dict[int, list[tuple[datetime, Decimal, int, str, Decimal]]] = {}
+        sale_client: dict[int, str] = {}
         for sale_id, opened_mid, sale_mid, lead_mid, client_name, name, amount, paid_at, sale_service in hist:
             fk = fio_key(str(client_name or ""))
             mid = kpi_client_owner_manager_id(
@@ -1057,7 +1074,9 @@ async def load_manual_brought_by_label(
             )
             if sale_id is None or mid is None or paid_at is None:
                 continue
-            by_sale.setdefault(int(sale_id), []).append(
+            sid = int(sale_id)
+            sale_client[sid] = str(client_name or "")
+            by_sale.setdefault(sid, []).append(
                 (
                     paid_at if paid_at.tzinfo else paid_at.replace(tzinfo=UTC),
                     Decimal(str(amount or 0)),
@@ -1066,7 +1085,7 @@ async def load_manual_brought_by_label(
                     Decimal(str(sale_service or 0)),
                 )
             )
-        for sale_rows in by_sale.values():
+        for sid, sale_rows in by_sale.items():
             name = sale_rows[0][3]
             service = sale_rows[0][4]
             label = _norm_kpi_label(name)
@@ -1083,9 +1102,27 @@ async def load_manual_brought_by_label(
                     service_amount=service,
                     payments=payments,
                 )
+            month_by_mid: dict[int, Decimal] = {}
             for paid_at, mid, credit in credits:
                 if paid_at < start or paid_at >= end:
                     continue
+                if credit <= 0:
+                    continue
+                month_by_mid[int(mid)] = (month_by_mid.get(int(mid), Decimal("0")) + credit).quantize(
+                    Decimal("0.01")
+                )
+            if not protocol and month_by_mid:
+                total = sum(month_by_mid.values(), Decimal("0.00")).quantize(Decimal("0.01"))
+                overridden = course_brought_month_override(
+                    ym=ym,
+                    client_name=sale_client.get(sid),
+                    computed=total,
+                )
+                if overridden != total:
+                    # Одна продажа — один владелец в месяце; подменяем сумму целиком.
+                    only_mid = next(iter(month_by_mid))
+                    month_by_mid = {only_mid: overridden}
+            for mid, credit in month_by_mid.items():
                 if credit <= 0:
                     continue
                 key = (int(mid), label)
