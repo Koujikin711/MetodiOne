@@ -286,6 +286,8 @@ class BookingAppointmentCreate(BaseModel):
 class BookingAppointmentDetailsUpdate(BaseModel):
     comment: str | None = Field(None, max_length=2000)
     service_title: str | None = Field(None, min_length=1, max_length=500)
+    # Выровнять ФИО (напр. «хусейн» → «Хусейн»); при lead_id синхронизируем имя лида.
+    patient_name: str | None = Field(None, min_length=1, max_length=255)
     # Смена услуги/направления (owner/admin) — для правок журнала без пересоздания записи.
     direction_id: int | None = Field(None, ge=1)
     # Смена ответственного (owner/admin/administrator) — KPI идёт на этого пользователя.

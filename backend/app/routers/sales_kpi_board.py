@@ -97,7 +97,9 @@ from app.schemas.sales_kpi import (
 from app.services.sales_kpi_weighted import (
     manual_sale_counts_in_kpi,
     _labels_same_service,
+    _manual_sale_fio_product_kinds,
     _norm_kpi_label,
+    booking_client_owner_manager_id,
     build_manager_lines,
     brought_booking_manager_id,
     completion_ratio,
@@ -105,8 +107,12 @@ from app.services.sales_kpi_weighted import (
     course_brought_from_gross,
     course_stage_credits_for_payments,
     ensure_plan_carried_forward,
+    fio_key,
     is_full_payment,
     is_main_course_product,
+    kpi_client_owner_manager_id,
+    load_fio_crm_owner_managers,
+    protocol_full_pay_credits_for_payments,
     load_bonus_fund,
     load_desk_sale_facts_full_paid,
     load_direction_facts_full_paid,
@@ -1239,12 +1245,16 @@ async def _service_earning_detail(
     if direction_ids:
         named_dirs |= {int(d) for d in direction_ids}
 
-    # KPI-продажи: «Новых» (открыты в месяце) + те, у кого в этом месяце этап/платёж в «Привёл»
+    # KPI-продажи: владелец = лид / ФИО в CRM / открывший. Без ручной связи продажи.
     if (source_type or "manual") != "direction":
+        fio_owners = await load_fio_crm_owner_managers(
+            db, company_id=company_id, pipeline_id=pipeline_id,
+        )
         sale_rows = (
             await db.execute(
-                select(SalesKpiManualSale, SalesKpiPlanItem.name)
+                select(SalesKpiManualSale, SalesKpiPlanItem.name, Lead.manager_id)
                 .join(SalesKpiPlanItem, SalesKpiPlanItem.id == SalesKpiManualSale.plan_item_id)
+                .join(Lead, Lead.id == SalesKpiManualSale.lead_id, isouter=True)
                 .where(
                     SalesKpiManualSale.company_id == company_id,
                     SalesKpiManualSale.pipeline_id == pipeline_id,
@@ -1254,7 +1264,7 @@ async def _service_earning_detail(
                 .order_by(SalesKpiManualSale.sold_at.desc()),
             )
         ).all()
-        sale_ids = [int(s.id) for s, pname in sale_rows if _norm_kpi_label(str(pname or "")) == label]
+        sale_ids = [int(s.id) for s, pname, _lm in sale_rows if _norm_kpi_label(str(pname or "")) == label]
         pays_by_sale: dict[int, list[tuple[datetime, Decimal, int]]] = {}
         if sale_ids:
             pay_rows = (
@@ -1263,13 +1273,13 @@ async def _service_earning_detail(
                         SalesKpiManualSalePayment.sale_id,
                         SalesKpiManualSalePayment.amount,
                         SalesKpiManualSalePayment.paid_at,
-                        func.coalesce(
-                            SalesKpiManualSalePayment.manager_user_id,
-                            SalesKpiManualSale.opened_manager_user_id,
-                            SalesKpiManualSale.manager_user_id,
-                        ),
+                        SalesKpiManualSale.opened_manager_user_id,
+                        SalesKpiManualSale.manager_user_id,
+                        Lead.manager_id,
+                        SalesKpiManualSale.client_name,
                     )
                     .join(SalesKpiManualSale, SalesKpiManualSale.id == SalesKpiManualSalePayment.sale_id)
+                    .join(Lead, Lead.id == SalesKpiManualSale.lead_id, isouter=True)
                     .where(
                         SalesKpiManualSalePayment.sale_id.in_(sale_ids),
                         SalesKpiManualSalePayment.amount > 0,
@@ -1280,7 +1290,14 @@ async def _service_earning_detail(
                     .order_by(SalesKpiManualSalePayment.paid_at.asc(), SalesKpiManualSalePayment.id.asc()),
                 )
             ).all()
-            for sale_id, amount, paid_at, mid in pay_rows:
+            for sale_id, amount, paid_at, opened_mid, sale_mid, lead_mid, client_name in pay_rows:
+                fk = fio_key(str(client_name or ""))
+                mid = kpi_client_owner_manager_id(
+                    opened_manager_id=int(opened_mid) if opened_mid is not None else None,
+                    sale_manager_id=int(sale_mid) if sale_mid is not None else None,
+                    lead_manager_id=int(lead_mid) if lead_mid is not None else None,
+                    fio_crm_manager_id=fio_owners.get(fk) if fk else None,
+                )
                 if sale_id is None or mid is None or paid_at is None:
                     continue
                 at = paid_at if paid_at.tzinfo else paid_at.replace(tzinfo=UTC)
@@ -1288,22 +1305,23 @@ async def _service_earning_detail(
                     (at, Decimal(str(amount or 0)).quantize(Decimal("0.01")), int(mid)),
                 )
 
-        for sale, pname in sale_rows:
+        for sale, pname, lead_mid in sale_rows:
             if _norm_kpi_label(str(pname or "")) != label:
+                continue
+            fk = fio_key(str(sale.client_name or ""))
+            owner_mid = kpi_client_owner_manager_id(
+                opened_manager_id=int(sale.opened_manager_user_id)
+                if sale.opened_manager_user_id is not None
+                else None,
+                sale_manager_id=int(sale.manager_user_id) if sale.manager_user_id is not None else None,
+                lead_manager_id=int(lead_mid) if lead_mid is not None else None,
+                fio_crm_manager_id=fio_owners.get(fk) if fk else None,
+            )
+            if owner_mid != manager_id:
                 continue
             price = Decimal(str(sale.service_amount or 0)).quantize(Decimal("0.01"))
             paid = Decimal(str(sale.paid_amount or 0)).quantize(Decimal("0.01"))
-            opened_mid = int(
-                sale.opened_manager_user_id
-                if sale.opened_manager_user_id is not None
-                else (sale.manager_user_id or 0),
-            )
-            is_new = (
-                opened_mid == manager_id
-                and sale.sold_at is not None
-                and start <= sale.sold_at < end
-                and paid > 0
-            )
+            is_new = sale.sold_at is not None and start <= sale.sold_at < end and paid > 0
             payments = pays_by_sale.get(int(sale.id), [])
             brought_amt = Decimal("0.00")
             month_paid_amt = Decimal("0.00")
@@ -1326,13 +1344,15 @@ async def _service_earning_detail(
                         continue
                     brought_amt += credit
             elif protocol_brought_waits_for_full_price(item.name):
-                if is_full_payment(price, paid):
-                    for paid_at, amt, mid in payments:
-                        if mid != manager_id:
-                            continue
-                        if paid_at < start or paid_at >= end:
-                            continue
-                        brought_amt += amt
+                for paid_at, mid, credit in protocol_full_pay_credits_for_payments(
+                    service_amount=price,
+                    payments=payments,
+                ):
+                    if mid != manager_id:
+                        continue
+                    if paid_at < start or paid_at >= end:
+                        continue
+                    brought_amt += credit
             else:
                 for paid_at, amt, mid in payments:
                     if mid != manager_id:
@@ -1341,7 +1361,7 @@ async def _service_earning_detail(
                         continue
                     brought_amt += amt
 
-            # Продажа без строк журнала: legacy — вся оплата в месяц sold_at у opened/manager
+            # Продажа без строк журнала: legacy — вся оплата в месяц sold_at у владельца
             if not payments and is_new and paid > 0:
                 month_paid_amt = paid
                 if is_main_course_product(item.name):
@@ -1358,6 +1378,8 @@ async def _service_earning_detail(
                 continue
             if is_new:
                 note = "открыт в месяце" if brought_amt > 0 else "ниже мин. — показано, не в оплату"
+            elif brought_amt > 0 and protocol_brought_waits_for_full_price(item.name) and brought_amt > month_paid_amt:
+                note = "закрытие цены · вся накопленная сумма"
             elif brought_amt > 0:
                 note = "этап / доплата в месяце"
             else:
@@ -1379,8 +1401,13 @@ async def _service_earning_detail(
                 ),
             )
 
-    # Запись месяца
+    # Запись месяца: владелец карточки CRM; если уже есть KPI на то же ФИО+услугу — визит не дублируем.
     if named_dirs or (source_type or "") == "direction":
+        from app.services.patient_ltv import classify_product_kind
+
+        kpi_fio_kinds = await _manual_sale_fio_product_kinds(
+            db, company_id=company_id, pipeline_id=pipeline_id,
+        )
         creator = aliased(User)
         responsible = aliased(User)
         appt_q = (
@@ -1389,6 +1416,7 @@ async def _service_earning_detail(
                 BookingDirection.name,
                 creator.role,
                 responsible.role,
+                Lead.manager_id,
             )
             .join(BookingDirection, BookingDirection.id == BookingAppointment.direction_id)
             .join(Lead, Lead.id == BookingAppointment.lead_id, isouter=True)
@@ -1412,12 +1440,13 @@ async def _service_earning_detail(
             appt_q = appt_q.where(BookingAppointment.direction_id.in_(named_dirs))
         appt_rows = (await db.execute(appt_q)).all()
         specs = {int(s) for s in specialist_ids} if specialist_ids else set()
-        for appt, dname, created_role, responsible_role in appt_rows:
-            mid = brought_booking_manager_id(
-                appt.created_by_user_id,
-                created_role,
-                appt.responsible_manager_id,
-                responsible_role,
+        for appt, dname, created_role, responsible_role, lead_mid in appt_rows:
+            mid = booking_client_owner_manager_id(
+                lead_manager_id=int(lead_mid) if lead_mid is not None else None,
+                created_by=appt.created_by_user_id,
+                created_role=created_role,
+                responsible_id=appt.responsible_manager_id,
+                responsible_role=responsible_role,
             )
             if mid != manager_id:
                 continue
@@ -1425,6 +1454,11 @@ async def _service_earning_detail(
                 if (source_type or "") == "direction":
                     continue
             if not _labels_same_service(dname, item.name) and int(appt.direction_id) not in named_dirs:
+                continue
+            kind = classify_product_kind(str(dname or item.name or ""))
+            fk = fio_key(str(appt.patient_name or ""))
+            if fk and kind in {"main_course", "course_15", "protocol"} and (fk, kind) in kpi_fio_kinds:
+                # Уже есть KPI-продажа (Курбонзода Хусейн / хусейн) — запись не дублируем.
                 continue
             price = Decimal(str(appt.service_amount or 0)).quantize(Decimal("0.01"))
             paid = Decimal(str(appt.paid_amount or 0)).quantize(Decimal("0.01"))

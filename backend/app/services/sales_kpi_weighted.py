@@ -239,6 +239,39 @@ def protocol_brought_waits_for_full_price(product_name: str | None) -> bool:
     return classify_product_kind(product_name) in {"protocol", "course_15"}
 
 
+def protocol_full_pay_credits_for_payments(
+    *,
+    service_amount,
+    payments: list[tuple[datetime, Decimal, int]],
+) -> list[tuple[datetime, int, Decimal]]:
+    """Протокол / Курс 15: пока цена не закрыта — 0. В месяц закрытия — вся накопленная сумма.
+
+    Частичные платежи прошлых месяцев не заходили в «Привёл»; при первой полной оплате
+    они вместе с закрывающим платежом идут одним зачётом (напр. 400+2000+600 → 3000 в октябре).
+    После закрытия — каждый новый платёж в свой месяц.
+    """
+    price = Decimal(str(service_amount or 0)).quantize(Decimal("0.01"))
+    if price <= 0:
+        return []
+    ordered = sorted(payments, key=lambda row: row[0])
+    cum = Decimal("0.00")
+    closed = False
+    credits: list[tuple[datetime, int, Decimal]] = []
+    for paid_at, amount, manager_id in ordered:
+        amt = Decimal(str(amount or 0)).quantize(Decimal("0.01"))
+        if amt <= 0 or manager_id is None:
+            continue
+        if not closed:
+            cum = (cum + amt).quantize(Decimal("0.01"))
+            if not is_full_payment(price, cum):
+                continue
+            closed = True
+            credits.append((paid_at, int(manager_id), cum))
+            continue
+        credits.append((paid_at, int(manager_id), amt))
+    return credits
+
+
 def is_main_course_product(product_name: str | None) -> bool:
     from app.services.patient_ltv import classify_product_kind
 
@@ -354,6 +387,8 @@ async def load_brought_paid_detail(
                 BookingAppointment.service_amount,
                 BookingAppointment.paid_amount,
                 BookingAppointment.status,
+                BookingAppointment.patient_name,
+                Lead.manager_id,
             )
             .select_from(BookingAppointment)
             .join(Lead, Lead.id == BookingAppointment.lead_id, isouter=True)
@@ -363,11 +398,37 @@ async def load_brought_paid_detail(
             .where(*filters),
         )
     ).all()
+    # KPI-продажа курса/протокола на то же ФИО — визит не дублируем в «Привёл» / «Новых».
+    kpi_fio_kinds = await _manual_sale_fio_product_kinds(db, company_id=company_id, pipeline_id=pipeline_id)
     out: dict[tuple[int, int, int, Decimal], Decimal] = {}
     counts: dict[tuple[int, int, int, Decimal], int] = {}
-    for appt_id, created_by, created_role, responsible_id, responsible_role, specialist_id, direction_id, service_amount, paid, status in rows:
-        manager_id = brought_booking_manager_id(created_by, created_role, responsible_id, responsible_role)
+    for (
+        appt_id,
+        created_by,
+        created_role,
+        responsible_id,
+        responsible_role,
+        specialist_id,
+        direction_id,
+        service_amount,
+        paid,
+        status,
+        patient_name,
+        lead_manager_id,
+    ) in rows:
+        manager_id = booking_client_owner_manager_id(
+            lead_manager_id=int(lead_manager_id) if lead_manager_id is not None else None,
+            created_by=created_by,
+            created_role=created_role,
+            responsible_id=responsible_id,
+            responsible_role=responsible_role,
+        )
         if manager_id is None or specialist_id is None or direction_id is None:
+            continue
+        kind = classify_product_kind(direction_names.get(int(direction_id)))
+        fk = fio_key(str(patient_name or ""))
+        if fk and kind in {"main_course", "course_15", "protocol"} and (fk, kind) in kpi_fio_kinds:
+            # Уже есть KPI-продажа на это ФИО — запись не считаем (Курбонзода хусейн / Хусейн).
             continue
         # paid_amount уже без возврата. Полная оплата — когда вместе с возвратом закрыта цена.
         refunded = sum((amt for _day, amt in refunds_by_appt.get(int(appt_id), [])), Decimal("0"))
@@ -376,7 +437,6 @@ async def load_brought_paid_detail(
             continue
         price = Decimal(str(service_amount or 0)).quantize(Decimal("0.01"))
         key = (int(manager_id), int(specialist_id), int(direction_id), price)
-        kind = classify_product_kind(direction_names.get(int(direction_id)))
         if kind == "main_course":
             brought = course_brought_from_gross(price, gross)
             if brought > 0:
@@ -386,6 +446,38 @@ async def load_brought_paid_detail(
         if (status or "").strip() != "cancelled":
             counts[key] = counts.get(key, 0) + 1
     return out, counts
+
+
+async def _manual_sale_fio_product_kinds(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    pipeline_id: int,
+) -> set[tuple[str, str]]:
+    """Множество (fio_key, product_kind) по KPI-продажам курса/протокола."""
+    from app.services.patient_ltv import classify_product_kind
+
+    rows = (
+        await db.execute(
+            select(SalesKpiManualSale.client_name, SalesKpiPlanItem.name)
+            .join(SalesKpiPlanItem, SalesKpiPlanItem.id == SalesKpiManualSale.plan_item_id)
+            .where(
+                SalesKpiManualSale.company_id == company_id,
+                SalesKpiManualSale.pipeline_id == pipeline_id,
+                SalesKpiManualSale.status != "refused",
+                SalesKpiManualSale.paid_amount > 0,
+            ),
+        )
+    ).all()
+    out: set[tuple[str, str]] = set()
+    for client_name, pname in rows:
+        kind = classify_product_kind(str(pname or ""))
+        if kind not in {"main_course", "course_15", "protocol"}:
+            continue
+        fk = fio_key(str(client_name or ""))
+        if fk:
+            out.add((fk, kind))
+    return out
 
 
 def _parse_booking_refund_appointment_id(external_key: str | None) -> int | None:
@@ -456,6 +548,7 @@ async def load_booking_brought_refunds(
                 BookingAppointment.specialist_id,
                 BookingAppointment.direction_id,
                 BookingAppointment.service_amount,
+                Lead.manager_id,
             )
             .select_from(BookingAppointment)
             .join(Lead, Lead.id == BookingAppointment.lead_id, isouter=True)
@@ -473,8 +566,24 @@ async def load_booking_brought_refunds(
         )
     ).all()
     out: dict[tuple[int, int, int, Decimal], Decimal] = {}
-    for appt_id, created_by, created_role, responsible_id, responsible_role, specialist_id, direction_id, service_amount in rows:
-        manager_id = brought_booking_manager_id(created_by, created_role, responsible_id, responsible_role)
+    for (
+        appt_id,
+        created_by,
+        created_role,
+        responsible_id,
+        responsible_role,
+        specialist_id,
+        direction_id,
+        service_amount,
+        lead_manager_id,
+    ) in rows:
+        manager_id = booking_client_owner_manager_id(
+            lead_manager_id=int(lead_manager_id) if lead_manager_id is not None else None,
+            created_by=created_by,
+            created_role=created_role,
+            responsible_id=responsible_id,
+            responsible_role=responsible_role,
+        )
         if manager_id is None or specialist_id is None or direction_id is None:
             continue
         month_sum = sum(
@@ -508,6 +617,100 @@ def brought_booking_manager_id(
     if created_by is not None and _is_manager_role(created_role):
         return int(created_by)
     return None
+
+
+def kpi_client_owner_manager_id(
+    *,
+    opened_manager_id: int | None,
+    sale_manager_id: int | None,
+    lead_manager_id: int | None,
+    fio_crm_manager_id: int | None = None,
+) -> int | None:
+    """Чей клиент для «Новых» / «Привёл».
+
+    1) менеджер лида у продажи,
+    2) менеджер CRM/записи по тому же ФИО (без ручной связи продажи),
+    3) кто открыл продажу.
+    Чужие клиенты не попадают в отчёт текущего менеджера.
+    """
+    if lead_manager_id is not None:
+        return int(lead_manager_id)
+    if fio_crm_manager_id is not None:
+        return int(fio_crm_manager_id)
+    if opened_manager_id is not None:
+        return int(opened_manager_id)
+    if sale_manager_id is not None:
+        return int(sale_manager_id)
+    return None
+
+
+async def load_fio_crm_owner_managers(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    pipeline_id: int,
+) -> dict[str, int]:
+    """ФИО → менеджер карточки CRM / записи. Без привязки KPI-продажи к лиду.
+
+    Нужно, чтобы чужой клиент (напр. Халилова) не шёл в «Привёл» тому, кто только
+    принял доплату, если в CRM карточка на другого менеджера.
+    """
+    out: dict[str, int] = {}
+    lead_rows = (
+        await db.execute(
+            select(Lead.name, Lead.manager_id)
+            .join(PipelineStage, PipelineStage.id == Lead.status_id)
+            .where(
+                Lead.company_id == company_id,
+                PipelineStage.pipeline_id == pipeline_id,
+                Lead.manager_id.is_not(None),
+            ),
+        )
+    ).all()
+    for name, mid in lead_rows:
+        fk = fio_key(str(name or ""))
+        if fk and mid is not None and fk not in out:
+            out[fk] = int(mid)
+
+    booking_rows = (
+        await db.execute(
+            select(BookingAppointment.patient_name, Lead.manager_id)
+            .join(Lead, Lead.id == BookingAppointment.lead_id)
+            .join(PipelineStage, PipelineStage.id == Lead.status_id, isouter=True)
+            .where(
+                BookingAppointment.company_id == company_id,
+                Lead.manager_id.is_not(None),
+                or_(
+                    BookingAppointment.pipeline_id == pipeline_id,
+                    PipelineStage.pipeline_id == pipeline_id,
+                ),
+            ),
+        )
+    ).all()
+    for patient_name, mid in booking_rows:
+        fk = fio_key(str(patient_name or ""))
+        if fk and mid is not None and fk not in out:
+            out[fk] = int(mid)
+    return out
+
+
+def booking_client_owner_manager_id(
+    *,
+    lead_manager_id: int | None,
+    created_by: int | None,
+    created_role,
+    responsible_id: int | None,
+    responsible_role,
+) -> int | None:
+    """Визит: сначала менеджер карточки CRM, иначе ответственный/создатель записи."""
+    if lead_manager_id is not None:
+        return int(lead_manager_id)
+    return brought_booking_manager_id(created_by, created_role, responsible_id, responsible_role)
+
+
+def fio_key(name: str | None) -> str:
+    """Ключ ФИО без регистра — «Хусейн» и «хусейн» сходятся."""
+    return " ".join((name or "").casefold().split())
 
 
 async def load_booking_direction_names(
@@ -712,20 +915,20 @@ async def load_manual_brought_by_label(
     """«Привёл» по ручным продажам.
 
     Основной курс: после мин. 3к/5к — фактические платежи месяца.
-    Курс 15 и протокол: только когда цена закрыта; тогда платежи месяца входят как есть.
-    Прошлые этапы остаются у того, кто их принял.
+    Курс 15 и протокол: в месяц первой полной оплаты — вся накопленная сумма (как Курс 15).
+    Зачёт — владельцу клиента (лид / ФИО в CRM → открывший), не чужому сборщику.
     """
     start, end = month_bounds(ym)
-    credited = func.coalesce(
-        SalesKpiManualSalePayment.manager_user_id,
-        SalesKpiManualSale.opened_manager_user_id,
-        SalesKpiManualSale.manager_user_id,
-    )
+    fio_owners = await load_fio_crm_owner_managers(db, company_id=company_id, pipeline_id=pipeline_id)
+    # «Привёл» только владельцу клиента (лид / ФИО в CRM → открывший).
     rows = (
         await db.execute(
             select(
                 SalesKpiManualSalePayment.sale_id,
-                credited,
+                SalesKpiManualSale.opened_manager_user_id,
+                SalesKpiManualSale.manager_user_id,
+                Lead.manager_id,
+                SalesKpiManualSale.client_name,
                 SalesKpiPlanItem.name,
                 SalesKpiManualSalePayment.amount,
                 SalesKpiManualSalePayment.paid_at,
@@ -735,6 +938,7 @@ async def load_manual_brought_by_label(
             .select_from(SalesKpiManualSalePayment)
             .join(SalesKpiManualSale, SalesKpiManualSale.id == SalesKpiManualSalePayment.sale_id)
             .join(SalesKpiPlanItem, SalesKpiPlanItem.id == SalesKpiManualSale.plan_item_id)
+            .join(Lead, Lead.id == SalesKpiManualSale.lead_id, isouter=True)
             .where(
                 SalesKpiManualSale.company_id == company_id,
                 SalesKpiManualSale.pipeline_id == pipeline_id,
@@ -749,7 +953,15 @@ async def load_manual_brought_by_label(
     ).all()
     out: dict[tuple[int, str], Decimal] = {}
     main_course_sale_ids: set[int] = set()
-    for sale_id, manager_id, name, paid, _paid_at, sale_paid, sale_service in rows:
+    protocol_sale_ids: set[int] = set()
+    for sale_id, opened_mid, sale_mid, lead_mid, client_name, name, paid, _paid_at, sale_paid, sale_service in rows:
+        fk = fio_key(str(client_name or ""))
+        manager_id = kpi_client_owner_manager_id(
+            opened_manager_id=int(opened_mid) if opened_mid is not None else None,
+            sale_manager_id=int(sale_mid) if sale_mid is not None else None,
+            lead_manager_id=int(lead_mid) if lead_mid is not None else None,
+            fio_crm_manager_id=fio_owners.get(fk) if fk else None,
+        )
         if manager_id is None:
             continue
         label = _norm_kpi_label(str(name or ""))
@@ -759,7 +971,9 @@ async def load_manual_brought_by_label(
             if sale_id is not None:
                 main_course_sale_ids.add(int(sale_id))
             continue
-        if protocol_brought_waits_for_full_price(str(name or "")) and not is_full_payment(sale_service, sale_paid):
+        if protocol_brought_waits_for_full_price(str(name or "")):
+            if sale_id is not None:
+                protocol_sale_ids.add(int(sale_id))
             continue
         amount = Decimal(str(paid or 0)).quantize(Decimal("0.01"))
         if amount <= 0:
@@ -767,12 +981,17 @@ async def load_manual_brought_by_label(
         key = (int(manager_id), label)
         out[key] = (out.get(key, Decimal("0")) + amount).quantize(Decimal("0.01"))
 
-    if main_course_sale_ids:
+    async def _hist_credits(sale_ids: set[int], *, protocol: bool) -> None:
+        if not sale_ids:
+            return
         hist = (
             await db.execute(
                 select(
                     SalesKpiManualSalePayment.sale_id,
-                    credited,
+                    SalesKpiManualSale.opened_manager_user_id,
+                    SalesKpiManualSale.manager_user_id,
+                    Lead.manager_id,
+                    SalesKpiManualSale.client_name,
                     SalesKpiPlanItem.name,
                     SalesKpiManualSalePayment.amount,
                     SalesKpiManualSalePayment.paid_at,
@@ -781,8 +1000,9 @@ async def load_manual_brought_by_label(
                 .select_from(SalesKpiManualSalePayment)
                 .join(SalesKpiManualSale, SalesKpiManualSale.id == SalesKpiManualSalePayment.sale_id)
                 .join(SalesKpiPlanItem, SalesKpiPlanItem.id == SalesKpiManualSale.plan_item_id)
+                .join(Lead, Lead.id == SalesKpiManualSale.lead_id, isouter=True)
                 .where(
-                    SalesKpiManualSale.id.in_(main_course_sale_ids),
+                    SalesKpiManualSale.id.in_(sale_ids),
                     SalesKpiManualSalePayment.amount > 0,
                     SalesKpiManualSalePayment.confirmed_at.is_not(None),
                     SalesKpiManualSalePayment.rejected_at.is_(None),
@@ -792,14 +1012,21 @@ async def load_manual_brought_by_label(
             )
         ).all()
         by_sale: dict[int, list[tuple[datetime, Decimal, int, str, Decimal]]] = {}
-        for sale_id, manager_id, name, amount, paid_at, sale_service in hist:
-            if sale_id is None or manager_id is None or paid_at is None:
+        for sale_id, opened_mid, sale_mid, lead_mid, client_name, name, amount, paid_at, sale_service in hist:
+            fk = fio_key(str(client_name or ""))
+            mid = kpi_client_owner_manager_id(
+                opened_manager_id=int(opened_mid) if opened_mid is not None else None,
+                sale_manager_id=int(sale_mid) if sale_mid is not None else None,
+                lead_manager_id=int(lead_mid) if lead_mid is not None else None,
+                fio_crm_manager_id=fio_owners.get(fk) if fk else None,
+            )
+            if sale_id is None or mid is None or paid_at is None:
                 continue
             by_sale.setdefault(int(sale_id), []).append(
                 (
                     paid_at if paid_at.tzinfo else paid_at.replace(tzinfo=UTC),
                     Decimal(str(amount or 0)),
-                    int(manager_id),
+                    int(mid),
                     str(name or ""),
                     Decimal(str(sale_service or 0)),
                 )
@@ -811,10 +1038,17 @@ async def load_manual_brought_by_label(
             if not label:
                 continue
             payments = [(paid_at, amt, mid) for paid_at, amt, mid, _n, _s in sale_rows]
-            for paid_at, mid, credit in course_stage_credits_for_payments(
-                service_amount=service,
-                payments=payments,
-            ):
+            if protocol:
+                credits = protocol_full_pay_credits_for_payments(
+                    service_amount=service,
+                    payments=payments,
+                )
+            else:
+                credits = course_stage_credits_for_payments(
+                    service_amount=service,
+                    payments=payments,
+                )
+            for paid_at, mid, credit in credits:
                 if paid_at < start or paid_at >= end:
                     continue
                 if credit <= 0:
@@ -822,19 +1056,23 @@ async def load_manual_brought_by_label(
                 key = (int(mid), label)
                 out[key] = (out.get(key, Decimal("0")) + credit).quantize(Decimal("0.01"))
 
+    await _hist_credits(protocol_sale_ids, protocol=True)
+    await _hist_credits(main_course_sale_ids, protocol=False)
+
     # Продажа месяца без строк журнала: оплата всё равно считается в месяц заведения.
     legacy_rows = (
         await db.execute(
             select(
-                func.coalesce(
-                    SalesKpiManualSale.opened_manager_user_id,
-                    SalesKpiManualSale.manager_user_id,
-                ),
+                SalesKpiManualSale.opened_manager_user_id,
+                SalesKpiManualSale.manager_user_id,
+                Lead.manager_id,
+                SalesKpiManualSale.client_name,
                 SalesKpiPlanItem.name,
                 SalesKpiManualSale.paid_amount,
                 SalesKpiManualSale.service_amount,
             )
             .join(SalesKpiPlanItem, SalesKpiPlanItem.id == SalesKpiManualSale.plan_item_id)
+            .join(Lead, Lead.id == SalesKpiManualSale.lead_id, isouter=True)
             .where(
                 SalesKpiManualSale.company_id == company_id,
                 SalesKpiManualSale.pipeline_id == pipeline_id,
@@ -850,7 +1088,14 @@ async def load_manual_brought_by_label(
             ),
         )
     ).all()
-    for manager_id, name, paid, sale_service in legacy_rows:
+    for opened_mid, sale_mid, lead_mid, client_name, name, paid, sale_service in legacy_rows:
+        fk = fio_key(str(client_name or ""))
+        manager_id = kpi_client_owner_manager_id(
+            opened_manager_id=int(opened_mid) if opened_mid is not None else None,
+            sale_manager_id=int(sale_mid) if sale_mid is not None else None,
+            lead_manager_id=int(lead_mid) if lead_mid is not None else None,
+            fio_crm_manager_id=fio_owners.get(fk) if fk else None,
+        )
         if manager_id is None:
             continue
         label = _norm_kpi_label(str(name or ""))
@@ -876,19 +1121,20 @@ async def load_manual_new_sales_by_label(
     pipeline_id: int,
     ym: date,
 ) -> dict[tuple[int, str], int]:
-    """Курс или протокол, заведённый в этом месяце и с любой вошедшей суммой. Доплата старого курса не считается."""
+    """Курс или протокол, заведённый в этом месяце. «Новых» — только владельцу клиента (лид/ФИО CRM)."""
     start, end = month_bounds(ym)
+    fio_owners = await load_fio_crm_owner_managers(db, company_id=company_id, pipeline_id=pipeline_id)
     rows = (
         await db.execute(
             select(
-                func.coalesce(
-                    SalesKpiManualSale.opened_manager_user_id,
-                    SalesKpiManualSale.manager_user_id,
-                ),
+                SalesKpiManualSale.opened_manager_user_id,
+                SalesKpiManualSale.manager_user_id,
+                Lead.manager_id,
+                SalesKpiManualSale.client_name,
                 SalesKpiPlanItem.name,
-                func.count(SalesKpiManualSale.id),
             )
             .join(SalesKpiPlanItem, SalesKpiPlanItem.id == SalesKpiManualSale.plan_item_id)
+            .join(Lead, Lead.id == SalesKpiManualSale.lead_id, isouter=True)
             .where(
                 SalesKpiManualSale.company_id == company_id,
                 SalesKpiManualSale.pipeline_id == pipeline_id,
@@ -896,24 +1142,24 @@ async def load_manual_new_sales_by_label(
                 SalesKpiManualSale.sold_at < end,
                 SalesKpiManualSale.paid_amount > 0,
                 SalesKpiManualSale.status != "refused",
-            )
-            .group_by(
-                func.coalesce(
-                    SalesKpiManualSale.opened_manager_user_id,
-                    SalesKpiManualSale.manager_user_id,
-                ),
-                SalesKpiPlanItem.name,
             ),
         )
     ).all()
     out: dict[tuple[int, str], int] = {}
-    for manager_id, name, qty in rows:
+    for opened_mid, sale_mid, lead_mid, client_name, name in rows:
+        fk = fio_key(str(client_name or ""))
+        manager_id = kpi_client_owner_manager_id(
+            opened_manager_id=int(opened_mid) if opened_mid is not None else None,
+            sale_manager_id=int(sale_mid) if sale_mid is not None else None,
+            lead_manager_id=int(lead_mid) if lead_mid is not None else None,
+            fio_crm_manager_id=fio_owners.get(fk) if fk else None,
+        )
         if manager_id is None:
             continue
         label = _norm_kpi_label(str(name or ""))
         if not label:
             continue
-        out[(int(manager_id), label)] = out.get((int(manager_id), label), 0) + int(qty or 0)
+        out[(int(manager_id), label)] = out.get((int(manager_id), label), 0) + 1
     return out
 
 

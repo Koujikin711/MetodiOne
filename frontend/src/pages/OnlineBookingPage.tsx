@@ -270,6 +270,8 @@ export function OnlineBookingPage() {
   const [noteEditAppt, setNoteEditAppt] = useState<BookingAppointment | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
   const [apptDetail, setApptDetail] = useState<BookingAppointment | null>(null);
+  const [nameEditOpen, setNameEditOpen] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
   const pipelineForKpiPrice = leadId ? null : newLeadPipelineId;
   const startAtIsoForKpi = useMemo(() => {
     if (!startAt) return null;
@@ -972,6 +974,27 @@ export function OnlineBookingPage() {
       void queryClient.invalidateQueries({ queryKey: ["booking-appointments-grid"] });
       void queryClient.invalidateQueries({ queryKey: ["booking-journal"] });
       toast.success("Заметка сохранена");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const renamePatientMutation = useMutation({
+    mutationFn: ({ id, patient_name }: { id: number; patient_name: string }) =>
+      apiFetch<BookingAppointment>(`/api/booking/appointments/${id}/details`, {
+        method: "PATCH",
+        body: JSON.stringify({ patient_name: patient_name.trim() }),
+      }),
+    onSuccess: (saved) => {
+      setNameEditOpen(false);
+      setApptDetail((cur) =>
+        cur && cur.id === saved.id ? { ...cur, patient_name: saved.patient_name } : cur,
+      );
+      void queryClient.invalidateQueries({ queryKey: ["booking-appointments-grid"] });
+      void queryClient.invalidateQueries({ queryKey: ["booking-journal"] });
+      void queryClient.invalidateQueries({ queryKey: ["booking-patient-suggest"] });
+      toast.success(
+        saved.lead_id != null ? "Имя обновлено в записи и в карточке CRM" : "Имя в записи обновлено",
+      );
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -2406,14 +2429,83 @@ export function OnlineBookingPage() {
           role="dialog"
           aria-modal="true"
           aria-labelledby="booking-appt-detail-title"
-          onClick={() => setApptDetail(null)}
+          onClick={() => {
+            setNameEditOpen(false);
+            setApptDetail(null);
+          }}
         >
           <div className="booking-appt-detail-modal mo-card" onClick={(e) => e.stopPropagation()}>
             <div className="booking-appt-detail-modal__body">
               <p id="booking-appt-detail-title" className="booking-appt-detail-modal__eyebrow">
                 Запись клиента
               </p>
-              <p className="booking-appt-detail-modal__name">{apptDetail.patient_name}</p>
+              {nameEditOpen && canEditBooking ? (
+                <div className="mt-1 space-y-2">
+                  <input
+                    className="mo-input w-full text-base font-semibold"
+                    value={nameDraft}
+                    autoFocus
+                    aria-label="Имя пациента"
+                    onChange={(e) => setNameDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        const next = nameDraft.trim();
+                        if (!next || next === apptDetail.patient_name.trim()) {
+                          setNameEditOpen(false);
+                          return;
+                        }
+                        renamePatientMutation.mutate({ id: apptDetail.id, patient_name: next });
+                      }
+                      if (e.key === "Escape") setNameEditOpen(false);
+                    }}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      className="btn-primary px-3 py-1.5 text-xs"
+                      disabled={renamePatientMutation.isPending || !nameDraft.trim()}
+                      onClick={() => {
+                        const next = nameDraft.trim();
+                        if (!next || next === apptDetail.patient_name.trim()) {
+                          setNameEditOpen(false);
+                          return;
+                        }
+                        renamePatientMutation.mutate({ id: apptDetail.id, patient_name: next });
+                      }}
+                    >
+                      Сохранить
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary px-3 py-1.5 text-xs"
+                      disabled={renamePatientMutation.isPending}
+                      onClick={() => setNameEditOpen(false)}
+                    >
+                      Отмена
+                    </button>
+                  </div>
+                  {apptDetail.lead_id != null ? (
+                    <p className="text-[11px] mo-muted">Сохранится и в карточке CRM.</p>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="flex items-start justify-between gap-2">
+                  <p className="booking-appt-detail-modal__name">{apptDetail.patient_name}</p>
+                  {canEditBooking ? (
+                    <button
+                      type="button"
+                      className="shrink-0 text-xs underline"
+                      onClick={() => {
+                        setNameDraft(apptDetail.patient_name);
+                        setNameEditOpen(true);
+                      }}
+                    >
+                      Изменить имя
+                    </button>
+                  ) : null}
+                </div>
+              )}
               <div className="booking-appt-detail-modal__meta-row">
                 <span>{formatDt(apptDetail.start_at)}</span>
                 {(apptDetail.service_title || "").trim() ? (
@@ -2515,7 +2607,14 @@ export function OnlineBookingPage() {
                   Возврат
                 </button>
               ) : null}
-              <button type="button" className="btn-primary px-3 py-1.5 text-xs" onClick={() => setApptDetail(null)}>
+              <button
+                type="button"
+                className="btn-primary px-3 py-1.5 text-xs"
+                onClick={() => {
+                  setNameEditOpen(false);
+                  setApptDetail(null);
+                }}
+              >
                 Закрыть
               </button>
             </footer>

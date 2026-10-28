@@ -2740,6 +2740,19 @@ async def patch_appointment_details(
     details_bits: list[str] = []
     if body.comment is not None or body.service_title is not None:
         details_bits.append("comment/service_title")
+    if body.patient_name is not None:
+        new_name = (body.patient_name or "").strip()
+        if not new_name:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Имя не может быть пустым")
+        old_name = (a.patient_name or "").strip()
+        a.patient_name = new_name
+        details_bits.append(f"patient_name {old_name!r}->{new_name!r}")
+        # Карточка CRM: то же ФИО, если визит привязан к лиду.
+        if a.lead_id is not None:
+            lead = await db.get(Lead, int(a.lead_id))
+            if lead is not None and lead.company_id == company_id:
+                lead.name = new_name
+                details_bits.append(f"lead.name#{int(lead.id)}")
     if body.direction_id is not None:
         if current_user.role not in (
             UserRole.owner,

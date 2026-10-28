@@ -8,13 +8,16 @@ from app.services.sales_kpi_weighted import (
     _norm_kpi_label,
     amounts_match_unit_price,
     bonus_amount,
+    booking_client_owner_manager_id,
     brought_booking_manager_id,
     brought_for_plan_item,
     course_brought_from_gross,
     course_stage_amount,
     course_stage_credits_for_payments,
     earning_from_brought,
+    fio_key,
     is_full_payment,
+    kpi_client_owner_manager_id,
     new_sales_for_plan_item,
     build_manager_lines,
     completion_ratio,
@@ -23,9 +26,69 @@ from app.services.sales_kpi_weighted import (
     manual_sale_counts_in_kpi,
     manual_sale_threshold_crossed_at,
     protocol_brought_waits_for_full_price,
+    protocol_full_pay_credits_for_payments,
     sum_specialist_facts_company,
     sum_specialist_facts_for_manager,
 )
+
+
+def test_fio_key_ignores_case_and_spaces():
+    assert fio_key("Курбонзода Хусейн") == fio_key("Курбонзода хусейн")
+    assert fio_key("  Халилова   Мавлуда ") == fio_key("халилова мавлуда")
+
+
+def test_kpi_owner_prefers_lead_then_fio_crm():
+    # Чужой клиент (лид другого менеджера) не идёт открывшему/принявшему оплату.
+    assert (
+        kpi_client_owner_manager_id(
+            opened_manager_id=10,
+            sale_manager_id=10,
+            lead_manager_id=3,
+        )
+        == 3
+    )
+    # Без связи продажи: ФИО в CRM на менеджера 3 → не Мулкия (10).
+    assert (
+        kpi_client_owner_manager_id(
+            opened_manager_id=10,
+            sale_manager_id=10,
+            lead_manager_id=None,
+            fio_crm_manager_id=3,
+        )
+        == 3
+    )
+    assert (
+        kpi_client_owner_manager_id(
+            opened_manager_id=10,
+            sale_manager_id=11,
+            lead_manager_id=None,
+            fio_crm_manager_id=None,
+        )
+        == 10
+    )
+
+
+def test_booking_owner_prefers_lead_over_creator():
+    assert (
+        booking_client_owner_manager_id(
+            lead_manager_id=3,
+            created_by=10,
+            created_role="manager",
+            responsible_id=10,
+            responsible_role="manager",
+        )
+        == 3
+    )
+    assert (
+        booking_client_owner_manager_id(
+            lead_manager_id=None,
+            created_by=10,
+            created_role="manager",
+            responsible_id=None,
+            responsible_role=None,
+        )
+        == 10
+    )
 
 
 def test_sheet_formula_example():
@@ -402,6 +465,38 @@ def test_protocol_brought_waits_until_the_price_is_closed():
     assert protocol_brought_waits_for_full_price("Протокол") is True
     assert protocol_brought_waits_for_full_price("Курс") is False
     assert protocol_brought_waits_for_full_price("Курс 15") is True
+
+
+def test_protocol_full_pay_credits_entire_backlog_on_close_month():
+    """Как Курс 15: сентябрь 400+2000 не в Привёл; октябрь при закрытии — все 3000."""
+    t1 = datetime(2026, 9, 19, 12, 0, tzinfo=UTC)
+    t2 = datetime(2026, 9, 25, 12, 0, tzinfo=UTC)
+    t3 = datetime(2026, 10, 17, 12, 0, tzinfo=UTC)
+    credits = protocol_full_pay_credits_for_payments(
+        service_amount=Decimal("3000"),
+        payments=[
+            (t1, Decimal("400"), 7),
+            (t2, Decimal("2000"), 7),
+            (t3, Decimal("600"), 7),
+        ],
+    )
+    assert credits == [(t3, 7, Decimal("3000.00"))]
+
+
+def test_protocol_full_pay_later_topup_only_new_amount():
+    t_close = datetime(2026, 9, 10, 12, 0, tzinfo=UTC)
+    t_extra = datetime(2026, 10, 5, 12, 0, tzinfo=UTC)
+    credits = protocol_full_pay_credits_for_payments(
+        service_amount=Decimal("3000"),
+        payments=[
+            (t_close, Decimal("3000"), 7),
+            (t_extra, Decimal("200"), 7),
+        ],
+    )
+    assert credits == [
+        (t_close, 7, Decimal("3000.00")),
+        (t_extra, 7, Decimal("200.00")),
+    ]
     assert is_full_payment(3000, 1000) is False
     assert is_full_payment(3000, 3500) is True
 
