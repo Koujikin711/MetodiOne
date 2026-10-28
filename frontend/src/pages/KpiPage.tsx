@@ -307,7 +307,7 @@ function SaleManagerCell({
       <select
         className={plain ? "mo-input kpi-manager-plain__select" : "mo-input kpi-course-manager"}
         aria-label={`Менеджер продажи ${sale.client_name}`}
-        title="Прошлые оплаты остаются. Новые пойдут выбранному."
+        title="Меняет менеджера продажи и карточки CRM (если продажа связана)."
         value={sale.manager_user_id}
         disabled={pending}
         onChange={(e) => {
@@ -1059,10 +1059,12 @@ export function KpiPage() {
       });
     },
     onSuccess: () => {
-      toast.success("Менеджер сменён. Прошлые оплаты остаются у прежнего.");
+      toast.success("Менеджер сменён в продаже и в карточке CRM (если связана).");
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-manual-sales"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-service-earnings"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-sales-report"] });
+      void queryClient.invalidateQueries({ queryKey: ["leads"] });
+      void queryClient.invalidateQueries({ queryKey: ["lead"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -1987,7 +1989,7 @@ export function KpiPage() {
           </ul>
 
           <p className="hidden text-sm text-[var(--mo-text-muted)] sm:block">
-            Прошлые оплаты остаются у прежнего менеджера. Новая доплата идёт выбранному.
+            Смена менеджера здесь же меняет карточку CRM (если продажа привязана).
           </p>
           <div className="mo-table-scroll hidden rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)] sm:block">
             <table className="sold-course-sheet w-full min-w-[1280px] text-left">

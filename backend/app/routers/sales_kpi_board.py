@@ -2609,7 +2609,7 @@ async def patch_manual_sale_manager(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> SalesKpiManualSaleOut:
-    """Админ меняет менеджера на карточке. Прошлые оплаты не переносятся. Новый сбор дебиторки пишется на него."""
+    """Админ меняет менеджера продажи KPI и, если есть связь, менеджера карточки CRM."""
     _assert_kpi_access(current_user)
     _assert_admin_or_owner(current_user)
     sale = await db.get(SalesKpiManualSale, sale_id)
@@ -2648,11 +2648,13 @@ async def patch_manual_sale_manager(
         raise HTTPException(status_code=400, detail="Менеджер не назначен на эту воронку")
 
     before = int(sale.manager_user_id)
-    if before != int(manager.id):
-        from app.services.audit import write_audit_event
+    from app.services.audit import write_audit_event
 
+    changed = False
+    if before != int(manager.id):
         sale.manager_user_id = int(manager.id)
         sale.updated_at = datetime.now(UTC)
+        changed = True
         await write_audit_event(
             db,
             entity_type="kpi_manual_sale",
@@ -2661,6 +2663,28 @@ async def patch_manual_sale_manager(
             current_user=current_user,
             details=f"manager_user_id: {before} → {int(manager.id)}; client={sale.client_name!r}",
         )
+
+    # Та же смена — в карточку CRM, иначе в списке KPI одно, в карточке другое.
+    if sale.lead_id is not None and not body.use_lead_manager:
+        lead = await db.get(Lead, int(sale.lead_id))
+        if lead is not None and lead.company_id == company_id:
+            lead_before = int(lead.manager_id) if lead.manager_id is not None else None
+            if lead_before != int(manager.id):
+                lead.manager_id = int(manager.id)
+                changed = True
+                await write_audit_event(
+                    db,
+                    entity_type="lead",
+                    entity_id=int(lead.id),
+                    action="manager_changed",
+                    current_user=current_user,
+                    details=(
+                        f"from_kpi_sale={int(sale.id)}; "
+                        f"manager_id: {lead_before} → {int(manager.id)}; name={lead.name!r}"
+                    ),
+                )
+
+    if changed:
         await db.commit()
         await db.refresh(sale)
 
