@@ -388,49 +388,19 @@ export function AnalyticsPage() {
               <option value="custom">Свой период</option>
             </select>
           </label>
-          <label className="analytics-toolbar-field analytics-toolbar-field--funnel">
-            <span>Воронка</span>
-            <select
-              value={
-                servicesMode
-                  ? servicesPipelineId != null
-                    ? String(servicesPipelineId)
-                    : ""
-                  : pipelineId === "all"
-                    ? "all"
-                    : String(pipelineId)
-              }
-              onChange={(e) => {
-                if (servicesMode) {
-                  setPipelineId(Number(e.target.value));
-                  return;
-                }
-                setPipelineId(e.target.value === "all" ? "all" : Number(e.target.value));
+          <label className="analytics-toolbar-field analytics-toolbar-field--month">
+            <span>Месяц</span>
+            <MonthYearPicker
+              value={yearMonth}
+              onChange={(ym) => {
+                setYearMonth(ym);
+                setPeriod("month");
               }}
-              className="mo-input"
-            >
-              {!servicesMode ? <option value="all">{lex.pipelineAll}</option> : null}
-              {pipelines.length === 0 && servicesMode ? <option value="">Нет воронок</option> : null}
-              {pipelines.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
+            />
           </label>
-          <div className="analytics-dates-row analytics-dates-row--with-month">
-            <label className="analytics-toolbar-field">
-              <span>Месяц</span>
-              <MonthYearPicker
-                value={yearMonth}
-                onChange={(ym) => {
-                  setYearMonth(ym);
-                  setPeriod("month");
-                }}
-              />
-            </label>
+          <div className="analytics-dates-pair" aria-label="Период дат">
             <label
-              className={["analytics-toolbar-field", period === "custom" && !dateFrom ? "is-needed" : ""]
+              className={["analytics-toolbar-field analytics-toolbar-field--date", period === "custom" && !dateFrom ? "is-needed" : ""]
                 .filter(Boolean)
                 .join(" ")}
             >
@@ -443,7 +413,7 @@ export function AnalyticsPage() {
               />
             </label>
             <label
-              className={["analytics-toolbar-field", period === "custom" && !dateTo ? "is-needed" : ""]
+              className={["analytics-toolbar-field analytics-toolbar-field--date", period === "custom" && !dateTo ? "is-needed" : ""]
                 .filter(Boolean)
                 .join(" ")}
             >
@@ -456,121 +426,142 @@ export function AnalyticsPage() {
               />
             </label>
           </div>
-          {servicesMode ? (
-            <a
-              className="btn-secondary analytics-export-btn analytics-html-link"
-              href={htmlReportHref}
-              target="_blank"
-              rel="noreferrer"
+          <div className="analytics-toolbar-actions">
+            {servicesMode ? (
+              <a
+                className="btn-secondary analytics-icon-btn"
+                href={htmlReportHref}
+                target="_blank"
+                rel="noreferrer"
+                title="HTML-отчёт с графиками"
+                aria-label="HTML-отчёт с графиками"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <path
+                    d="M4 19V5M4 19h16M8 15v4M12 11v8M16 7v12"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </a>
+            ) : null}
+            <button
+              type="button"
+              title="Экспорт CSV"
+              aria-label="Экспорт CSV"
+              onClick={() => {
+                if (servicesMode && serviceRows.length) {
+                  const stamp =
+                    servicesQuery.data?.date_from && servicesQuery.data?.date_to
+                      ? `${servicesQuery.data.date_from}_${servicesQuery.data.date_to}`
+                      : period;
+                  downloadCsv(
+                    `analytics_services_${stamp}.csv`,
+                    [
+                      "Услуга",
+                      "Записей",
+                      "Явились",
+                      "Не явились",
+                      "Ещё booked",
+                      "Оплачено полностью",
+                      "Оплачено при неявке",
+                      "Всего оплат",
+                      "Дебиторка",
+                    ],
+                    serviceRows.map((s) => [
+                      s.direction_name,
+                      s.appointments_total,
+                      s.appeared_count,
+                      s.no_show_count,
+                      s.booked_count ?? 0,
+                      Number(s.paid_full_amount ?? 0),
+                      Number(s.paid_no_show_amount ?? 0),
+                      Number(s.revenue_paid),
+                      Number(s.debtor_amount ?? 0),
+                    ]),
+                  );
+                  return;
+                }
+                if (mode === "overview" && overviewQuery.data) {
+                  downloadCsv(
+                    "analytics_overview_managers.csv",
+                    [
+                      lex.thStaff,
+                      "Успеваемость",
+                      "Активность",
+                      "Win %",
+                      "План %",
+                      "Ответы %",
+                      "Исх. сообщения",
+                      "Первый ответ (мин)",
+                    ],
+                    (overviewQuery.data.manager_performance ?? []).map((r: ManagerPerformanceItem) => [
+                      r.manager_name,
+                      r.performance_score,
+                      r.activity_score,
+                      r.win_rate_pct,
+                      r.plan_completion_pct,
+                      r.reply_rate_pct,
+                      r.outbound_messages_count,
+                      r.avg_first_response_minutes ?? "",
+                    ]),
+                  );
+                }
+                if (mode === "full" && fullQuery.data) {
+                  downloadCsv(
+                    "analytics_full.csv",
+                    [lex.thPipelineOrOutlet, lex.leadCol, lex.processedByStaff, "Получено", "Дебиторка"],
+                    fullQuery.data.by_pipeline.map((r) => [
+                      r.pipeline_name,
+                      r.leads_count,
+                      r.processed_by_manager_count,
+                      Number(r.received_amount),
+                      Number(r.debt_amount),
+                    ]),
+                  );
+                }
+                if (mode === "detailed" && detailedQuery.data) {
+                  downloadCsv(
+                    "analytics_detailed.csv",
+                    [
+                      lex.thStaff,
+                      lex.leadCol,
+                      "Продано",
+                      "Не оплачено",
+                      "Успеваемость",
+                      "Активность",
+                      "Win %",
+                      "Ответы %",
+                      "Исх. сообщения",
+                    ],
+                    detailedQuery.data.by_manager.map((r) => [
+                      r.manager_name,
+                      r.leads_count,
+                      Number(r.sold_amount),
+                      Number(r.unpaid_amount),
+                      r.performance_score ?? "",
+                      r.activity_score ?? "",
+                      r.win_rate_pct ?? "",
+                      r.reply_rate_pct ?? "",
+                      r.outbound_messages_count ?? 0,
+                    ]),
+                  );
+                }
+              }}
+              className="btn-secondary analytics-icon-btn"
             >
-              HTML-отчёт с графиками
-            </a>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => {
-              if (servicesMode && serviceRows.length) {
-                const stamp =
-                  servicesQuery.data?.date_from && servicesQuery.data?.date_to
-                    ? `${servicesQuery.data.date_from}_${servicesQuery.data.date_to}`
-                    : period;
-                downloadCsv(
-                  `analytics_services_${stamp}.csv`,
-                  [
-                    "Услуга",
-                    "Записей",
-                    "Явились",
-                    "Не явились",
-                    "Ещё booked",
-                    "Оплачено полностью",
-                    "Оплачено при неявке",
-                    "Всего оплат",
-                    "Дебиторка",
-                  ],
-                  serviceRows.map((s) => [
-                    s.direction_name,
-                    s.appointments_total,
-                    s.appeared_count,
-                    s.no_show_count,
-                    s.booked_count ?? 0,
-                    Number(s.paid_full_amount ?? 0),
-                    Number(s.paid_no_show_amount ?? 0),
-                    Number(s.revenue_paid),
-                    Number(s.debtor_amount ?? 0),
-                  ]),
-                );
-                return;
-              }
-              if (mode === "overview" && overviewQuery.data) {
-                downloadCsv(
-                  "analytics_overview_managers.csv",
-                  [
-                    lex.thStaff,
-                    "Успеваемость",
-                    "Активность",
-                    "Win %",
-                    "План %",
-                    "Ответы %",
-                    "Исх. сообщения",
-                    "Первый ответ (мин)",
-                  ],
-                  (overviewQuery.data.manager_performance ?? []).map((r: ManagerPerformanceItem) => [
-                    r.manager_name,
-                    r.performance_score,
-                    r.activity_score,
-                    r.win_rate_pct,
-                    r.plan_completion_pct,
-                    r.reply_rate_pct,
-                    r.outbound_messages_count,
-                    r.avg_first_response_minutes ?? "",
-                  ]),
-                );
-              }
-              if (mode === "full" && fullQuery.data) {
-                downloadCsv(
-                  "analytics_full.csv",
-                  [lex.thPipelineOrOutlet, lex.leadCol, lex.processedByStaff, "Получено", "Дебиторка"],
-                  fullQuery.data.by_pipeline.map((r) => [
-                    r.pipeline_name,
-                    r.leads_count,
-                    r.processed_by_manager_count,
-                    Number(r.received_amount),
-                    Number(r.debt_amount),
-                  ]),
-                );
-              }
-              if (mode === "detailed" && detailedQuery.data) {
-                downloadCsv(
-                  "analytics_detailed.csv",
-                  [
-                    lex.thStaff,
-                    lex.leadCol,
-                    "Продано",
-                    "Не оплачено",
-                    "Успеваемость",
-                    "Активность",
-                    "Win %",
-                    "Ответы %",
-                    "Исх. сообщения",
-                  ],
-                  detailedQuery.data.by_manager.map((r) => [
-                    r.manager_name,
-                    r.leads_count,
-                    Number(r.sold_amount),
-                    Number(r.unpaid_amount),
-                    r.performance_score ?? "",
-                    r.activity_score ?? "",
-                    r.win_rate_pct ?? "",
-                    r.reply_rate_pct ?? "",
-                    r.outbound_messages_count ?? 0,
-                  ]),
-                );
-              }
-            }}
-            className="btn-secondary analytics-export-btn"
-          >
-            Экспорт CSV
-          </button>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <path
+                  d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          </div>
         </div>
       </section>
 
@@ -602,79 +593,29 @@ export function AnalyticsPage() {
                     : 0,
                 );
                 const courses = Number(live ? (servicesQuery.data.kpi_course_paid_total ?? 0) : 0);
-                const extraGross = Number(live ? (servicesQuery.data.extra_paid_total ?? 0) : 0);
                 const extraKeep = Number(
                   live
                     ? (servicesQuery.data.extra_keep_total ?? servicesQuery.data.extra_paid_total ?? 0)
                     : 0,
                 );
                 return (
-                  <>
-                    <div className="analytics-kpi-grid analytics-kpi-grid--4">
-                      <MetricCard
-                        label="Выручка всего"
-                        value={moneyFmt.format(total)}
-                        tone="success"
-                        hint={
+                  <div className="analytics-kpi-grid analytics-kpi-grid--5">
+                    <MetricCard label="Выручка всего" value={moneyFmt.format(total)} tone="success" />
+                    <MetricCard label="Услуги · визиты" value={moneyFmt.format(visits)} tone="accent" />
+                    <MetricCard label="Курсы / протоколы" value={moneyFmt.format(courses)} tone="neutral" />
+                    <MetricCard label="Доп. услуги" value={moneyFmt.format(extraKeep)} tone="warning" />
+                    <MetricCard
+                      label="Дебиторка"
+                      value={moneyFmt.format(
+                        Number(
                           live
-                            ? `визиты ${moneyFmt.format(visits)} · курсы ${moneyFmt.format(courses)} · доп. поступления ${moneyFmt.format(extraGross)}`
-                            : "снимок"
-                        }
-                      />
-                      <MetricCard
-                        label="Услуги · визиты"
-                        value={moneyFmt.format(visits)}
-                        tone="accent"
-                        hint="онлайн-запись (неявка — не в выручку)"
-                      />
-                      <MetricCard
-                        label="Курсы / протоколы"
-                        value={moneyFmt.format(courses)}
-                        tone="neutral"
-                        hint="оплаты KPI за период"
-                      />
-                      <MetricCard
-                        label="Доп. услуги"
-                        value={moneyFmt.format(extraKeep)}
-                        tone="warning"
-                        hint={
-                          extraGross !== extraKeep
-                            ? `наши деньги · всего поступлений ${moneyFmt.format(extraGross)}`
-                            : "наши деньги (доля клиники)"
-                        }
-                      />
-                    </div>
-                    <div className="analytics-kpi-grid analytics-kpi-grid--4">
-                      <MetricCard
-                        label="Дебиторка"
-                        value={moneyFmt.format(
-                          Number(
-                            live
-                              ? servicesQuery.data.debtor_total
-                              : (snapshotQuery.data?.debtor_total ?? 0),
-                          ),
-                        )}
-                        tone="warning"
-                      />
-                      <MetricCard label="Услуг в сводке" value={chartServices.length} tone="accent" />
-                      <MetricCard
-                        label="Воронка"
-                        value={
-                          live
-                            ? servicesQuery.data.pipeline_name
-                            : (snapshotQuery.data?.pipeline_name ?? servicesQuery.data.pipeline_name)
-                        }
-                        tone="neutral"
-                        hint={
-                          live
-                            ? `${servicesQuery.data.date_from ?? ""} → ${servicesQuery.data.date_to ?? ""}`
-                            : (snapshotQuery.data?.year_month ??
-                                snapshotQuery.data?.period_start ??
-                                "снимок")
-                        }
-                      />
-                    </div>
-                  </>
+                            ? servicesQuery.data.debtor_total
+                            : (snapshotQuery.data?.debtor_total ?? 0),
+                        ),
+                      )}
+                      tone="warning"
+                    />
+                  </div>
                 );
               })()}
 
@@ -691,10 +632,6 @@ export function AnalyticsPage() {
               <AnalyticsServicesCharts services={chartServices} experts={chartExperts} />
 
               <AnalyticsPanel title="По услугам">
-                <p className="analytics-panel-note">
-                  Вся выручка: визиты + KPI + все поступления по доп. услугам. Карточка «Доп.» —
-                  наша доля (keep). Визиты пакетов Курс/Протокол в запись не считаем.
-                </p>
                 <AnalyticsTable minWidth={1100}>
                   <thead>
                     <tr>
@@ -751,9 +688,6 @@ export function AnalyticsPage() {
               </AnalyticsPanel>
 
               <AnalyticsPanel title="По экспертам">
-                <p className="analytics-panel-note">
-                  Сводка по специалисту. Детализация по услугам — в таблице выше.
-                </p>
                 <AnalyticsTable minWidth={1000}>
                   <thead>
                     <tr>
