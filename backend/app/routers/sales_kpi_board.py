@@ -182,6 +182,20 @@ def _assert_company_owner(current_user: CurrentUser) -> None:
         )
 
 
+def _assert_debtor_correct_access(current_user: CurrentUser) -> None:
+    """Снять ложный долг / поправить цену-оплату в дебиторке — владелец или админ."""
+    if current_user.role not in (
+        UserRole.owner,
+        UserRole.super_owner,
+        UserRole.admin,
+        UserRole.administrator,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Снять или поправить долг может владелец или админ",
+        )
+
+
 def _assert_can_record_own_payment(current_user: CurrentUser, sale: SalesKpiManualSale) -> None:
     """Админ вносит любую оплату. Менеджер — только по своей продаже."""
     if current_user.role == UserRole.manager:
@@ -3087,6 +3101,25 @@ async def debtors_report(
     )
 
 
+async def _dismissed_debtor_keys(
+    db: AsyncSession,
+    company_id: int,
+    *,
+    sources: set[str] | None = None,
+    source_ids: set[int] | None = None,
+) -> set[tuple[str, int]]:
+    """Ключи (source, source_id) снятых владельцем ложных долгов."""
+    q = select(DebtorDismissal.source, DebtorDismissal.source_id).where(
+        DebtorDismissal.company_id == company_id,
+    )
+    if sources:
+        q = q.where(DebtorDismissal.source.in_(sources))
+    if source_ids:
+        q = q.where(DebtorDismissal.source_id.in_(source_ids))
+    rows = (await db.execute(q)).all()
+    return {(str(s), int(sid)) for s, sid in rows}
+
+
 async def _exclude_dismissed_debtors(
     db: AsyncSession,
     company_id: int,
@@ -3094,18 +3127,12 @@ async def _exclude_dismissed_debtors(
 ) -> list[SalesKpiDebtorRow]:
     if not rows:
         return rows
-    sources = {r.source for r in rows}
-    ids = {int(r.source_id) for r in rows}
-    dismissed = (
-        await db.execute(
-            select(DebtorDismissal.source, DebtorDismissal.source_id).where(
-                DebtorDismissal.company_id == company_id,
-                DebtorDismissal.source.in_(sources),
-                DebtorDismissal.source_id.in_(ids),
-            ),
-        )
-    ).all()
-    skip = {(str(s), int(sid)) for s, sid in dismissed}
+    skip = await _dismissed_debtor_keys(
+        db,
+        company_id,
+        sources={r.source for r in rows},
+        source_ids={int(r.source_id) for r in rows},
+    )
     if not skip:
         return rows
     return [r for r in rows if (r.source, int(r.source_id)) not in skip]
@@ -3214,8 +3241,8 @@ async def dismiss_debtor_row(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> None:
-    """Владелец снимает ложный долг со списка. Запись/продажа KPI не удаляются."""
-    _assert_company_owner(current_user)
+    """Владелец/админ снимает ложный долг со списка. Запись/продажа KPI не удаляются."""
+    _assert_debtor_correct_access(current_user)
     if not await _debtor_source_in_company(db, company_id, body.source, body.source_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Долг не найден")
     reason = " ".join((body.reason or "").split())
@@ -3263,8 +3290,8 @@ async def correct_debtor_amounts(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> None:
-    """Владелец правит цену и/или оплату — чтобы убрать ошибочный долг."""
-    _assert_company_owner(current_user)
+    """Владелец/админ правит цену и/или оплату — чтобы убрать ошибочный долг."""
+    _assert_debtor_correct_access(current_user)
     if body.service_amount is None and body.paid_amount is None:
         raise HTTPException(status_code=400, detail="Укажите цену или оплату")
     reason = " ".join((body.reason or "").split())
@@ -3582,6 +3609,8 @@ async def company_report(
     debtor_booking = Decimal("0")
     creditor_total = Decimal("0")
     expert_acc: dict[tuple[int, int], dict] = {}
+    # Снятые с дебиторки — не в остатке отчёта компании (как на вкладке Дебиторка).
+    dismissed_debtors = await _dismissed_debtor_keys(db, company_id)
 
     if sales_mode:
         desk_rows = (
@@ -3727,13 +3756,14 @@ async def company_report(
             if st == "no_show":
                 if visit_here:
                     bucket["no_show_count"] += 1
-                    debt = _booking_open_debt(
-                        sa,
-                        pa,
-                        month_refunds.get(int(appt_id_raw), Decimal("0")),
-                    )
-                    if debt > 0:
-                        bucket["debtor_amount"] += debt
+                    if ("booking", int(appt_id_raw)) not in dismissed_debtors:
+                        debt = _booking_open_debt(
+                            sa,
+                            pa,
+                            month_refunds.get(int(appt_id_raw), Decimal("0")),
+                        )
+                        if debt > 0:
+                            bucket["debtor_amount"] += debt
                 if cash_here and pa > 0:
                     bucket["paid_no_show_amount"] += pa
                     bucket["creditor_amount"] += pa
@@ -3746,13 +3776,14 @@ async def company_report(
                     continue
                 # Долг по явке; будущая «Запись» с оплатой — кредиторка.
                 if st == "completed":
-                    debt = _booking_open_debt(
-                        sa,
-                        pa,
-                        month_refunds.get(int(appt_id_raw), Decimal("0")),
-                    )
-                    if debt > 0:
-                        bucket["debtor_amount"] += debt
+                    if ("booking", int(appt_id_raw)) not in dismissed_debtors:
+                        debt = _booking_open_debt(
+                            sa,
+                            pa,
+                            month_refunds.get(int(appt_id_raw), Decimal("0")),
+                        )
+                        if debt > 0:
+                            bucket["debtor_amount"] += debt
                     bucket["appeared_count"] += 1
                     if cash_here and (sa <= 0 or pa + Decimal("0.01") >= sa):
                         bucket["paid_full_amount"] += pa
@@ -3799,6 +3830,8 @@ async def company_report(
         )
         debtor_booking = Decimal("0")
         for aid, sa_raw, pa_raw in open_booking_debt:
+            if ("booking", int(aid)) in dismissed_debtors:
+                continue
             sa = Decimal(str(sa_raw or 0))
             pa = Decimal(str(pa_raw or 0))
             debtor_booking += _booking_open_debt(sa, pa, open_refunds.get(int(aid), Decimal("0")))
@@ -3858,6 +3891,8 @@ async def company_report(
     debt_pay = await _load_sale_payments(db, [int(s.id) for s in manual_debt_sales])
     debtor_manual = Decimal("0")
     for sale in manual_debt_sales:
+        if ("manual", int(sale.id)) in dismissed_debtors:
+            continue
         first_at = first_course_payment_at(sale.sold_at, debt_pay.get(int(sale.id), []))
         if not course_debt_is_due(first_at, _booking_debt_cutoff(end, now=now)):
             continue

@@ -639,7 +639,7 @@ function DebtorOwnerTools({
     (priceN <= 0 || paidN <= priceN + 0.001);
   return (
     <div className="mt-2 space-y-2 rounded-xl border border-dashed border-[var(--mo-border)] p-2.5">
-      <p className="text-[11px] font-semibold text-[var(--mo-text)]">Владелец · правка / снять</p>
+      <p className="text-[11px] font-semibold text-[var(--mo-text)]">Правка / снять с дебиторки</p>
       <div className="flex flex-wrap items-end gap-2">
         <label className="flex flex-col gap-1 text-[11px] mo-muted">
           Цена
@@ -716,6 +716,9 @@ export function KpiPage() {
   const isOwner = role === "owner" || role === "super_owner" || role === "rop";
   const isCompanyOwner = role === "owner" || role === "super_owner";
   const isAdminOrOwner = isOwner || role === "admin" || role === "administrator";
+  /** Снять / поправить ложный долг — владелец и админ (не РОП). */
+  const canFixDebtors =
+    isCompanyOwner || role === "admin" || role === "administrator";
   const isManager = role === "manager";
   const meQuery = useCurrentUserMe();
   const isCurator = role === "curator" || (role === "expert" && Boolean(meQuery.data?.also_curator));
@@ -941,6 +944,7 @@ export function KpiPage() {
     onSuccess: () => {
       toast.success("Снято с дебиторки");
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-debtors"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-company-report"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -961,6 +965,7 @@ export function KpiPage() {
       toast.success("Суммы исправлены");
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-debtors"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-manual-sales"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-company-report"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -2218,7 +2223,7 @@ export function KpiPage() {
                 Звонить сегодня: <span className="font-semibold tabular-nums">{callTodayCount}</span>
               </p>
               <p className="mt-1 hidden text-sm lux-caption sm:block">
-                Оплату по долгу принимает админ. Владелец может исправить цену/оплату или снять
+                Оплату принимает админ. Владелец и админ могут исправить цену/оплату или снять
                 ложный долг со списка.
               </p>
             </div>
@@ -2388,7 +2393,7 @@ export function KpiPage() {
                         onApply={(body) => adjustPaidMutation.mutate({ id: r.source_id, ...body })}
                       />
                     ) : null}
-                    {isCompanyOwner ? (
+                    {canFixDebtors ? (
                       <DebtorOwnerTools
                         serviceAmount={num(r.service_amount)}
                         paidAmount={num(r.paid_amount)}
@@ -2522,7 +2527,7 @@ export function KpiPage() {
                                 }
                               />
                             ) : null}
-                            {isCompanyOwner ? (
+                            {canFixDebtors ? (
                               <DebtorOwnerTools
                                 serviceAmount={num(r.service_amount)}
                                 paidAmount={num(r.paid_amount)}
