@@ -44,6 +44,10 @@ KPI_OWNER_FOLLOW_CRM_FIO_KEYS = frozenset({"файзалиев хабибулл�
 KPI_COURSE_BROUGHT_MONTH_OVERRIDES: dict[tuple[str, str], Decimal] = {
     ("2026-10", "махмадшоев мустафо"): Decimal("3500.00"),
 }
+# Разово окт 2026: Камолзода Марва — доплата 5800 в Привёл Ситоре (#96), не Новых.
+KPI_COURSE_BROUGHT_FORCE: dict[tuple[str, str], tuple[int, Decimal]] = {
+    ("2026-10", "камолзода марва"): (96, Decimal("5800.00")),
+}
 # Разово: этих пациентов не показывать и не считать в Привёл/Новых (без смены правил).
 KPI_EXCLUDE_CLIENT_FIO_KEYS = frozenset(
     {
@@ -69,6 +73,16 @@ def course_brought_month_override(
     if key in KPI_COURSE_BROUGHT_MONTH_OVERRIDES:
         return KPI_COURSE_BROUGHT_MONTH_OVERRIDES[key]
     return computed
+
+
+def course_brought_force_entry(
+    *,
+    ym: date,
+    client_name: str | None,
+) -> tuple[int, Decimal] | None:
+    """Разово: (manager_id, Привёл) за месяц. Не Новых — только сумма."""
+    key = (f"{ym.year:04d}-{ym.month:02d}", fio_key(client_name))
+    return KPI_COURSE_BROUGHT_FORCE.get(key)
 
 
 def kpi_client_excluded_from_brought(client_name: str | None) -> bool:
@@ -985,6 +999,55 @@ def _matched_brought(
     return total.quantize(Decimal("0.01"))
 
 
+async def _inject_course_brought_forces(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    pipeline_id: int,
+    ym: date,
+    out: dict[tuple[int, str], Decimal],
+    already: set[str],
+) -> None:
+    """Разовые FORCE: если в KPI есть оплата по ФИО — дописать Привёл менеджеру (не Новых)."""
+    period = f"{ym.year:04d}-{ym.month:02d}"
+    for (p, ck), (force_mid, force_amt) in KPI_COURSE_BROUGHT_FORCE.items():
+        if p != period or not ck or ck in already:
+            continue
+        rows = (
+            await db.execute(
+                select(
+                    SalesKpiManualSale.client_name,
+                    SalesKpiManualSale.paid_amount,
+                    SalesKpiPlanItem.name,
+                )
+                .join(SalesKpiPlanItem, SalesKpiPlanItem.id == SalesKpiManualSale.plan_item_id)
+                .where(
+                    SalesKpiManualSale.company_id == company_id,
+                    SalesKpiManualSale.pipeline_id == pipeline_id,
+                    SalesKpiManualSale.paid_amount > 0,
+                    SalesKpiManualSale.status != "refused",
+                ),
+            )
+        ).all()
+        label: str | None = None
+        for client_name, paid_raw, pname in rows:
+            if fio_key(str(client_name or "")) != ck:
+                continue
+            if not is_main_course_product(str(pname or "")):
+                continue
+            paid = Decimal(str(paid_raw or 0)).quantize(Decimal("0.01"))
+            if paid < force_amt:
+                continue
+            label = _norm_kpi_label(str(pname or ""))
+            break
+        if not label:
+            continue
+        key = (int(force_mid), label)
+        # Добавить к уже посчитанному по другим клиентам (не затирать).
+        prev = out.get(key, Decimal("0.00"))
+        out[key] = (prev + force_amt).quantize(Decimal("0.01"))
+
+
 async def load_manual_brought_by_label(
     db: AsyncSession,
     *,
@@ -1034,6 +1097,7 @@ async def load_manual_brought_by_label(
     out: dict[tuple[int, str], Decimal] = {}
     main_course_sale_ids: set[int] = set()
     protocol_sale_ids: set[int] = set()
+    forced_clients: set[str] = set()
     for sale_id, opened_mid, sale_mid, lead_mid, client_name, name, paid, _paid_at, sale_paid, sale_service in rows:
         fk = fio_key(str(client_name or ""))
         manager_id = kpi_client_owner_manager_id(
@@ -1146,17 +1210,25 @@ async def load_manual_brought_by_label(
                 month_by_mid[int(mid)] = (month_by_mid.get(int(mid), Decimal("0")) + credit).quantize(
                     Decimal("0.01")
                 )
-            if not protocol and month_by_mid:
-                total = sum(month_by_mid.values(), Decimal("0.00")).quantize(Decimal("0.01"))
-                overridden = course_brought_month_override(
-                    ym=ym,
-                    client_name=sale_client.get(sid),
-                    computed=total,
-                )
-                if overridden != total:
-                    # Одна продажа — один владелец в месяце; подменяем сумму целиком.
-                    only_mid = next(iter(month_by_mid))
-                    month_by_mid = {only_mid: overridden}
+            if not protocol:
+                force = course_brought_force_entry(ym=ym, client_name=sale_client.get(sid))
+                if force is not None:
+                    # Разово (Камолзода): Привёл на указанного менеджера, без смены общей логики.
+                    force_mid, force_amt = force
+                    month_by_mid = {int(force_mid): force_amt}
+                    fk_force = fio_key(sale_client.get(sid))
+                    if fk_force:
+                        forced_clients.add(fk_force)
+                elif month_by_mid:
+                    total = sum(month_by_mid.values(), Decimal("0.00")).quantize(Decimal("0.01"))
+                    overridden = course_brought_month_override(
+                        ym=ym,
+                        client_name=sale_client.get(sid),
+                        computed=total,
+                    )
+                    if overridden != total:
+                        only_mid = next(iter(month_by_mid))
+                        month_by_mid = {only_mid: overridden}
             for mid, credit in month_by_mid.items():
                 if credit <= 0:
                     continue
@@ -1165,6 +1237,16 @@ async def load_manual_brought_by_label(
 
     await _hist_credits(protocol_sale_ids, protocol=True)
     await _hist_credits(main_course_sale_ids, protocol=False)
+
+    # FORCE, если продажа есть в KPI с оплатой, но октябрьский платёж не попал в hist.
+    await _inject_course_brought_forces(
+        db,
+        company_id=company_id,
+        pipeline_id=pipeline_id,
+        ym=ym,
+        out=out,
+        already=forced_clients,
+    )
 
     # Продажа месяца без строк журнала: оплата всё равно считается в месяц заведения.
     legacy_rows = (

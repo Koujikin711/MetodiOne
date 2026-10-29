@@ -104,6 +104,7 @@ from app.services.sales_kpi_weighted import (
     brought_booking_manager_id,
     completion_ratio,
     contribution,
+    course_brought_force_entry,
     course_brought_from_gross,
     course_brought_month_override,
     course_stage_credits_for_payments,
@@ -1321,18 +1322,25 @@ async def _service_earning_detail(
                 fio_crm_manager_id=fio_owners.get(fk) if fk else None,
                 client_name=str(sale.client_name or ""),
             )
-            if owner_mid != manager_id:
-                continue
             if kpi_client_excluded_from_brought(str(sale.client_name or "")):
                 continue
             price = Decimal(str(sale.service_amount or 0)).quantize(Decimal("0.01"))
             paid = Decimal(str(sale.paid_amount or 0)).quantize(Decimal("0.01"))
+            force = course_brought_force_entry(ym=ym, client_name=str(sale.client_name or ""))
+            force_for_me = (
+                force is not None
+                and int(force[0]) == int(manager_id)
+                and paid >= force[1]
+                and is_main_course_product(item.name)
+            )
+            if owner_mid != manager_id and not force_for_me:
+                continue
             is_new = sale.sold_at is not None and start <= sale.sold_at < end and paid > 0
             payments = pays_by_sale.get(int(sale.id), [])
             brought_amt = Decimal("0.00")
             month_paid_amt = Decimal("0.00")
             for paid_at, amt, mid in payments:
-                if mid != manager_id:
+                if mid != manager_id and not force_for_me:
                     continue
                 if paid_at < start or paid_at >= end:
                     continue
@@ -1354,6 +1362,12 @@ async def _service_earning_detail(
                     client_name=str(sale.client_name or ""),
                     computed=brought_amt,
                 )
+                if force_for_me and force is not None:
+                    # Разово: доплата в Привёл (не Новых), если сумма уже в KPI.
+                    brought_amt = force[1]
+                    if month_paid_amt < force[1]:
+                        month_paid_amt = force[1]
+                    is_new = False
             elif protocol_brought_waits_for_full_price(item.name):
                 for paid_at, mid, credit in protocol_full_pay_credits_for_payments(
                     service_amount=price,

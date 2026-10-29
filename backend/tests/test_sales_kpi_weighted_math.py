@@ -12,6 +12,7 @@ from app.services.sales_kpi_weighted import (
     brought_booking_manager_id,
     brought_for_plan_item,
     course_brought_from_gross,
+    course_brought_force_entry,
     course_brought_month_override,
     course_stage_amount,
     course_stage_credits_for_payments,
@@ -91,6 +92,18 @@ def test_makhmadshoev_october_brought_override_3500():
         client_name="Махмадшоев Мустафо",
         computed=Decimal("5520.00"),
     ) == Decimal("5520.00")
+
+
+def test_kamolzoda_marva_october_force_5800_sitora():
+    # Разово окт 2026: 5800 Ситоре (#96), не Новых.
+    assert course_brought_force_entry(
+        ym=date(2026, 10, 1),
+        client_name="Камолзода Марва",
+    ) == (96, Decimal("5800.00"))
+    assert course_brought_force_entry(
+        ym=date(2026, 9, 1),
+        client_name="Камолзода Марва",
+    ) is None
 
 
 def test_kpi_owner_fayzaliev_exception_follows_crm_card():
