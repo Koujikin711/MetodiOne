@@ -1623,10 +1623,13 @@ async def analytics_services(
         bucket["appointments_total"] += 1
         if st == "no_show":
             bucket["no_show_count"] += 1
+            debt = max(sa - pa, Decimal("0"))
+            if debt > 0:
+                bucket["debtor_amount"] += debt
             if pa > 0:
                 bucket["paid_no_show_amount"] += pa
-                bucket["revenue_paid"] += pa
-                revenue_total += pa
+                bucket["creditor_amount"] += pa
+                creditor_total += pa
         else:
             bucket["revenue_paid"] += pa
             revenue_total += pa
@@ -1645,7 +1648,7 @@ async def analytics_services(
                     bucket["creditor_amount"] += pa
                     creditor_total += pa
 
-    # Дебиторка на конец периода: открытые визиты с start_at < end (без Курс/Протокол)
+    # Дебиторка на конец периода: «Пришёл» / «Неявка» с остатком (отмена — нет).
     open_debt_rows = (
         await db.execute(
             select(
@@ -1660,7 +1663,7 @@ async def analytics_services(
                 BookingAppointment.company_id == company_id,
                 BookingAppointment.start_at < end,
                 BookingAppointment.service_amount > BookingAppointment.paid_amount,
-                BookingAppointment.status.notin_(("no_show", "cancelled")),
+                BookingAppointment.status.in_(("completed", "no_show")),
                 or_(
                     BookingAppointment.pipeline_id == pipeline_id,
                     PipelineStage.pipeline_id == pipeline_id,

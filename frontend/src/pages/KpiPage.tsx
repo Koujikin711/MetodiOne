@@ -3011,8 +3011,12 @@ function CompanyReportSection({
                 <th className="py-2 pr-3">Не явились</th>
                 <th className="py-2 pr-3">Ещё booked</th>
                 <th className="py-2 pr-3">Оплачено полностью</th>
-                <th className="py-2 pr-3">Оплачено при неявке</th>
-                <th className="py-2 pr-3">Всего оплат</th>
+                <th className="py-2 pr-3" title="Предоплата при неявке → кредиторка, не выручка">
+                  Оплачено при неявке
+                </th>
+                <th className="py-2 pr-3" title="Выручка по явкам (неявка сюда не входит)">
+                  Всего оплат
+                </th>
                 <th className="py-2 pr-3">Дебиторка</th>
               </tr>
             </thead>
@@ -3056,8 +3060,12 @@ function CompanyReportSection({
                 <th className="py-2 pr-3">Явились</th>
                 <th className="py-2 pr-3">Не явились</th>
                 <th className="py-2 pr-3">Оплачено полностью</th>
-                <th className="py-2 pr-3">Оплачено при неявке</th>
-                <th className="py-2 pr-3">Всего оплат</th>
+                <th className="py-2 pr-3" title="Предоплата при неявке → кредиторка, не выручка">
+                  Оплачено при неявке
+                </th>
+                <th className="py-2 pr-3" title="Выручка по явкам (неявка сюда не входит)">
+                  Всего оплат
+                </th>
                 <th className="py-2 pr-3">Дебиторка</th>
                 <th className="py-2 pr-3">Кредиторка</th>
               </tr>

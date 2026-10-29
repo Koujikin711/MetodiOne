@@ -406,9 +406,9 @@ class SalesKpiCompanyExpertStat(BaseModel):
     cancelled_count: int
     revenue_paid: Decimal  # все оплаты по строке (частичные + полные)
     paid_full_amount: Decimal = Decimal("0")  # оплатили полностью и явились
-    paid_no_show_amount: Decimal = Decimal("0")  # оплатили, но не явились
+    paid_no_show_amount: Decimal = Decimal("0")  # предоплата при неявке (в кредиторке, не в выручке)
     debtor_amount: Decimal
-    creditor_amount: Decimal  # оплачено, визит ещё в будущем
+    creditor_amount: Decimal  # предоплата: будущая «Запись» или неявка
 
 
 class SalesKpiReferralServiceCell(BaseModel):

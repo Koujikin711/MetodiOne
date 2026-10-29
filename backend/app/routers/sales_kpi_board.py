@@ -2847,8 +2847,8 @@ async def debtors_report(
             )
         ).scalars().all()
     else:
-        # Дебиторка записи: только прошедшие визиты со статусом «Пришёл».
-        # Неявка / отмена / будущие «Запись» — не долг.
+        # Дебиторка записи: прошедшие визиты «Пришёл» или «Неявка» с остатком.
+        # Отмена / будущие «Запись» — не долг. Все месяцы пересчитываются по статусу.
         debt_cutoff = _booking_debt_cutoff(end)
         booking_q = (
             await db.execute(
@@ -2860,7 +2860,7 @@ async def debtors_report(
                     BookingAppointment.company_id == company_id,
                     BookingAppointment.start_at < debt_cutoff,
                     BookingAppointment.service_amount > BookingAppointment.paid_amount,
-                    BookingAppointment.status == "completed",
+                    BookingAppointment.status.in_(("completed", "no_show")),
                     or_(
                         BookingAppointment.pipeline_id == pipeline_id,
                         PipelineStage.pipeline_id == pipeline_id,
@@ -3534,21 +3534,28 @@ async def company_report(
                 continue
             if visit_here:
                 bucket["appointments_total"] += 1
-            # Неявка: долг не ставим, но оплата уже полученная — в выручку кассы.
+            # Неявка: предоплата → кредиторка (не выручка); остаток цены → дебиторка.
             if st == "no_show":
                 if visit_here:
                     bucket["no_show_count"] += 1
+                    debt = _booking_open_debt(
+                        sa,
+                        pa,
+                        month_refunds.get(int(appt_id_raw), Decimal("0")),
+                    )
+                    if debt > 0:
+                        bucket["debtor_amount"] += debt
                 if cash_here and pa > 0:
                     bucket["paid_no_show_amount"] += pa
-                    bucket["revenue_paid"] += pa
-                    revenue_booking += pa
+                    bucket["creditor_amount"] += pa
+                    creditor_total += pa
             else:
                 if cash_here:
                     bucket["revenue_paid"] += pa
                     revenue_booking += pa
                 if not visit_here:
                     continue
-                # Долг только по явке (completed); «Запись»/будущее/неявка — не дебиторка.
+                # Долг по явке; будущая «Запись» с оплатой — кредиторка.
                 if st == "completed":
                     debt = _booking_open_debt(
                         sa,
@@ -3570,7 +3577,7 @@ async def company_report(
                         creditor_total += cred
                         bucket["booked_future_count"] += 1
 
-        # Дебиторка записи: прошедшие явки с остатком (неявка/будущее не входят).
+        # Дебиторка записи: прошедшие «Пришёл» / «Неявка» с остатком (отмена и будущее — нет).
         # Возвраты (ОСВ booking_refund) вычитаем — иначе «оплачено 0» после возврата = ложный долг.
         debt_cutoff = _booking_debt_cutoff(end, now=now)
         open_booking_debt = (
@@ -3587,7 +3594,7 @@ async def company_report(
                     BookingAppointment.company_id == company_id,
                     BookingAppointment.start_at < debt_cutoff,
                     BookingAppointment.service_amount > BookingAppointment.paid_amount,
-                    BookingAppointment.status == "completed",
+                    BookingAppointment.status.in_(("completed", "no_show")),
                     or_(
                         BookingAppointment.pipeline_id == pipeline_id,
                         PipelineStage.pipeline_id == pipeline_id,
