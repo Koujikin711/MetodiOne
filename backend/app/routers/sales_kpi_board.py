@@ -111,8 +111,10 @@ from app.services.sales_kpi_weighted import (
     fio_key,
     is_full_payment,
     is_main_course_product,
+    kpi_brought_blocked_for_manager,
     kpi_client_owner_manager_id,
     load_fio_crm_owner_managers,
+    load_manager_name_keys,
     protocol_full_pay_credits_for_payments,
     load_bonus_fund,
     load_desk_sale_facts_full_paid,
@@ -1247,6 +1249,7 @@ async def _service_earning_detail(
         named_dirs |= {int(d) for d in direction_ids}
 
     # KPI-продажи: владелец = лид / ФИО в CRM / открывший. Без ручной связи продажи.
+    manager_keys = await load_manager_name_keys(db, company_id=company_id)
     if (source_type or "manual") != "direction":
         fio_owners = await load_fio_crm_owner_managers(
             db, company_id=company_id, pipeline_id=pipeline_id,
@@ -1321,6 +1324,12 @@ async def _service_earning_detail(
                 client_name=str(sale.client_name or ""),
             )
             if owner_mid != manager_id:
+                continue
+            if kpi_brought_blocked_for_manager(
+                manager_id=manager_id,
+                client_name=str(sale.client_name or ""),
+                manager_name_keys=manager_keys,
+            ):
                 continue
             price = Decimal(str(sale.service_amount or 0)).quantize(Decimal("0.01"))
             paid = Decimal(str(sale.paid_amount or 0)).quantize(Decimal("0.01"))
@@ -1457,6 +1466,12 @@ async def _service_earning_detail(
                 responsible_role=responsible_role,
             )
             if mid != manager_id:
+                continue
+            if kpi_brought_blocked_for_manager(
+                manager_id=manager_id,
+                client_name=str(appt.patient_name or ""),
+                manager_name_keys=manager_keys,
+            ):
                 continue
             if specs and int(appt.specialist_id or 0) not in specs:
                 if (source_type or "") == "direction":
