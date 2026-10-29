@@ -2304,48 +2304,6 @@ async def ensure_debtor_collection_notes(conn: AsyncConnection, database_url: st
     )
 
 
-async def ensure_debtor_dismissals(conn: AsyncConnection, database_url: str) -> None:
-    """Владелец снял ложный долг с дебиторки (запись/продажа остаются)."""
-    low = database_url.lower()
-    sqlite = "sqlite" in low
-    if sqlite:
-        await conn.execute(
-            text(
-                """CREATE TABLE IF NOT EXISTS debtor_dismissals (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-                    source VARCHAR(16) NOT NULL,
-                    source_id INTEGER NOT NULL,
-                    reason TEXT,
-                    dismissed_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-                    dismissed_at TIMESTAMP,
-                    UNIQUE(company_id, source, source_id)
-                )"""
-            )
-        )
-    else:
-        await conn.execute(
-            text(
-                """CREATE TABLE IF NOT EXISTS debtor_dismissals (
-                    id SERIAL PRIMARY KEY,
-                    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-                    source VARCHAR(16) NOT NULL,
-                    source_id INTEGER NOT NULL,
-                    reason TEXT,
-                    dismissed_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-                    dismissed_at TIMESTAMPTZ,
-                    UNIQUE(company_id, source, source_id)
-                )"""
-            )
-        )
-    await conn.execute(
-        text(
-            "CREATE INDEX IF NOT EXISTS idx_debtor_dismissals_company "
-            "ON debtor_dismissals (company_id, source, source_id)"
-        )
-    )
-
-
 async def ensure_protocol_followups(conn: AsyncConnection, database_url: str) -> None:
     """Комментарий и следующий созвон на строке контроля протоколов."""
     low = database_url.lower()

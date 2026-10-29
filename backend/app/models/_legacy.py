@@ -185,26 +185,6 @@ class DebtorCollectionNote(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
 
 
-class DebtorDismissal(Base):
-    """Владелец снял строку с дебиторки (ложный долг). Запись/продажу не удаляет."""
-
-    __tablename__ = "debtor_dismissals"
-    __table_args__ = (
-        UniqueConstraint("company_id", "source", "source_id", name="uq_debtor_dismissal"),
-    )
-
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id", ondelete="CASCADE"), index=True)
-    source: Mapped[str] = mapped_column(String(16))
-    source_id: Mapped[int] = mapped_column(index=True)
-    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
-    dismissed_by_user_id: Mapped[int | None] = mapped_column(
-        ForeignKey("users.id", ondelete="SET NULL"),
-        nullable=True,
-    )
-    dismissed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utc_now)
-
-
 class UserPresenceDay(Base):
     """Сколько секунд пользователь был в сети за календарный день клиники."""
 

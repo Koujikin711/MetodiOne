@@ -374,22 +374,6 @@ class SalesKpiDebtorNoteOut(BaseModel):
     promise_overdue: bool = False
 
 
-class SalesKpiDebtorDismissIn(BaseModel):
-    source: Literal["booking", "manual"]
-    source_id: int = Field(..., ge=1)
-    reason: str = Field(..., min_length=3, max_length=500)
-
-
-class SalesKpiDebtorCorrectIn(BaseModel):
-    """Владелец правит цену и/или оплату по строке дебиторки."""
-
-    source: Literal["booking", "manual"]
-    source_id: int = Field(..., ge=1)
-    service_amount: Decimal | None = Field(default=None, ge=0)
-    paid_amount: Decimal | None = Field(default=None, ge=0)
-    reason: str = Field(..., min_length=3, max_length=500)
-
-
 class SalesKpiDebtorsReport(BaseModel):
     pipeline_id: int
     pipeline_name: str
