@@ -1436,7 +1436,7 @@ async def _service_earning_detail(
                 BookingAppointment.start_at >= start,
                 BookingAppointment.start_at < end,
                 BookingAppointment.paid_amount > 0,
-                BookingAppointment.status != "cancelled",
+                BookingAppointment.status.notin_(("cancelled", "no_show")),
                 or_(
                     BookingAppointment.pipeline_id == pipeline_id,
                     PipelineStage.pipeline_id == pipeline_id,

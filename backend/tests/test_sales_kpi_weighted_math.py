@@ -38,25 +38,25 @@ def test_fio_key_ignores_case_and_spaces():
     assert fio_key("  Халилова   Мавлуда ") == fio_key("халилова мавлуда")
 
 
-def test_kpi_owner_prefers_lead_then_fio_crm():
-    # Чужой клиент (лид другого менеджера) не идёт открывшему/принявшему оплату.
+def test_kpi_owner_prefers_opened_not_new_lead_manager():
+    # Передача карточки новому (3) не забирает Привёл у открывшего (10).
     assert (
         kpi_client_owner_manager_id(
             opened_manager_id=10,
             sale_manager_id=10,
             lead_manager_id=3,
         )
-        == 3
+        == 10
     )
-    # Без связи продажи: ФИО в CRM на менеджера 3 → не Мулкия (10).
+    # Смена текущего manager_user_id тоже не переносит.
     assert (
         kpi_client_owner_manager_id(
             opened_manager_id=10,
-            sale_manager_id=10,
-            lead_manager_id=None,
+            sale_manager_id=3,
+            lead_manager_id=3,
             fio_crm_manager_id=3,
         )
-        == 3
+        == 10
     )
     assert (
         kpi_client_owner_manager_id(
@@ -94,12 +94,12 @@ def test_kpi_owner_fayzaliev_exception_follows_crm_card():
         )
         == 7
     )
-    # Без исключения обычный порядок: lead_id важнее fio.
+    # Без исключения — открывший, даже если карточка/лид на другого.
     assert (
         kpi_client_owner_manager_id(
             opened_manager_id=10,
             sale_manager_id=10,
-            lead_manager_id=10,
+            lead_manager_id=7,
             fio_crm_manager_id=7,
             client_name="Другой Клиент",
         )

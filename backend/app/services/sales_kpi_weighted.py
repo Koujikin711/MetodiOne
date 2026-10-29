@@ -320,7 +320,7 @@ async def load_brought_paid_by_service(
         BookingAppointment.company_id == company_id,
         BookingAppointment.start_at >= start,
         BookingAppointment.start_at < end,
-        BookingAppointment.status != "cancelled",
+        BookingAppointment.status.notin_(("cancelled", "no_show")),
         BookingAppointment.paid_amount > 0,
         User.role == UserRole.manager,
         or_(
@@ -457,13 +457,17 @@ async def load_brought_paid_detail(
             continue
         price = Decimal(str(service_amount or 0)).quantize(Decimal("0.01"))
         key = (int(manager_id), int(specialist_id), int(direction_id), price)
+        st = (status or "").strip()
+        # Неявка: предоплата в кредиторке, не в «Привёл» / «Новых» менеджера.
+        if st == "no_show":
+            continue
         if kind == "main_course":
             brought = course_brought_from_gross(price, gross)
             if brought > 0:
                 out[key] = (out.get(key, Decimal("0")) + brought).quantize(Decimal("0.01"))
         elif is_full_payment(service_amount, gross):
             out[key] = (out.get(key, Decimal("0")) + gross).quantize(Decimal("0.01"))
-        if (status or "").strip() != "cancelled":
+        if st != "cancelled":
             counts[key] = counts.get(key, 0) + 1
     return out, counts
 
@@ -649,25 +653,24 @@ def kpi_client_owner_manager_id(
 ) -> int | None:
     """Чей клиент для «Новых» / «Привёл».
 
-    1) менеджер лида у продажи,
-    2) менеджер CRM/записи по тому же ФИО (без ручной связи продажи),
-    3) кто открыл продажу.
-    Чужие клиенты не попадают в отчёт текущего менеджера.
+    Привёл/Новых — у кто открыл продажу (opened). Смена менеджера карточки /
+    текущего manager_user_id новым (напр. Абдулхайзода) чужую продажу не забирает.
 
-    Исключение KPI_OWNER_FOLLOW_CRM_FIO_KEYS: сначала ФИО→карточка CRM
-    (перебивает чужой lead_id / opened).
+    Исключение KPI_OWNER_FOLLOW_CRM_FIO_KEYS: ФИО→карточка CRM
+    (Файзалиев и т.п. — перебивает opened).
     """
     fk = fio_key(client_name) if client_name else ""
     if fk and fk in KPI_OWNER_FOLLOW_CRM_FIO_KEYS and fio_crm_manager_id is not None:
-        return int(fio_crm_manager_id)
-    if lead_manager_id is not None:
-        return int(lead_manager_id)
-    if fio_crm_manager_id is not None:
         return int(fio_crm_manager_id)
     if opened_manager_id is not None:
         return int(opened_manager_id)
     if sale_manager_id is not None:
         return int(sale_manager_id)
+    # Legacy без opened: лид / ФИО, иначе никто.
+    if lead_manager_id is not None:
+        return int(lead_manager_id)
+    if fio_crm_manager_id is not None:
+        return int(fio_crm_manager_id)
     return None
 
 
