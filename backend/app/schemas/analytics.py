@@ -142,7 +142,7 @@ class AnalyticsOverviewRead(BaseModel):
 class ServicesAnalyticsServiceRow(BaseModel):
     direction_id: int | None = None
     direction_name: str
-    # booking — только визиты; kpi — только продажи курсов/протоколов; mixed — оба
+    # booking | kpi | mixed | extra — визиты / KPI / оба / доп.услуги и стол
     money_source: str = "booking"
     appointments_total: int = 0
     appeared_count: int = 0
@@ -173,7 +173,7 @@ class ServicesAnalyticsExpertRow(BaseModel):
 
 
 class ServicesAnalyticsRead(BaseModel):
-    """Сводка по услугам: визиты записи + Курс/Протокол только из KPI (без визитов этих пакетов)."""
+    """Вся выручка: визиты записи + KPI курсы/протоколы + доп. услуги (+ стол, если есть)."""
 
     pipeline_id: int
     pipeline_name: str
@@ -185,7 +185,11 @@ class ServicesAnalyticsRead(BaseModel):
     revenue_total: Decimal = Field(default=Decimal("0"))
     debtor_total: Decimal = Field(default=Decimal("0"))
     creditor_total: Decimal = Field(default=Decimal("0"))
+    # Разбивка revenue_total (сумма трёх = итог).
+    booking_paid_total: Decimal = Field(default=Decimal("0"))
     # Оплаты KPI-курсов/протоколов за период (входят в revenue_total и строки service_stats).
     kpi_course_paid_total: Decimal = Field(default=Decimal("0"))
+    # Доп. услуги (журнал) + оплаты стола менеджера за период.
+    extra_paid_total: Decimal = Field(default=Decimal("0"))
     service_stats: list[ServicesAnalyticsServiceRow] = Field(default_factory=list)
     expert_stats: list[ServicesAnalyticsExpertRow] = Field(default_factory=list)

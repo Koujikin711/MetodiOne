@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Аналитика → Услуги · вся выручка</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --surface: #121a2b;
+      --border: rgba(148, 163, 184, 0.22);
+      --text: #e8eef9;
+      --muted: #94a3b8;
+      --emerald: #6ee7b7;
+      --sky: #7dd3fc;
+      --violet: #c4b5fd;
+      --amber: #fcd34d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #1a2744, var(--bg));
+      color: var(--text);
+      min-height: 100dvh;
+      padding: 1.25rem 1rem 2.5rem;
+    }
+    .wrap { max-width: 1100px; margin: 0 auto; }
+    .eyebrow { color: var(--muted); font-size: 11px; letter-spacing: 0.04em; margin: 0 0 0.5rem; }
+    h1 { font-size: 1.35rem; margin: 0; font-weight: 650; letter-spacing: -0.02em; }
+    .lead { color: var(--muted); font-size: 0.9rem; line-height: 1.55; max-width: 42rem; margin: 0.6rem 0 0; }
+    .lead b { color: var(--text); font-weight: 600; }
+    .grid {
+      display: grid;
+      gap: 0.75rem;
+      margin-top: 1rem;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    }
+    .card {
+      border: 1px solid var(--border);
+      background: color-mix(in srgb, var(--surface) 88%, transparent);
+      border-radius: 1rem;
+      padding: 1rem;
+    }
+    .card.total { border-color: rgba(52, 211, 153, 0.35); background: rgba(16, 185, 129, 0.1); }
+    .card.extra { border-color: rgba(251, 191, 36, 0.35); background: rgba(245, 158, 11, 0.06); }
+    .label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin: 0; }
+    .label.e { color: var(--emerald); }
+    .label.s { color: var(--sky); }
+    .label.v { color: var(--violet); }
+    .label.a { color: var(--amber); }
+    .value { font-size: 1.5rem; font-weight: 650; font-variant-numeric: tabular-nums; margin: 0.5rem 0 0; letter-spacing: -0.02em; }
+    .card.total .value { font-size: 1.75rem; }
+    .hint { color: var(--muted); font-size: 0.75rem; margin: 0.35rem 0 0; line-height: 1.4; }
+    .formula {
+      margin-top: 1rem;
+      border: 1px dashed var(--border);
+      border-radius: 1rem;
+      padding: 1rem;
+    }
+    .chips { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.75rem; font-size: 0.875rem; }
+    .chip {
+      border-radius: 999px;
+      border: 1px solid;
+      padding: 0.3rem 0.75rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .chip.s { border-color: rgba(56, 189, 248, 0.4); background: rgba(14, 165, 233, 0.1); }
+    .chip.v { border-color: rgba(167, 139, 250, 0.4); background: rgba(139, 92, 246, 0.12); }
+    .chip.a { border-color: rgba(251, 191, 36, 0.4); background: rgba(245, 158, 11, 0.1); }
+    .chip.e { border-color: rgba(52, 211, 153, 0.4); background: rgba(16, 185, 129, 0.12); font-weight: 650; }
+    .blocks { margin-top: 1.25rem; display: grid; gap: 1rem; }
+    .block { border: 1px solid var(--border); border-radius: 1rem; padding: 1rem; background: rgba(18, 26, 43, 0.45); }
+    .block-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem; align-items: flex-end; }
+    table { width: 100%; border-collapse: collapse; margin-top: 0.75rem; font-size: 0.875rem; }
+    th, td { text-align: left; padding: 0.55rem 0.5rem; border-bottom: 1px solid rgba(148, 163, 184, 0.14); }
+    th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    td.muted { color: var(--muted); font-size: 0.75rem; }
+    .foot { color: var(--muted); font-size: 0.75rem; line-height: 1.5; margin-top: 1.5rem; max-width: 42rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <p class="eyebrow">Локальный превью · Аналитика → Услуги · демо октябрь 2026</p>
+    <h1>Вся выручка — как будет на экране</h1>
+    <p class="lead">
+      Одна сводка: <b>визиты записи</b> + <b>курсы/протоколы KPI</b> + <b>доп. услуги</b>.
+      Это уже заложено в код Аналитики; здесь — как выглядит блок.
+    </p>
+
+    <div class="grid">
+      <div class="card total">
+        <p class="label e">Выручка всего</p>
+        <p class="value">335 883 TJS</p>
+        <p class="hint">визиты 238 650 · курсы 85 583 · доп. 11 650</p>
+      </div>
+      <div class="card">
+        <p class="label s">Услуги · визиты</p>
+        <p class="value">238 650</p>
+        <p class="hint">онлайн-запись (неявка — не в выручку)</p>
+      </div>
+      <div class="card">
+        <p class="label v">Курсы / протоколы</p>
+        <p class="value">85 583</p>
+        <p class="hint">оплаты KPI за период</p>
+      </div>
+      <div class="card extra">
+        <p class="label a">Доп. услуги</p>
+        <p class="value">11 650</p>
+        <p class="hint">журнал доп. услуг и стол</p>
+      </div>
+    </div>
+
+    <div class="formula">
+      <p style="margin:0;font-weight:600;font-size:0.9rem">Состав итого</p>
+      <div class="chips">
+        <span class="chip s">визиты 238 650</span>
+        <span style="color:var(--muted)">+</span>
+        <span class="chip v">курсы 85 583</span>
+        <span style="color:var(--muted)">+</span>
+        <span class="chip a">доп. 11 650</span>
+        <span style="color:var(--muted)">=</span>
+        <span class="chip e">335 883 TJS</span>
+      </div>
+    </div>
+
+    <div class="blocks">
+      <section class="block">
+        <div class="block-head">
+          <div>
+            <p class="label s">1 · Услуги MetodiOne (запись)</p>
+            <p class="hint">Направления онлайн-записи. Курс 15 здесь — визиты, не пакет KPI.</p>
+          </div>
+          <p class="value" style="font-size:1.25rem;margin:0">238 650</p>
+        </div>
+        <table>
+          <thead><tr><th>Позиция</th><th>Источник</th><th class="num">Оплаты</th></tr></thead>
+          <tbody>
+            <tr><td>Курс 15</td><td class="muted">визиты записи</td><td class="num">89 700</td></tr>
+            <tr><td>Массаж</td><td class="muted">—</td><td class="num">58 200</td></tr>
+            <tr><td>Остиопат</td><td class="muted">—</td><td class="num">38 400</td></tr>
+            <tr><td>ТМС</td><td class="muted">—</td><td class="num">36 900</td></tr>
+            <tr><td>Q-ЭЭГ</td><td class="muted">—</td><td class="num">10 800</td></tr>
+            <tr><td>Консультация</td><td class="muted">—</td><td class="num">4 650</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="block">
+        <div class="block-head">
+          <div>
+            <p class="label v">2 · Курсы и протоколы (KPI)</p>
+            <p class="hint">Деньги из продаж KPI за месяц — отдельный блок.</p>
+          </div>
+          <p class="value" style="font-size:1.25rem;margin:0">85 583</p>
+        </div>
+        <table>
+          <thead><tr><th>Позиция</th><th>Источник</th><th class="num">Оплаты</th></tr></thead>
+          <tbody>
+            <tr><td>Курс</td><td class="muted">оплаты KPI за месяц</td><td class="num">73 983</td></tr>
+            <tr><td>Протокол</td><td class="muted">оплаты KPI за месяц</td><td class="num">11 600</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="block">
+        <div class="block-head">
+          <div>
+            <p class="label a">3 · Доп. услуги</p>
+            <p class="hint">Журнал доп. услуг и оплаты со стола — входят в «Выручка всего».</p>
+          </div>
+          <p class="value" style="font-size:1.25rem;margin:0">11 650</p>
+        </div>
+        <table>
+          <thead><tr><th>Позиция</th><th>Источник</th><th class="num">Оплаты</th></tr></thead>
+          <tbody>
+            <tr><td>Доп. услуга · стол</td><td class="muted">ManagerDesk / Доп услуги</td><td class="num">7 200</td></tr>
+            <tr><td>Доп. услуга · прочее</td><td class="muted">журнал</td><td class="num">4 450</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </div>
+
+    <p class="foot">
+      Демо-цифры для макета. После «пуш» те же карточки появятся в проде: Аналитика → Услуги.
+    </p>
+  </div>
+</body>
+</html>

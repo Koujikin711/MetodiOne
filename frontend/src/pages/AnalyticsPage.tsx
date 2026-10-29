@@ -585,58 +585,89 @@ export function AnalyticsPage() {
           {servicesQuery.isLoading ? <p className="lux-caption px-1">Загрузка…</p> : null}
           {servicesQuery.data ? (
             <>
-              <div className="analytics-kpi-grid analytics-kpi-grid--4">
-                <MetricCard
-                  label="Выручка"
-                  value={moneyFmt.format(
-                    Number(
-                      servicesLiveEmpty
-                        ? (snapshotQuery.data?.revenue_total ?? 0)
-                        : servicesQuery.data.revenue_total,
-                    ),
-                  )}
-                  tone="success"
-                  hint={
-                    servicesLiveEmpty
-                      ? undefined
-                      : Number(servicesQuery.data.kpi_course_paid_total ?? 0) > 0
-                        ? `в т.ч. курсы/протоколы KPI: ${moneyFmt.format(Number(servicesQuery.data.kpi_course_paid_total))}`
-                        : "визиты + курсы/протоколы KPI"
-                  }
-                />
-                <MetricCard
-                  label="Дебиторка"
-                  value={moneyFmt.format(
-                    Number(
-                      servicesLiveEmpty
-                        ? (snapshotQuery.data?.debtor_total ?? 0)
-                        : servicesQuery.data.debtor_total,
-                    ),
-                  )}
-                  tone="warning"
-                />
-                <MetricCard
-                  label="Услуг в сводке"
-                  value={chartServices.length}
-                  tone="accent"
-                />
-                <MetricCard
-                  label="Воронка"
-                  value={
-                    servicesLiveEmpty
-                      ? (snapshotQuery.data?.pipeline_name ?? servicesQuery.data.pipeline_name)
-                      : servicesQuery.data.pipeline_name
-                  }
-                  tone="neutral"
-                  hint={
-                    servicesLiveEmpty
-                      ? (snapshotQuery.data?.year_month ??
-                          snapshotQuery.data?.period_start ??
-                          "снимок")
-                      : `${servicesQuery.data.date_from ?? ""} → ${servicesQuery.data.date_to ?? ""}`
-                  }
-                />
-              </div>
+              {(() => {
+                const live = !servicesLiveEmpty;
+                const total = Number(
+                  live ? servicesQuery.data.revenue_total : (snapshotQuery.data?.revenue_total ?? 0),
+                );
+                const visits = Number(
+                  live
+                    ? (servicesQuery.data.booking_paid_total ??
+                        Math.max(
+                          0,
+                          total -
+                            Number(servicesQuery.data.kpi_course_paid_total ?? 0) -
+                            Number(servicesQuery.data.extra_paid_total ?? 0),
+                        ))
+                    : 0,
+                );
+                const courses = Number(live ? (servicesQuery.data.kpi_course_paid_total ?? 0) : 0);
+                const extra = Number(live ? (servicesQuery.data.extra_paid_total ?? 0) : 0);
+                return (
+                  <>
+                    <div className="analytics-kpi-grid analytics-kpi-grid--4">
+                      <MetricCard
+                        label="Выручка всего"
+                        value={moneyFmt.format(total)}
+                        tone="success"
+                        hint={
+                          live
+                            ? `визиты ${moneyFmt.format(visits)} · курсы ${moneyFmt.format(courses)} · доп. ${moneyFmt.format(extra)}`
+                            : "снимок"
+                        }
+                      />
+                      <MetricCard
+                        label="Услуги · визиты"
+                        value={moneyFmt.format(visits)}
+                        tone="accent"
+                        hint="онлайн-запись (неявка — не в выручку)"
+                      />
+                      <MetricCard
+                        label="Курсы / протоколы"
+                        value={moneyFmt.format(courses)}
+                        tone="neutral"
+                        hint="оплаты KPI за период"
+                      />
+                      <MetricCard
+                        label="Доп. услуги"
+                        value={moneyFmt.format(extra)}
+                        tone="warning"
+                        hint="журнал доп. услуг и стол"
+                      />
+                    </div>
+                    <div className="analytics-kpi-grid analytics-kpi-grid--4">
+                      <MetricCard
+                        label="Дебиторка"
+                        value={moneyFmt.format(
+                          Number(
+                            live
+                              ? servicesQuery.data.debtor_total
+                              : (snapshotQuery.data?.debtor_total ?? 0),
+                          ),
+                        )}
+                        tone="warning"
+                      />
+                      <MetricCard label="Услуг в сводке" value={chartServices.length} tone="accent" />
+                      <MetricCard
+                        label="Воронка"
+                        value={
+                          live
+                            ? servicesQuery.data.pipeline_name
+                            : (snapshotQuery.data?.pipeline_name ?? servicesQuery.data.pipeline_name)
+                        }
+                        tone="neutral"
+                        hint={
+                          live
+                            ? `${servicesQuery.data.date_from ?? ""} → ${servicesQuery.data.date_to ?? ""}`
+                            : (snapshotQuery.data?.year_month ??
+                                snapshotQuery.data?.period_start ??
+                                "снимок")
+                        }
+                      />
+                    </div>
+                  </>
+                );
+              })()}
 
               {servicesLiveEmpty ? (
                 <p className="analytics-hint">
@@ -652,8 +683,8 @@ export function AnalyticsPage() {
 
               <AnalyticsPanel title="По услугам">
                 <p className="analytics-panel-note">
-                  Визиты записи + Курс/Протокол только из KPI (записи пакетов не считаем). Дебиторка
-                  курсов — как во вкладке KPI (через месяц после первой оплаты).
+                  Вся выручка: визиты записи + Курс/Протокол из KPI + доп. услуги (и стол). Визиты
+                  пакетов Курс/Протокол в запись не считаем. Дебиторка курсов — как в KPI.
                 </p>
                 <AnalyticsTable minWidth={1100}>
                   <thead>
@@ -685,6 +716,8 @@ export function AnalyticsPage() {
                               <span className="ml-1.5 text-xs font-normal mo-muted">KPI</span>
                             ) : s.money_source === "mixed" ? (
                               <span className="ml-1.5 text-xs font-normal mo-muted">запись+KPI</span>
+                            ) : s.money_source === "extra" ? (
+                              <span className="ml-1.5 text-xs font-normal mo-muted">доп.</span>
                             ) : null}
                           </td>
                           <td className="py-2.5 pr-3 tabular-nums">{s.appointments_total}</td>

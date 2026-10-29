@@ -17,8 +17,11 @@ from app.models import (
     BookingSpecialist,
     ChatMessage,
     ChatThread,
+    ExtraServiceSale,
+    ExtraServiceType,
     Lead,
     LeadAuditEvent,
+    ManagerDeskSale,
     Pipeline,
     PipelineStage,
     SalesKpiManualSale,
@@ -1546,7 +1549,7 @@ async def analytics_services(
     date_to: str | None = Query(default=None),
     pipeline_id: int = Query(..., ge=1),
 ) -> ServicesAnalyticsRead:
-    """Аналитика по услугам: визиты записи + Курс/Протокол только из KPI (без визитов записи)."""
+    """Вся выручка: визиты + KPI курсы/протоколы + доп. услуги (и стол продаж)."""
     _assert_owner(current_user)
     pipe = await db.get(Pipeline, pipeline_id)
     if pipe is None or pipe.company_id != company_id:
@@ -1854,7 +1857,93 @@ async def analytics_services(
             }
             next_kpi_key -= 1
 
-    revenue_total = revenue_total + kpi_course_paid_total
+    booking_paid_total = revenue_total
+
+    # Доп. услуги (журнал) — по компании за период; в таблицу отдельными строками.
+    extra_type_rows = (
+        await db.execute(
+            select(
+                ExtraServiceType.name,
+                func.coalesce(func.sum(ExtraServiceSale.amount), 0),
+            )
+            .join(ExtraServiceType, ExtraServiceType.id == ExtraServiceSale.service_type_id)
+            .where(
+                ExtraServiceSale.company_id == company_id,
+                ExtraServiceSale.status == "active",
+                ExtraServiceSale.sold_at >= start,
+                ExtraServiceSale.sold_at < end,
+            )
+            .group_by(ExtraServiceType.name),
+        )
+    ).all()
+    extra_paid_total = Decimal("0")
+    for raw_name, amount_raw in extra_type_rows:
+        paid = Decimal(str(amount_raw or 0))
+        if paid <= 0:
+            continue
+        extra_paid_total += paid
+        name = str(raw_name or "").strip() or "Доп. услуга"
+        service_acc[next_kpi_key] = {
+            "direction_id": None,
+            "direction_name": name,
+            "money_source": "extra",
+            "appointments_total": 0,
+            "appeared_count": 0,
+            "no_show_count": 0,
+            "booked_count": 0,
+            "cancelled_count": 0,
+            "revenue_paid": paid,
+            "paid_full_amount": paid,
+            "paid_no_show_amount": Decimal("0"),
+            "debtor_amount": Decimal("0"),
+            "creditor_amount": Decimal("0"),
+        }
+        next_kpi_key -= 1
+
+    # Стол менеджера (crm_mode=sales): оплаты за период по воронке.
+    desk_q = (
+        select(
+            ManagerDeskSale.activity_sphere,
+            func.coalesce(func.sum(ManagerDeskSale.paid_amount), 0),
+        )
+        .where(
+            ManagerDeskSale.company_id == company_id,
+            ManagerDeskSale.status == "active",
+            ManagerDeskSale.sold_at >= start,
+            ManagerDeskSale.sold_at < end,
+            ManagerDeskSale.paid_amount > 0,
+            or_(
+                ManagerDeskSale.pipeline_id == pipeline_id,
+                ManagerDeskSale.pipeline_id.is_(None),
+            ),
+        )
+        .group_by(ManagerDeskSale.activity_sphere)
+    )
+    for raw_sphere, amount_raw in (await db.execute(desk_q)).all():
+        paid = Decimal(str(amount_raw or 0))
+        if paid <= 0:
+            continue
+        extra_paid_total += paid
+        sphere = str(raw_sphere or "").strip()
+        name = f"Стол · {sphere}" if sphere else "Продажи стола"
+        service_acc[next_kpi_key] = {
+            "direction_id": None,
+            "direction_name": name,
+            "money_source": "extra",
+            "appointments_total": 0,
+            "appeared_count": 0,
+            "no_show_count": 0,
+            "booked_count": 0,
+            "cancelled_count": 0,
+            "revenue_paid": paid,
+            "paid_full_amount": paid,
+            "paid_no_show_amount": Decimal("0"),
+            "debtor_amount": Decimal("0"),
+            "creditor_amount": Decimal("0"),
+        }
+        next_kpi_key -= 1
+
+    revenue_total = booking_paid_total + kpi_course_paid_total + extra_paid_total
     debtor_total = debtor_total + sum(
         (Decimal(str(amount or 0)) for _, amount in kpi_debt_rows),
         Decimal("0"),
@@ -1943,7 +2032,9 @@ async def analytics_services(
         revenue_total=revenue_total,
         debtor_total=debtor_total,
         creditor_total=creditor_total,
+        booking_paid_total=booking_paid_total,
         kpi_course_paid_total=kpi_course_paid_total,
+        extra_paid_total=extra_paid_total,
         service_stats=service_stats,
         expert_stats=expert_stats,
     )
