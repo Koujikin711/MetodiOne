@@ -22,6 +22,7 @@ from app.models import (
     BookingDirection,
     BookingSpecialist,
     DebtorCollectionNote,
+    DebtorDismissal,
     SystemAuditEvent,
     FinanceOsvRow,
     Lead,
@@ -58,6 +59,8 @@ from app.schemas.sales_kpi import (
     SalesKpiCompanyServiceStat,
     SalesKpiReferralDoctorRow,
     SalesKpiReferralServiceCell,
+    SalesKpiDebtorCorrectIn,
+    SalesKpiDebtorDismissIn,
     SalesKpiDebtorNoteOut,
     SalesKpiDebtorNotePut,
     SalesKpiDebtorPayment,
@@ -3072,6 +3075,7 @@ async def debtors_report(
 
     if debtors_course_protocol_only(current_user.role) or expert_also_curator(current_user):
         rows_out = [r for r in rows_out if is_course_or_protocol_indicator(r.indicator_name)]
+    rows_out = await _exclude_dismissed_debtors(db, company_id, rows_out)
     rows_out = await _attach_collection_notes(db, company_id, rows_out)
     total = sum((r.debt_amount for r in rows_out), Decimal("0"))
     return SalesKpiDebtorsReport(
@@ -3081,6 +3085,30 @@ async def debtors_report(
         rows=rows_out,
         total_debt=total,
     )
+
+
+async def _exclude_dismissed_debtors(
+    db: AsyncSession,
+    company_id: int,
+    rows: list[SalesKpiDebtorRow],
+) -> list[SalesKpiDebtorRow]:
+    if not rows:
+        return rows
+    sources = {r.source for r in rows}
+    ids = {int(r.source_id) for r in rows}
+    dismissed = (
+        await db.execute(
+            select(DebtorDismissal.source, DebtorDismissal.source_id).where(
+                DebtorDismissal.company_id == company_id,
+                DebtorDismissal.source.in_(sources),
+                DebtorDismissal.source_id.in_(ids),
+            ),
+        )
+    ).all()
+    skip = {(str(s), int(sid)) for s, sid in dismissed}
+    if not skip:
+        return rows
+    return [r for r in rows if (r.source, int(r.source_id)) not in skip]
 
 
 async def _attach_collection_notes(
@@ -3177,6 +3205,121 @@ async def save_debtor_note(
         promised_on=body.promised_on,
         promise_overdue=promise_is_overdue(body.promised_on, today),
     )
+
+
+@router.post("/debtors/dismiss", status_code=status.HTTP_204_NO_CONTENT)
+async def dismiss_debtor_row(
+    body: SalesKpiDebtorDismissIn,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> None:
+    """Владелец снимает ложный долг со списка. Запись/продажа KPI не удаляются."""
+    _assert_company_owner(current_user)
+    if not await _debtor_source_in_company(db, company_id, body.source, body.source_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Долг не найден")
+    reason = " ".join((body.reason or "").split())
+    existing = (
+        await db.execute(
+            select(DebtorDismissal).where(
+                DebtorDismissal.company_id == company_id,
+                DebtorDismissal.source == body.source,
+                DebtorDismissal.source_id == body.source_id,
+            ),
+        )
+    ).scalar_one_or_none()
+    if existing is None:
+        db.add(
+            DebtorDismissal(
+                company_id=company_id,
+                source=body.source,
+                source_id=body.source_id,
+                reason=reason,
+                dismissed_by_user_id=int(current_user.id),
+                dismissed_at=datetime.now(UTC),
+            ),
+        )
+    else:
+        existing.reason = reason
+        existing.dismissed_by_user_id = int(current_user.id)
+        existing.dismissed_at = datetime.now(UTC)
+    from app.services.audit import write_audit_event
+
+    await write_audit_event(
+        db,
+        entity_type="debtor",
+        entity_id=int(body.source_id),
+        action="dismissed",
+        current_user=current_user,
+        details=f"source={body.source}; reason={reason!r}",
+    )
+    await db.commit()
+
+
+@router.patch("/debtors/correct", status_code=status.HTTP_204_NO_CONTENT)
+async def correct_debtor_amounts(
+    body: SalesKpiDebtorCorrectIn,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> None:
+    """Владелец правит цену и/или оплату — чтобы убрать ошибочный долг."""
+    _assert_company_owner(current_user)
+    if body.service_amount is None and body.paid_amount is None:
+        raise HTTPException(status_code=400, detail="Укажите цену или оплату")
+    reason = " ".join((body.reason or "").split())
+    if body.source == "manual":
+        sale = await db.get(SalesKpiManualSale, body.source_id)
+        if sale is None or int(sale.company_id) != company_id:
+            raise HTTPException(status_code=404, detail="Продажа не найдена")
+        if sale.status == "returned":
+            raise HTTPException(status_code=400, detail="По возвращённой продаже не правят")
+        before_sa = Decimal(str(sale.service_amount or 0))
+        before_pa = Decimal(str(sale.paid_amount or 0))
+        if body.service_amount is not None:
+            sale.service_amount = Decimal(str(body.service_amount)).quantize(Decimal("0.01"))
+        if body.paid_amount is not None:
+            new_paid = Decimal(str(body.paid_amount)).quantize(Decimal("0.01"))
+            price = Decimal(str(sale.service_amount or 0)).quantize(Decimal("0.01"))
+            if price > 0 and new_paid > price:
+                raise HTTPException(status_code=400, detail="Оплата не может быть больше цены")
+            # Только итог на карточке: журнал не трогаем (разово для дебиторки).
+            sale.paid_amount = new_paid
+        after_sa = Decimal(str(sale.service_amount or 0))
+        after_pa = Decimal(str(sale.paid_amount or 0))
+        entity = "manual_sale"
+    elif body.source == "booking":
+        appt = await db.get(BookingAppointment, body.source_id)
+        if appt is None or int(appt.company_id) != company_id:
+            raise HTTPException(status_code=404, detail="Запись не найдена")
+        before_sa = Decimal(str(appt.service_amount or 0))
+        before_pa = Decimal(str(appt.paid_amount or 0))
+        if body.service_amount is not None:
+            appt.service_amount = Decimal(str(body.service_amount)).quantize(Decimal("0.01"))
+        if body.paid_amount is not None:
+            new_paid = Decimal(str(body.paid_amount)).quantize(Decimal("0.01"))
+            price = Decimal(str(appt.service_amount or 0)).quantize(Decimal("0.01"))
+            if price > 0 and new_paid > price:
+                raise HTTPException(status_code=400, detail="Оплата не может быть больше цены")
+            appt.paid_amount = new_paid
+        after_sa = Decimal(str(appt.service_amount or 0))
+        after_pa = Decimal(str(appt.paid_amount or 0))
+        entity = "booking"
+    else:
+        raise HTTPException(status_code=400, detail="Неизвестный источник")
+    from app.services.audit import write_audit_event
+
+    await write_audit_event(
+        db,
+        entity_type=entity,
+        entity_id=int(body.source_id),
+        action="debtor_correct",
+        current_user=current_user,
+        details=(
+            f"service {before_sa}→{after_sa}; paid {before_pa}→{after_pa}; reason={reason!r}"
+        ),
+    )
+    await db.commit()
 
 
 @router.get("/company-month-compare", response_model=SalesKpiMonthCompare)

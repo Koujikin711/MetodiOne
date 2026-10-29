@@ -648,6 +648,109 @@ function DebtorNoteFields({
   );
 }
 
+/** Только владелец: исправить цену/оплату или снять ложный долг со списка. */
+function DebtorOwnerTools({
+  serviceAmount,
+  paidAmount,
+  pending,
+  onCorrect,
+  onDismiss,
+}: {
+  serviceAmount: number;
+  paidAmount: number;
+  pending: boolean;
+  onCorrect: (body: { service_amount: number; paid_amount: number; reason: string }) => void;
+  onDismiss: (reason: string) => void;
+}) {
+  const [price, setPrice] = useState(String(serviceAmount));
+  const [paid, setPaid] = useState(String(paidAmount));
+  const [reason, setReason] = useState("");
+  useEffect(() => {
+    setPrice(String(serviceAmount));
+    setPaid(String(paidAmount));
+  }, [serviceAmount, paidAmount]);
+  const priceN = Number(String(price).replace(",", "."));
+  const paidN = Number(String(paid).replace(",", "."));
+  const reasonOk = reason.trim().length >= 3;
+  const amountsOk =
+    Number.isFinite(priceN) &&
+    priceN >= 0 &&
+    Number.isFinite(paidN) &&
+    paidN >= 0 &&
+    (priceN <= 0 || paidN <= priceN + 0.001);
+  return (
+    <div className="mt-2 space-y-2 rounded-xl border border-dashed border-[var(--mo-border)] p-2.5">
+      <p className="text-[11px] font-semibold text-[var(--mo-text)]">Владелец · правка / снять</p>
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="flex flex-col gap-1 text-[11px] mo-muted">
+          Цена
+          <input
+            type="number"
+            min={0}
+            inputMode="decimal"
+            className="mo-input w-24 !min-h-9 text-sm"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            aria-label="Цена долга"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-[11px] mo-muted">
+          Оплачено
+          <input
+            type="number"
+            min={0}
+            inputMode="decimal"
+            className="mo-input w-24 !min-h-9 text-sm"
+            value={paid}
+            onChange={(e) => setPaid(e.target.value)}
+            aria-label="Оплачено по долгу"
+          />
+        </label>
+        <label className="flex min-w-[10rem] flex-1 flex-col gap-1 text-[11px] mo-muted">
+          Причина
+          <input
+            className="mo-input !min-h-9 text-sm"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Почему правим / снимаем"
+            aria-label="Причина правки дебиторки"
+          />
+        </label>
+        <button
+          type="button"
+          className="btn-secondary min-h-9 px-3 text-sm disabled:opacity-50"
+          disabled={pending || !reasonOk || !amountsOk}
+          onClick={() => {
+            if (!reasonOk || !amountsOk) return;
+            onCorrect({
+              service_amount: priceN,
+              paid_amount: paidN,
+              reason: reason.trim(),
+            });
+          }}
+        >
+          Сохранить
+        </button>
+        <button
+          type="button"
+          className="btn-secondary min-h-9 px-3 text-sm text-red-300 disabled:opacity-50"
+          disabled={pending || !reasonOk}
+          onClick={() => {
+            if (!reasonOk) return;
+            if (!window.confirm("Снять эту строку с дебиторки? Запись/продажа не удалятся.")) return;
+            onDismiss(reason.trim());
+          }}
+        >
+          Снять с дебиторки
+        </button>
+      </div>
+      <p className="text-[10px] mo-muted">
+        «Снять» только убирает из списка долгов. «Сохранить» меняет цену/оплату на карточке.
+      </p>
+    </div>
+  );
+}
+
 export function KpiPage() {
   const queryClient = useQueryClient();
   const role = decodeRoleFromToken(getStoredToken());
@@ -881,6 +984,39 @@ export function KpiPage() {
     },
     onSuccess: () => {
       toast.success("Оплата принята");
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-debtors"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-manual-sales"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const debtorDismissMutation = useMutation({
+    mutationFn: (body: { source: "booking" | "manual"; source_id: number; reason: string }) =>
+      apiFetch("/api/sales-kpi/debtors/dismiss", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      toast.success("Снято с дебиторки");
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-debtors"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const debtorCorrectMutation = useMutation({
+    mutationFn: (body: {
+      source: "booking" | "manual";
+      source_id: number;
+      service_amount: number;
+      paid_amount: number;
+      reason: string;
+    }) =>
+      apiFetch("/api/sales-kpi/debtors/correct", {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      toast.success("Суммы исправлены");
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-debtors"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-manual-sales"] });
     },
@@ -1375,7 +1511,7 @@ export function KpiPage() {
             </button>
           );
         })}
-      </div>
+          </div>
 
       {tab === "plan" && isOwner ? (
         <section className="mo-section space-y-3 p-3 sm:space-y-4 sm:p-4">
@@ -1546,8 +1682,8 @@ export function KpiPage() {
               >
                 Журнал платежей
               </button>
-            )}
-          </div>
+      )}
+    </div>
 
           {saleFormOpen && manualPlanItems.length === 0 ? (
             <p className="text-sm text-amber-700 dark:text-amber-200">
@@ -1795,7 +1931,7 @@ export function KpiPage() {
                       </ul>
                       <div className="hidden overflow-x-auto sm:block">
                         <table className="kpi-data-table min-w-[760px] text-sm">
-                          <thead>
+        <thead>
                             <tr>
                               <th>Дата</th>
                               <th>Клиент</th>
@@ -2005,9 +2141,9 @@ export function KpiPage() {
                   <th className="px-3 py-2 font-medium">Оплачено</th>
                   <th className="px-3 py-2 font-medium">Долг</th>
                   <th className="print-omit px-3 py-2 font-medium">Оплата</th>
-                </tr>
-              </thead>
-              <tbody>
+          </tr>
+        </thead>
+        <tbody>
                 {filteredManualSales.map((s) => (
                   <tr key={s.id} className="border-b border-[var(--mo-border)]">
                     <td className="whitespace-nowrap px-3 py-2 tabular-nums">
@@ -2033,7 +2169,7 @@ export function KpiPage() {
                       ) : (
                         groupLabel(s.group_no)
                       )}
-                    </td>
+              </td>
                     <td className="px-3 py-2">
                       {isAdminOrOwner ? (
                         <SaleManagerCell
@@ -2112,7 +2248,7 @@ export function KpiPage() {
                         />
                       </div>
                     </td>
-                  </tr>
+          </tr>
                 ))}
               </tbody>
             </table>
@@ -2141,7 +2277,8 @@ export function KpiPage() {
               </p>
               <p className="mt-1 hidden text-sm lux-caption sm:block">
                 Оплату по долгу принимает админ. Комментарий и дата «обещал оплатить» пишет куратор.
-                Красным — только если эта дата уже прошла. Сверху те, кому звонить сегодня.
+                Владелец может исправить цену/оплату или снять ложный долг со списка. Красным — если
+                дата обещания уже прошла. Сверху те, кому звонить сегодня.
               </p>
             </div>
             <p className="text-xs mo-muted sm:text-sm">
@@ -2191,7 +2328,7 @@ export function KpiPage() {
                   promised_on: promisedOn,
                 });
               };
-              return (
+                return (
                 <li
                   key={key}
                   className={[
@@ -2319,7 +2456,28 @@ export function KpiPage() {
                         onApply={(body) => adjustPaidMutation.mutate({ id: r.source_id, ...body })}
                       />
                     ) : null}
-                  </div>
+                    {isCompanyOwner ? (
+                      <DebtorOwnerTools
+                        serviceAmount={num(r.service_amount)}
+                        paidAmount={num(r.paid_amount)}
+                        pending={debtorDismissMutation.isPending || debtorCorrectMutation.isPending}
+                        onCorrect={(body) =>
+                          debtorCorrectMutation.mutate({
+                            source: r.source === "booking" ? "booking" : "manual",
+                            source_id: r.source_id,
+                            ...body,
+                          })
+                        }
+                        onDismiss={(reason) =>
+                          debtorDismissMutation.mutate({
+                            source: r.source === "booking" ? "booking" : "manual",
+                            source_id: r.source_id,
+                            reason,
+                          })
+                        }
+                      />
+                    ) : null}
+                      </div>
                 </li>
               );
             })}
@@ -2444,14 +2602,37 @@ export function KpiPage() {
                                 }
                               />
                             ) : null}
-                          </div>
-                        </div>
-                      </td>
+                            {isCompanyOwner ? (
+                              <DebtorOwnerTools
+                                serviceAmount={num(r.service_amount)}
+                                paidAmount={num(r.paid_amount)}
+                                pending={
+                                  debtorDismissMutation.isPending || debtorCorrectMutation.isPending
+                                }
+                                onCorrect={(body) =>
+                                  debtorCorrectMutation.mutate({
+                                    source: r.source === "booking" ? "booking" : "manual",
+                                    source_id: r.source_id,
+                                    ...body,
+                                  })
+                                }
+                                onDismiss={(reason) =>
+                                  debtorDismissMutation.mutate({
+                                    source: r.source === "booking" ? "booking" : "manual",
+                                    source_id: r.source_id,
+                                    reason,
+                                  })
+                                }
+                              />
+                            ) : null}
+                      </div>
+                    </div>
+                  </td>
                     </tr>
                   ) : null}
                   </Fragment>
-                  );
-                })}
+                );
+              })}
               </tbody>
               <tfoot className="debtors-print-total">
                 <tr>
@@ -2459,7 +2640,7 @@ export function KpiPage() {
                   <td>{formatMoney(debtorCourseTotal)}</td>
                   <td />
                   <td>{formatMoney(debtorPriceTotal)}</td>
-                </tr>
+            </tr>
               </tfoot>
             </table>
           </div>
@@ -2659,8 +2840,8 @@ function SalesReportSection({
                       <td colSpan={2} />
                       <td className="font-semibold kpi-actual-value">{formatMoney(num(m.total_earning))}</td>
                     </tr>
-                  </tbody>
-                </table>
+        </tbody>
+      </table>
               </div>
             </>
           )}
@@ -2797,7 +2978,7 @@ function CompanyReportSection({
   hideBookingExperts?: boolean;
 }) {
   if (loading) {
-    return (
+  return (
       <p className="text-sm lux-caption">
         Загрузка отчёта компании… Считаем записи и продажи за месяц — обычно 5–20 сек.
       </p>
@@ -2956,9 +3137,9 @@ function CompanyReportSection({
         {data.plan_lines.length === 0 ? (
           <p className="text-sm lux-caption">План на месяц не задан.</p>
         ) : (
-          <div className="overflow-x-auto">
+    <div className="overflow-x-auto">
             <table className="kpi-data-table min-w-[800px] text-sm">
-              <thead>
+        <thead>
                 <tr>
                   <th className="py-2 pr-3">Продукт</th>
                   <th className="py-2 pr-3">План</th>
@@ -3005,7 +3186,7 @@ function CompanyReportSection({
           <table className="kpi-data-table min-w-[1100px] text-sm">
             <thead>
               <tr>
-                <th className="py-2 pr-3">Услуга</th>
+            <th className="py-2 pr-3">Услуга</th>
                 <th className="py-2 pr-3">Записей</th>
                 <th className="py-2 pr-3">Явились</th>
                 <th className="py-2 pr-3">Не явились</th>
@@ -3018,9 +3199,9 @@ function CompanyReportSection({
                   Всего оплат
                 </th>
                 <th className="py-2 pr-3">Дебиторка</th>
-              </tr>
-            </thead>
-            <tbody>
+          </tr>
+        </thead>
+        <tbody>
               {(data.service_stats ?? []).map((s) => (
                 <tr key={s.direction_id ?? s.direction_name}>
                   <td className="py-2 pr-3 font-medium">{s.direction_name}</td>
@@ -3032,8 +3213,8 @@ function CompanyReportSection({
                   <td className="py-2 pr-3">{formatMoney(s.paid_no_show_amount ?? 0)}</td>
                   <td className="py-2 pr-3">{formatMoney(s.revenue_paid)}</td>
                   <td className="py-2 pr-3">{formatMoney(s.debtor_amount ?? 0)}</td>
-                </tr>
-              ))}
+            </tr>
+          ))}
               {(data.service_stats ?? []).length === 0 ? (
                 <tr>
                   <td colSpan={9} className="py-3 mo-muted">
@@ -3132,10 +3313,10 @@ function CompanyReportSection({
                 </tr>
               ) : (
                 <tr className="kpi-matrix-row-highlight">
-                  <td className="py-2 pr-3 font-semibold">Итого</td>
+            <td className="py-2 pr-3 font-semibold">Итого</td>
                   <td className="py-2 pr-3 font-semibold tabular-nums">
                     {(data.referral_rows ?? []).reduce((sum, row) => sum + row.osteopath.count, 0)}
-                  </td>
+            </td>
                   <td className="py-2 pr-3 font-semibold tabular-nums">
                     {(data.referral_rows ?? []).reduce((sum, row) => sum + row.tms.count, 0)}
                   </td>
@@ -3149,11 +3330,11 @@ function CompanyReportSection({
                     {formatMoney(
                       (data.referral_rows ?? []).reduce((sum, row) => sum + num(row.accrual_total), 0),
                     )}
-                  </td>
-                </tr>
+            </td>
+          </tr>
               )}
-            </tbody>
-          </table>
+        </tbody>
+      </table>
         </div>
       </section>
       </>
