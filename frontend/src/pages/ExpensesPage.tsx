@@ -534,7 +534,14 @@ function ExpenseEditForm({
         </label>
         <label className="text-[11px] text-[var(--mo-text-muted)]">
           Сумма
-          <input className="mo-input mt-1" inputMode="decimal" value={draft.expense} onChange={(e) => set({ expense: e.target.value })} />
+          <input
+            className="mo-input mt-1"
+            inputMode="decimal"
+            value={draft.expense}
+            onChange={(e) => set({ expense: e.target.value })}
+            title="Плюс — расход; минус — возврат / Поступления"
+          />
+          <span className="mt-0.5 block text-[10px] mo-muted">Минус = возврат (задумано)</span>
         </label>
         <label className="text-[11px] text-[var(--mo-text-muted)]">
           Банк

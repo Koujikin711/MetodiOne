@@ -169,7 +169,8 @@ class FinancePayrollReport(BaseModel):
 
 class FinanceExpenseCreate(BaseModel):
     txn_date: date
-    expense: Decimal = Field(..., gt=0)
+    # Плюс = расход; минус = возврат / Поступления (как из онлайн-записи).
+    expense: Decimal = Field(..., ne=0)
     bank: str | None = Field(default=None, max_length=64)
     basis: str | None = Field(default=None, max_length=255)
     counterparty: str | None = Field(default=None, max_length=255)

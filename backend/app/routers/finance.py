@@ -66,7 +66,7 @@ def _owner_confirms_expenses(user) -> bool:
 
 
 def _expense_waits_for_owner(amount: Decimal, user) -> bool:
-    return amount > OWNER_EXPENSE_CONFIRM_FROM and not _owner_confirms_expenses(user)
+    return abs(amount) > OWNER_EXPENSE_CONFIRM_FROM and not _owner_confirms_expenses(user)
 
 
 _PAY_ROLES = frozenset(
@@ -842,7 +842,7 @@ async def update_expense(
     row.brief_category = _clean(body.brief_category) or "Расход"
     row.employee_user_id = body.employee_user_id
     if body.counts:
-        if amount > OWNER_EXPENSE_CONFIRM_FROM:
+        if abs(amount) > OWNER_EXPENSE_CONFIRM_FROM:
             row.expense_confirm = "confirmed"
             row.expense_confirmed_by_user_id = int(current_user.id)
         else:

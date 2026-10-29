@@ -77,6 +77,32 @@ function paymentMethodLabel(method: string | null | undefined): string {
   return PAYMENT_METHOD_OPTIONS.find((o) => o.value === method)?.label ?? method;
 }
 
+/** Спросить сумму возврата (не больше оплаченного). null = отмена. */
+function askRefundAmount(paid: number, patientName: string): number | null {
+  const raw = window.prompt(
+    `Сколько вернуть для ${patientName}?\nОплачено: ${formatMoney(paid)}\nВведите сумму возврата:`,
+    String(paid),
+  );
+  if (raw == null) return null;
+  const amount = Number(String(raw).replace(",", ".").replace(/\s/g, ""));
+  if (!Number.isFinite(amount) || amount <= 0) {
+    toast.error("Укажите сумму возврата больше 0");
+    return null;
+  }
+  if (amount > paid + 1e-9) {
+    toast.error(`Не больше оплаченного (${formatMoney(paid)})`);
+    return null;
+  }
+  if (
+    !window.confirm(
+      `Вернуть ${formatMoney(amount)} из ${formatMoney(paid)}?\nВ «Расходы» появится −${formatMoney(amount)} (Поступления).`,
+    )
+  ) {
+    return null;
+  }
+  return amount;
+}
+
 function formatJournalDateShort(ymd: string): string {
   const [y, m, d] = ymd.split("-").map(Number);
   if (!y || !m || !d) return ymd;
@@ -2116,16 +2142,11 @@ export function OnlineBookingPage() {
                                         disabled={refundAppointmentMutation.isPending}
                                         onClick={() => {
                                           const paid = Number(v.paid_amount) || 0;
-                                          if (
-                                            !window.confirm(
-                                              `Оформить возврат ${formatMoney(paid)} для ${item.patient_name}? В «Расходы» появится −${formatMoney(paid)} (Поступления).`,
-                                            )
-                                          ) {
-                                            return;
-                                          }
+                                          const amount = askRefundAmount(paid, item.patient_name);
+                                          if (amount == null) return;
                                           refundAppointmentMutation.mutate({
                                             id: v.appointment_id,
-                                            amount: paid,
+                                            amount,
                                           });
                                         }}
                                       >
@@ -2264,14 +2285,9 @@ export function OnlineBookingPage() {
                               title="Возврат → Расходы (−сумма, Поступления)"
                               onClick={() => {
                                 const paid = Number(a.paid_amount) || 0;
-                                if (
-                                  !window.confirm(
-                                    `Оформить возврат ${formatMoney(paid)} для ${a.patient_name}? В «Расходы» появится −${formatMoney(paid)} (Поступления).`,
-                                  )
-                                ) {
-                                  return;
-                                }
-                                refundAppointmentMutation.mutate({ id: a.id, amount: paid });
+                                const amount = askRefundAmount(paid, a.patient_name);
+                                if (amount == null) return;
+                                refundAppointmentMutation.mutate({ id: a.id, amount });
                               }}
                             >
                               Возврат
@@ -2583,20 +2599,18 @@ export function OnlineBookingPage() {
                   disabled={refundAppointmentMutation.isPending}
                   onClick={() => {
                     const paid = Number(apptDetail.paid_amount) || 0;
-                    if (
-                      !window.confirm(
-                        `Оформить возврат ${formatMoney(paid)} для ${apptDetail.patient_name}? В «Расходы» появится −${formatMoney(paid)} (Поступления).`,
-                      )
-                    ) {
-                      return;
-                    }
+                    const amount = askRefundAmount(paid, apptDetail.patient_name);
+                    if (amount == null) return;
                     refundAppointmentMutation.mutate(
-                      { id: apptDetail.id, amount: paid },
+                      { id: apptDetail.id, amount },
                       {
                         onSuccess: () => {
                           setApptDetail((prev) =>
                             prev && prev.id === apptDetail.id
-                              ? { ...prev, paid_amount: 0 }
+                              ? {
+                                  ...prev,
+                                  paid_amount: Math.max(0, paid - amount),
+                                }
                               : prev,
                           );
                         },
