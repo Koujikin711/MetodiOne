@@ -72,6 +72,7 @@ def test_kpi_owner_prefers_opened_not_new_lead_manager():
 
 def test_excluded_patients_hidden_from_brought():
     assert kpi_client_excluded_from_brought("Абдулхайзода Румайсо")
+    assert kpi_client_excluded_from_brought("Аминзода Самира")
     assert kpi_client_excluded_from_brought("Содирбекзода Юсуф")
     assert kpi_client_excluded_from_brought("Чаборзода Мухамад Искандар")
     assert kpi_client_excluded_from_brought("Норматзода Эмомали")
