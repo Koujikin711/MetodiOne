@@ -53,6 +53,7 @@ from app.database_migrate import (
     ensure_user_last_seen_at,
     ensure_user_presence_days,
     ensure_debtor_collection_notes,
+    ensure_debtor_dismissals,
     ensure_protocol_followups,
     ensure_user_also_curator,
     ensure_user_also_expert,
@@ -188,6 +189,7 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_user_last_seen_at(conn, db_url)
                 await ensure_user_presence_days(conn, db_url)
                 await ensure_debtor_collection_notes(conn, db_url)
+                await ensure_debtor_dismissals(conn, db_url)
                 await ensure_protocol_followups(conn, db_url)
                 await ensure_user_pay_profile(conn, db_url)
                 await ensure_user_also_curator(conn, db_url)
@@ -622,6 +624,7 @@ async def lifespan(_: FastAPI):
         async with engine.connect() as conn:
             await ensure_user_presence_days(conn, settings.database_url)
             await ensure_debtor_collection_notes(conn, settings.database_url)
+            await ensure_debtor_dismissals(conn, settings.database_url)
             await ensure_protocol_followups(conn, settings.database_url)
             await ensure_user_pay_profile(conn, settings.database_url)
             await ensure_user_also_curator(conn, settings.database_url)
