@@ -1382,17 +1382,30 @@ async def _service_earning_detail(
                 else:
                     brought_amt = paid if is_full_payment(price, paid) else Decimal("0.00")
 
-            # Доплата месяца с зачётом 0 всё равно показываем (сумма в колонке, в оплату менеджеру нет).
+            # Неполная / ниже мин. — в списке показываем, в Привёл не кладём.
             if not is_new and brought_amt <= 0 and month_paid_amt <= 0:
                 continue
             if is_new and brought_amt <= 0 and month_paid_amt <= 0 and paid <= 0:
                 continue
             if is_new:
-                note = "открыт в месяце" if brought_amt > 0 else "ниже мин. — показано, не в оплату"
+                if brought_amt > 0:
+                    note = "открыт в месяце"
+                elif is_main_course_product(item.name):
+                    note = "ниже мин. — показано, не в оплату"
+                elif protocol_brought_waits_for_full_price(item.name):
+                    note = "неполная — показано, не в оплату"
+                else:
+                    note = "неполная — показано, не в оплату"
             elif brought_amt > 0 and protocol_brought_waits_for_full_price(item.name) and brought_amt > month_paid_amt:
                 note = "закрытие цены · вся накопленная сумма"
             elif brought_amt > 0:
                 note = "этап / доплата в месяце"
+            elif protocol_brought_waits_for_full_price(item.name) or is_main_course_product(item.name):
+                note = (
+                    "ниже мин. — показано, не в оплату"
+                    if is_main_course_product(item.name)
+                    else "неполная — показано, не в оплату"
+                )
             else:
                 note = "показано, не в оплату менеджеру"
             rows.append(
@@ -1481,6 +1494,13 @@ async def _service_earning_detail(
             else:
                 # Курс 15 / протокол / прочее: в Привёл только полная оплата
                 brought_amt = paid if is_full_payment(price, paid) else Decimal("0.00")
+            # Неполная видна в списке (серым), в Привёл / % не входит.
+            if brought_amt > 0:
+                note = str(dname or "запись")
+            elif is_main_course_product(item.name):
+                note = "ниже мин. — показано, не в оплату"
+            else:
+                note = "неполная — показано, не в оплату"
             rows.append(
                 SalesKpiEarningDetailRow(
                     source="booking",
@@ -1494,11 +1514,18 @@ async def _service_earning_detail(
                     brought_amount=brought_amt.quantize(Decimal("0.01")),
                     month_paid_amount=paid.quantize(Decimal("0.01")),
                     is_new=is_new,
-                    note=str(dname or ""),
+                    note=note,
                 ),
             )
 
-    rows.sort(key=lambda r: (r.sold_at is None, -(r.sold_at.timestamp() if r.sold_at else 0)))
+    # Сначала зачтённые в Привёл, потом неполные «не в оплату»; внутри — по дате.
+    rows.sort(
+        key=lambda r: (
+            0 if r.in_brought else 1,
+            r.sold_at is None,
+            -(r.sold_at.timestamp() if r.sold_at else 0),
+        ),
+    )
     rows_brought = sum((r.brought_amount for r in rows), Decimal("0")).quantize(Decimal("0.01"))
     return SalesKpiEarningDetailOut(
         pipeline_id=pipeline_id,
