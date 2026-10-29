@@ -340,18 +340,9 @@ export function MarketingPage() {
               />
             </label>
           </div>
-          <div className="marketing-connect-footer">
-            <p className="marketing-connect-footer__hint">
-              Сохраним настройки и сразу проверим доступ к Meta Ads.
-            </p>
-            <button
-              type="submit"
-              className="marketing-connect-submit"
-              disabled={saveMutation.isPending}
-            >
-              {saveMutation.isPending ? "Проверяем Meta…" : "Сохранить"}
-            </button>
-          </div>
+          <button type="submit" className="btn-primary" disabled={saveMutation.isPending}>
+            {saveMutation.isPending ? "Проверка…" : "Сохранить и проверить"}
+          </button>
         </form>
       )}
 

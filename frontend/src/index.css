@@ -6768,68 +6768,6 @@ fieldset.extra-services-field {
   }
 }
 
-.marketing-connect-footer {
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
-  margin-top: 0.25rem;
-  padding-top: 0.85rem;
-  border-top: 1px solid var(--mo-border);
-}
-
-.marketing-connect-footer__hint {
-  margin: 0;
-  font-size: 0.8rem;
-  line-height: 1.4;
-  color: var(--mo-text-muted);
-}
-
-.marketing-connect-submit {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 2.75rem;
-  width: 100%;
-  max-width: 18rem;
-  padding: 0.7rem 1.25rem;
-  border-radius: 0.85rem;
-  border: 1px solid color-mix(in srgb, var(--mo-accent) 55%, #0f172a);
-  background: var(--mo-accent);
-  color: #fff;
-  font-size: 0.95rem;
-  font-weight: 650;
-  letter-spacing: -0.01em;
-  box-shadow: none;
-  transition: background 0.15s ease, opacity 0.15s ease;
-}
-
-.marketing-connect-submit:hover:not(:disabled) {
-  background: var(--mo-accent-hover, var(--mo-accent));
-}
-
-.marketing-connect-submit:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
-@media (min-width: 640px) {
-  .marketing-connect-footer {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    gap: 1rem;
-  }
-
-  .marketing-connect-footer__hint {
-    max-width: 22rem;
-  }
-
-  .marketing-connect-submit {
-    width: auto;
-    min-width: 11rem;
-  }
-}
-
 .marketing-toolbar {
   display: flex;
   flex-wrap: wrap;
