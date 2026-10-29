@@ -1449,7 +1449,7 @@ export function KpiPage() {
               type="button"
               role="tab"
               aria-selected={active}
-              title={t.label}
+              aria-label={t.label}
               onClick={() => setTab(t.id)}
               className={active ? "kpi-tabs__btn is-active" : "kpi-tabs__btn"}
             >
