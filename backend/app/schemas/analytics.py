@@ -189,7 +189,9 @@ class ServicesAnalyticsRead(BaseModel):
     booking_paid_total: Decimal = Field(default=Decimal("0"))
     # Оплаты KPI-курсов/протоколов за период (входят в revenue_total и строки service_stats).
     kpi_course_paid_total: Decimal = Field(default=Decimal("0"))
-    # Доп. услуги (журнал) + оплаты стола менеджера за период.
+    # Доп. услуги: все поступления (amount + стол) — входят в revenue_total и таблицу.
     extra_paid_total: Decimal = Field(default=Decimal("0"))
+    # Доп. услуги: наша доля (keep_amount + стол) — карточка «Доп. услуги».
+    extra_keep_total: Decimal = Field(default=Decimal("0"))
     service_stats: list[ServicesAnalyticsServiceRow] = Field(default_factory=list)
     expert_stats: list[ServicesAnalyticsExpertRow] = Field(default_factory=list)

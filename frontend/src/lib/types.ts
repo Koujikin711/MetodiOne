@@ -609,7 +609,10 @@ export interface ServicesAnalyticsRead {
   creditor_total: string | number;
   booking_paid_total?: string | number;
   kpi_course_paid_total?: string | number;
+  /** Все поступления по доп. (входят в revenue_total). */
   extra_paid_total?: string | number;
+  /** Наша доля по доп. (карточка «Доп. услуги»). */
+  extra_keep_total?: string | number;
   service_stats: ServicesAnalyticsServiceStat[];
   expert_stats: ServicesAnalyticsExpertStat[];
 }

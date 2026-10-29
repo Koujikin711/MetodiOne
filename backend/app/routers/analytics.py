@@ -1859,12 +1859,14 @@ async def analytics_services(
 
     booking_paid_total = revenue_total
 
-    # Доп. услуги (журнал) — по компании за период; в таблицу отдельными строками.
+    # Доп. услуги: в таблице и revenue_total — все поступления (amount);
+    # карточка «Доп.» — наша доля (keep_amount).
     extra_type_rows = (
         await db.execute(
             select(
                 ExtraServiceType.name,
                 func.coalesce(func.sum(ExtraServiceSale.amount), 0),
+                func.coalesce(func.sum(ExtraServiceSale.keep_amount), 0),
             )
             .join(ExtraServiceType, ExtraServiceType.id == ExtraServiceSale.service_type_id)
             .where(
@@ -1877,12 +1879,18 @@ async def analytics_services(
         )
     ).all()
     extra_paid_total = Decimal("0")
-    for raw_name, amount_raw in extra_type_rows:
+    extra_keep_total = Decimal("0")
+    for raw_name, amount_raw, keep_raw in extra_type_rows:
         paid = Decimal(str(amount_raw or 0))
-        if paid <= 0:
+        keep = Decimal(str(keep_raw or 0))
+        if paid <= 0 and keep <= 0:
             continue
         extra_paid_total += paid
+        extra_keep_total += keep
         name = str(raw_name or "").strip() or "Доп. услуга"
+        # В аналитике по строкам — все поступления.
+        if paid <= 0:
+            continue
         service_acc[next_kpi_key] = {
             "direction_id": None,
             "direction_name": name,
@@ -1900,7 +1908,7 @@ async def analytics_services(
         }
         next_kpi_key -= 1
 
-    # Стол менеджера (crm_mode=sales): оплаты за период по воронке.
+    # Стол менеджера: вся оплата — и поступление, и «наши» (долей нет).
     desk_q = (
         select(
             ManagerDeskSale.activity_sphere,
@@ -1924,6 +1932,7 @@ async def analytics_services(
         if paid <= 0:
             continue
         extra_paid_total += paid
+        extra_keep_total += paid
         sphere = str(raw_sphere or "").strip()
         name = f"Стол · {sphere}" if sphere else "Продажи стола"
         service_acc[next_kpi_key] = {
@@ -2035,6 +2044,7 @@ async def analytics_services(
         booking_paid_total=booking_paid_total,
         kpi_course_paid_total=kpi_course_paid_total,
         extra_paid_total=extra_paid_total,
+        extra_keep_total=extra_keep_total,
         service_stats=service_stats,
         expert_stats=expert_stats,
     )

@@ -602,7 +602,12 @@ export function AnalyticsPage() {
                     : 0,
                 );
                 const courses = Number(live ? (servicesQuery.data.kpi_course_paid_total ?? 0) : 0);
-                const extra = Number(live ? (servicesQuery.data.extra_paid_total ?? 0) : 0);
+                const extraGross = Number(live ? (servicesQuery.data.extra_paid_total ?? 0) : 0);
+                const extraKeep = Number(
+                  live
+                    ? (servicesQuery.data.extra_keep_total ?? servicesQuery.data.extra_paid_total ?? 0)
+                    : 0,
+                );
                 return (
                   <>
                     <div className="analytics-kpi-grid analytics-kpi-grid--4">
@@ -612,7 +617,7 @@ export function AnalyticsPage() {
                         tone="success"
                         hint={
                           live
-                            ? `визиты ${moneyFmt.format(visits)} · курсы ${moneyFmt.format(courses)} · доп. ${moneyFmt.format(extra)}`
+                            ? `визиты ${moneyFmt.format(visits)} · курсы ${moneyFmt.format(courses)} · доп. поступления ${moneyFmt.format(extraGross)}`
                             : "снимок"
                         }
                       />
@@ -630,9 +635,13 @@ export function AnalyticsPage() {
                       />
                       <MetricCard
                         label="Доп. услуги"
-                        value={moneyFmt.format(extra)}
+                        value={moneyFmt.format(extraKeep)}
                         tone="warning"
-                        hint="журнал доп. услуг и стол"
+                        hint={
+                          extraGross !== extraKeep
+                            ? `наши деньги · всего поступлений ${moneyFmt.format(extraGross)}`
+                            : "наши деньги (доля клиники)"
+                        }
                       />
                     </div>
                     <div className="analytics-kpi-grid analytics-kpi-grid--4">
@@ -683,8 +692,8 @@ export function AnalyticsPage() {
 
               <AnalyticsPanel title="По услугам">
                 <p className="analytics-panel-note">
-                  Вся выручка: визиты записи + Курс/Протокол из KPI + доп. услуги (и стол). Визиты
-                  пакетов Курс/Протокол в запись не считаем. Дебиторка курсов — как в KPI.
+                  Вся выручка: визиты + KPI + все поступления по доп. услугам. Карточка «Доп.» —
+                  наша доля (keep). Визиты пакетов Курс/Протокол в запись не считаем.
                 </p>
                 <AnalyticsTable minWidth={1100}>
                   <thead>
