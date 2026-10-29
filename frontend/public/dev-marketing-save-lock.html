@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Маркетинг · кнопка Сохранить — лок</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --surface: #121a2b;
+      --border: rgba(148, 163, 184, 0.22);
+      --text: #e8eef9;
+      --muted: #94a3b8;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --input: #0f172a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(900px 500px at 15% -5%, #1a2744, var(--bg));
+      color: var(--text);
+      padding: 1.25rem 1rem 2.5rem;
+    }
+    .wrap { max-width: 640px; margin: 0 auto; }
+    .eyebrow { color: var(--muted); font-size: 11px; letter-spacing: 0.04em; margin: 0 0 0.5rem; }
+    h1 { font-size: 1.25rem; margin: 0; font-weight: 650; letter-spacing: -0.02em; }
+    .lead { color: var(--muted); font-size: 0.9rem; line-height: 1.5; margin: 0.5rem 0 1.1rem; }
+    .card {
+      border: 1px solid var(--border);
+      background: color-mix(in srgb, var(--surface) 92%, transparent);
+      border-radius: 1rem;
+      padding: 1rem;
+    }
+    .card h2 { margin: 0 0 0.85rem; font-size: 0.9rem; font-weight: 650; }
+    .grid { display: grid; gap: 0.75rem; }
+    @media (min-width: 640px) { .grid { grid-template-columns: 1fr 1fr; } }
+    label { display: block; font-size: 0.85rem; color: var(--muted); }
+    input {
+      display: block;
+      width: 100%;
+      margin-top: 0.35rem;
+      padding: 0.65rem 0.75rem;
+      border-radius: 0.65rem;
+      border: 1px solid var(--border);
+      background: var(--input);
+      color: var(--text);
+      font-size: 0.9rem;
+    }
+    .footer {
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+      margin-top: 1rem;
+      padding-top: 0.85rem;
+      border-top: 1px solid var(--border);
+    }
+    @media (min-width: 640px) {
+      .footer {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+      }
+    }
+    .hint { margin: 0; font-size: 0.8rem; line-height: 1.4; color: var(--muted); max-width: 22rem; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 2.75rem;
+      min-width: 11rem;
+      width: 100%;
+      padding: 0.7rem 1.25rem;
+      border-radius: 0.85rem;
+      border: 1px solid color-mix(in srgb, var(--accent) 55%, #0f172a);
+      background: var(--accent);
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 650;
+      letter-spacing: -0.01em;
+      cursor: default;
+    }
+    @media (min-width: 640px) { .btn { width: auto; } }
+    .compare {
+      margin-top: 1.25rem;
+      display: grid;
+      gap: 0.75rem;
+    }
+    @media (min-width: 640px) { .compare { grid-template-columns: 1fr 1fr; } }
+    .was, .now {
+      border-radius: 0.85rem;
+      border: 1px dashed var(--border);
+      padding: 0.85rem;
+    }
+    .was .pill {
+      display: inline-flex;
+      margin-top: 0.65rem;
+      padding: 0.55rem 1.1rem;
+      border-radius: 999px;
+      background: #b5bcf9;
+      color: #fff;
+      font-size: 0.85rem;
+      font-weight: 600;
+      border: 1px solid #9aa3e8;
+    }
+    .tag {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      margin: 0;
+    }
+    .foot { margin-top: 1.25rem; font-size: 0.75rem; color: var(--muted); line-height: 1.45; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <p class="eyebrow">Лок UI · Маркетинг → подключение Meta</p>
+    <h1>Кнопка яснее и комфортнее</h1>
+    <p class="lead">Короткий текст «Сохранить», пояснение рядом, нормальный размер и контраст — без бледной «таблетки».</p>
+
+    <section class="card">
+      <h2>Подключение Meta Ads</h2>
+      <div class="grid">
+        <label>Ad Account ID
+          <input value="act_1442491974027857" readonly />
+        </label>
+        <label>Access token
+          <input type="password" value="EAA••••••••" readonly />
+        </label>
+      </div>
+      <div class="footer">
+        <p class="hint">Сохраним настройки и сразу проверим доступ к Meta Ads.</p>
+        <span class="btn">Сохранить</span>
+      </div>
+    </section>
+
+    <div class="compare">
+      <div class="was">
+        <p class="tag">Было</p>
+        <span class="pill">Сохранить и проверить</span>
+        <p class="hint" style="margin-top:0.65rem">Длинная подпись, бледный цвет, низкий контраст.</p>
+      </div>
+      <div class="now">
+        <p class="tag">Стало</p>
+        <span class="btn" style="margin-top:0.65rem;width:auto">Сохранить</span>
+        <p class="hint" style="margin-top:0.65rem">Ясное действие + подсказка; кнопка удобнее нажать.</p>
+      </div>
+    </div>
+
+    <p class="foot">После «пуш» так же на странице Маркетинг при подключении токена.</p>
+  </div>
+</body>
+</html>

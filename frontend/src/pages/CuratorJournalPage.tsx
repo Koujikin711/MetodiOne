@@ -512,6 +512,7 @@ export function CuratorJournalPage() {
       setPauseDraft(null);
       void qc.invalidateQueries({ queryKey: ["curator-journal", "month", selectedFlowId] });
       void qc.invalidateQueries({ queryKey: ["curator-journal", "day-summary", selectedFlowId] });
+      void qc.invalidateQueries({ queryKey: ["curator-journal", "history"] });
     },
     onError: (err: Error) => toast.error(err.message || "Не удалось изменить паузу"),
   });
@@ -521,9 +522,11 @@ export function CuratorJournalPage() {
       apiFetch<Membership>(`/api/curator-journal/memberships/${id}/leave`, { method: "POST" }),
     onSuccess: () => {
       toast.success("Убран из потока");
+      setHistoryMemberId(null);
       void qc.invalidateQueries({ queryKey: ["curator-journal", "month", selectedFlowId] });
       void qc.invalidateQueries({ queryKey: ["curator-journal", "day-summary", selectedFlowId] });
       void qc.invalidateQueries({ queryKey: ["curator-journal", "flows"] });
+      void qc.invalidateQueries({ queryKey: ["curator-journal", "history"] });
     },
     onError: (err: Error) => toast.error(err.message || "Не удалось убрать из потока"),
   });
@@ -805,26 +808,34 @@ export function CuratorJournalPage() {
                         colSpan={3}
                         data-day={d}
                         className={[
-                          "cj-sticky-top border-b border-l border-[var(--mo-border)] px-1 py-2",
+                          "cj-sticky-top border-b border-l border-[var(--mo-border)] px-0.5 py-0.5",
                           isToday ? "bg-[var(--mo-accent)]/15 font-bold" : "bg-[var(--mo-surface-elevated)]",
                           selectedDay === d ? "ring-1 ring-inset ring-[var(--mo-accent)]" : "",
                         ].join(" ")}
                         onClick={() => setSelectedDay(d)}
                       >
                         {formatDdMm(d)}
-                        {isToday ? " · СЕГОДНЯ" : ""}
+                        {isToday ? " · с" : ""}
                       </th>
                     );
                   })}
                 </tr>
                 <tr>
                   {monthQuery.data.days.map((d) =>
-                    (["Дневник", "Фото", "Жалоба"] as const).map((label) => (
+                    (
+                      [
+                        ["Дн", "Дневник"],
+                        ["Фт", "Фото"],
+                        ["Жб", "Жалоба"],
+                      ] as const
+                    ).map(([short, full]) => (
                       <th
-                        key={`${d}-${label}`}
-                        className="cj-sticky-top2 border-l border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] px-1 py-1 font-normal text-[10px] text-[var(--mo-muted)]"
+                        key={`${d}-${full}`}
+                        title={full}
+                        aria-label={full}
+                        className="cj-sticky-top2 border-l border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] font-normal text-[var(--mo-muted)]"
                       >
-                        {label}
+                        {short}
                       </th>
                     )),
                   )}
@@ -837,38 +848,11 @@ export function CuratorJournalPage() {
                       <button
                         type="button"
                         className="cj-person-name text-left hover:underline"
+                        title={p.display_name}
                         onClick={() => setHistoryMemberId(p.id)}
                       >
                         {p.display_name}
                       </button>
-                      <ProgramPeriodHint m={p} />
-                      {p.left_on ? null : (
-                        <span className="cj-person-actions print-omit">
-                          <button
-                            type="button"
-                            className="cj-person-action is-accent"
-                            onClick={() => {
-                              if (p.is_paused) pauseMut.mutate({ id: p.id, resume: true });
-                              else setPauseDraft({ id: p.id, name: p.display_name, comment: "" });
-                            }}
-                          >
-                            {p.is_paused ? "Продолжить" : "Пауза"}
-                          </button>
-                          <button
-                            type="button"
-                            className="cj-person-action is-muted"
-                            disabled={leaveMut.isPending}
-                            onClick={() => removeFromFlow(p)}
-                          >
-                            Убрать
-                          </button>
-                        </span>
-                      )}
-                      {openPauseComment(p) ? (
-                        <div className="mt-0.5 text-[10px] font-normal leading-tight text-[var(--mo-muted)]">
-                          {openPauseComment(p)}
-                        </div>
-                      ) : null}
                     </th>
                     {monthQuery.data!.days.map((d) => {
                       const pauseNote = coveringPause(p, d)?.comment?.trim();
@@ -995,32 +979,6 @@ export function CuratorJournalPage() {
                   >
                     {p.display_name}
                   </button>
-                  <ProgramPeriodHint m={p} />
-                  {p.left_on ? null : (
-                    <span className="cj-person-actions">
-                      <button
-                        type="button"
-                        className="cj-person-action is-accent"
-                        onClick={() => {
-                          if (p.is_paused) pauseMut.mutate({ id: p.id, resume: true });
-                          else setPauseDraft({ id: p.id, name: p.display_name, comment: "" });
-                        }}
-                      >
-                        {p.is_paused ? "Продолжить" : "Пауза"}
-                      </button>
-                      <button
-                        type="button"
-                        className="cj-person-action is-muted"
-                        disabled={leaveMut.isPending}
-                        onClick={() => removeFromFlow(p)}
-                      >
-                        Убрать
-                      </button>
-                    </span>
-                  )}
-                  {openPauseComment(p) ? (
-                    <p className="mt-1 text-xs text-[var(--mo-muted)]">{openPauseComment(p)}</p>
-                  ) : null}
                   {dayIsPaused(p, mobileDay) ? (
                     <p className="mt-2 text-sm text-[var(--mo-muted)]">
                       П · пауза{coveringPause(p, mobileDay)?.comment?.trim() ? ` · ${coveringPause(p, mobileDay)?.comment?.trim()}` : ""}
@@ -1170,6 +1128,10 @@ export function CuratorJournalPage() {
           membershipId={historyMemberId}
           year={year}
           month={month}
+          leavePending={leaveMut.isPending}
+          onPause={(m) => setPauseDraft({ id: m.id, name: m.display_name, comment: "" })}
+          onResume={(id) => pauseMut.mutate({ id, resume: true })}
+          onRemove={removeFromFlow}
           onClose={() => setHistoryMemberId(null)}
         />
       ) : null}
@@ -1227,7 +1189,7 @@ function StatusCell({
         <button
           type="button"
           title={title}
-          className={`flex h-9 w-9 items-center justify-center text-base font-semibold ${color} hover:bg-[var(--mo-accent)]/10`}
+          className={`cj-status-btn ${color} hover:bg-[var(--mo-accent)]/10`}
           onClick={onClick}
         >
           {glyph}
@@ -1235,7 +1197,7 @@ function StatusCell({
       ) : (
         <span
           title={title}
-          className={`flex h-9 w-9 items-center justify-center text-base font-semibold ${color}`}
+          className={`cj-status-btn ${color}`}
         >
           {glyph}
         </span>
@@ -1271,7 +1233,7 @@ function ComplaintCell({
     <td className="relative border-l border-[var(--mo-border)] p-0">
       <button
         type="button"
-        className={`flex h-9 w-9 items-center justify-center text-base ${color} hover:bg-[var(--mo-accent)]/10`}
+        className={`cj-status-btn ${color} hover:bg-[var(--mo-accent)]/10`}
         onClick={() => {
           if (glyph === "○") {
             // compact: open modal for choice
@@ -1873,11 +1835,19 @@ function HistoryModal({
   membershipId,
   year,
   month,
+  leavePending,
+  onPause,
+  onResume,
+  onRemove,
   onClose,
 }: {
   membershipId: number;
   year: number;
   month: number;
+  leavePending: boolean;
+  onPause: (m: Membership) => void;
+  onResume: (id: number) => void;
+  onRemove: (m: Membership) => void;
   onClose: () => void;
 }) {
   const q = useQuery({
@@ -1888,25 +1858,49 @@ function HistoryModal({
       ),
   });
   const h = q.data;
+  const m = h?.membership;
   return (
     <Modal title="История участника" onClose={onClose} wide>
       {q.isLoading ? <p className="text-sm">Загрузка…</p> : null}
-      {h ? (
+      {h && m ? (
         <div className="space-y-3 text-sm">
           <div>
-            <div className="text-lg font-semibold">{h.membership.display_name}</div>
+            <div className="cj-history-name">{m.display_name}</div>
             <div className="text-[var(--mo-muted)]">
               {h.course_name} · Поток №{h.flow_number} · {MONTHS_RU[month - 1]} {year}
             </div>
-            <ProgramPeriodHint m={h.membership} />
-            {h.membership.program_started_on && h.membership.program_expected_end_on ? (
+            <ProgramPeriodHint m={m} />
+            {m.program_started_on && m.program_expected_end_on ? (
               <div className="mt-1 text-xs text-[var(--mo-muted)]">
-                Программа: {formatRuDate(h.membership.program_started_on)} –{" "}
-                {formatRuDate(h.membership.program_expected_end_on)}
-                {h.membership.program_start_source === "purchase"
-                  ? " (покупка Курс)"
-                  : " (дата вступления)"}
+                Программа: {formatRuDate(m.program_started_on)} –{" "}
+                {formatRuDate(m.program_expected_end_on)}
+                {m.program_start_source === "purchase" ? " (покупка Курс)" : " (дата вступления)"}
               </div>
+            ) : null}
+            {m.left_on ? null : (
+              <span className="cj-person-actions">
+                <button
+                  type="button"
+                  className="cj-person-action is-accent"
+                  onClick={() => {
+                    if (m.is_paused) onResume(m.id);
+                    else onPause(m);
+                  }}
+                >
+                  {m.is_paused ? "Продолжить" : "Пауза"}
+                </button>
+                <button
+                  type="button"
+                  className="cj-person-action is-muted"
+                  disabled={leavePending}
+                  onClick={() => onRemove(m)}
+                >
+                  Убрать
+                </button>
+              </span>
+            )}
+            {openPauseComment(m) ? (
+              <p className="mt-1 text-xs text-[var(--mo-muted)]">{openPauseComment(m)}</p>
             ) : null}
           </div>
           <div className="grid grid-cols-3 gap-2">
