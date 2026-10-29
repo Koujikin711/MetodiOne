@@ -18,7 +18,7 @@ from app.services.sales_kpi_weighted import (
     earning_from_brought,
     fio_key,
     is_full_payment,
-    kpi_brought_blocked_for_manager,
+    kpi_client_excluded_from_brought,
     kpi_client_owner_manager_id,
     new_sales_for_plan_item,
     build_manager_lines,
@@ -70,29 +70,13 @@ def test_kpi_owner_prefers_opened_not_new_lead_manager():
     )
 
 
-def test_abdulhayzoda_exclude_clients_hidden_only():
-    keys = {7: "абдулхайзода румайсо", 10: "мулкия"}
-    assert kpi_brought_blocked_for_manager(
-        manager_id=7,
-        client_name="Содирбекзода Юсуф",
-        manager_name_keys=keys,
-    )
-    assert kpi_brought_blocked_for_manager(
-        manager_id=7,
-        client_name="Чаборзода Мухамад Искандар",
-        manager_name_keys=keys,
-    )
-    assert kpi_brought_blocked_for_manager(
-        manager_id=7,
-        client_name="Норматзода Эмомали",
-        manager_name_keys=keys,
-    )
-    # У другого менеджера правила те же — этих ФИО не прячем.
-    assert not kpi_brought_blocked_for_manager(
-        manager_id=10,
-        client_name="Содирбекзода Юсуф",
-        manager_name_keys=keys,
-    )
+def test_excluded_patients_hidden_from_brought():
+    assert kpi_client_excluded_from_brought("Абдулхайзода Румайсо")
+    assert kpi_client_excluded_from_brought("Содирбекзода Юсуф")
+    assert kpi_client_excluded_from_brought("Чаборзода Мухамад Искандар")
+    assert kpi_client_excluded_from_brought("Норматзода Эмомали")
+    assert kpi_client_excluded_from_brought("Халилова Мавлуда")
+    assert not kpi_client_excluded_from_brought("Курбонзода Хусейн")
 
 
 def test_makhmadshoev_october_brought_override_3500():

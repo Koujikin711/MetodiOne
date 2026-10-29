@@ -44,9 +44,11 @@ KPI_OWNER_FOLLOW_CRM_FIO_KEYS = frozenset({"файзалиев хабибулл�
 KPI_COURSE_BROUGHT_MONTH_OVERRIDES: dict[tuple[str, str], Decimal] = {
     ("2026-10", "махмадшоев мустафо"): Decimal("3500.00"),
 }
-# Разово: не показывать и не считать этих клиентов у Абдулхайзода Румайсо (без смены правил).
-_ABDULHAYZODA_EXCLUDE_CLIENTS = frozenset(
+# Разово: этих пациентов не показывать и не считать в Привёл/Новых (без смены правил).
+KPI_EXCLUDE_CLIENT_FIO_KEYS = frozenset(
     {
+        "абдулхайзода румайсо",
+        "абдухайзода румайсо",
         "содирбекзода юсуф",
         "чаборзода мухамад искандар",
         "чаборзода мухаммад искандар",
@@ -54,10 +56,6 @@ _ABDULHAYZODA_EXCLUDE_CLIENTS = frozenset(
         "халилова мавлуда",
     },
 )
-KPI_EXCLUDE_CLIENTS_FOR_MANAGER_FIO: dict[str, frozenset[str]] = {
-    "абдулхайзода румайсо": _ABDULHAYZODA_EXCLUDE_CLIENTS,
-    "абдухайзода румайсо": _ABDULHAYZODA_EXCLUDE_CLIENTS,
-}
 
 
 def course_brought_month_override(
@@ -72,42 +70,17 @@ def course_brought_month_override(
     return computed
 
 
-def kpi_brought_blocked_for_manager(
-    *,
-    manager_id: int | None,
-    client_name: str | None,
-    manager_name_keys: dict[int, str],
-) -> bool:
-    """True — скрыть клиента у этого менеджера (не в списке, не в сумме)."""
-    if manager_id is None:
-        return False
-    mk = manager_name_keys.get(int(manager_id), "")
+def kpi_client_excluded_from_brought(client_name: str | None) -> bool:
+    """True — не показывать и не считать этого пациента в заработке менеджера."""
     ck = fio_key(client_name)
-    if not mk or not ck:
+    if not ck:
         return False
-    blocked = KPI_EXCLUDE_CLIENTS_FOR_MANAGER_FIO.get(mk)
-    if not blocked:
-        return False
-    if ck in blocked:
+    if ck in KPI_EXCLUDE_CLIENT_FIO_KEYS:
         return True
-    for b in blocked:
+    for b in KPI_EXCLUDE_CLIENT_FIO_KEYS:
         if ck.startswith(b + " ") or b.startswith(ck + " "):
             return True
     return False
-
-
-async def load_manager_name_keys(
-    db: AsyncSession,
-    *,
-    company_id: int,
-) -> dict[int, str]:
-    """user_id → fio_key(full_name) для разовых исключений Привёл."""
-    rows = (
-        await db.execute(
-            select(User.id, User.full_name).where(User.company_id == company_id),
-        )
-    ).all()
-    return {int(uid): fio_key(str(name or "")) for uid, name in rows}
 
 
 def parse_year_month(s: str) -> date:
@@ -472,7 +445,6 @@ async def load_brought_paid_detail(
     ).all()
     # KPI-продажа курса/протокола на то же ФИО — визит не дублируем в «Привёл» / «Новых».
     kpi_fio_kinds = await _manual_sale_fio_product_kinds(db, company_id=company_id, pipeline_id=pipeline_id)
-    manager_keys = await load_manager_name_keys(db, company_id=company_id)
     out: dict[tuple[int, int, int, Decimal], Decimal] = {}
     counts: dict[tuple[int, int, int, Decimal], int] = {}
     for (
@@ -498,11 +470,7 @@ async def load_brought_paid_detail(
         )
         if manager_id is None or specialist_id is None or direction_id is None:
             continue
-        if kpi_brought_blocked_for_manager(
-            manager_id=manager_id,
-            client_name=str(patient_name or ""),
-            manager_name_keys=manager_keys,
-        ):
+        if kpi_client_excluded_from_brought(str(patient_name or "")):
             continue
         kind = classify_product_kind(direction_names.get(int(direction_id)))
         fk = fio_key(str(patient_name or ""))
@@ -713,7 +681,7 @@ def kpi_client_owner_manager_id(
     """Чей клиент для «Новых» / «Привёл».
 
     Привёл/Новых — у кто открыл продажу (opened). Смена менеджера карточки /
-    текущего manager_user_id новым (напр. Абдулхайзода) чужую продажу не забирает.
+    текущего manager_user_id новым чужую продажу не забирает.
 
     Исключение KPI_OWNER_FOLLOW_CRM_FIO_KEYS: ФИО→карточка CRM
     (Файзалиев и т.п. — перебивает opened).
@@ -1031,7 +999,6 @@ async def load_manual_brought_by_label(
     """
     start, end = month_bounds(ym)
     fio_owners = await load_fio_crm_owner_managers(db, company_id=company_id, pipeline_id=pipeline_id)
-    manager_keys = await load_manager_name_keys(db, company_id=company_id)
     # «Привёл» владельцу клиента. Denylist — только скрыть/не считать разовые ФИО.
     rows = (
         await db.execute(
@@ -1077,11 +1044,7 @@ async def load_manual_brought_by_label(
         )
         if manager_id is None:
             continue
-        if kpi_brought_blocked_for_manager(
-            manager_id=manager_id,
-            client_name=str(client_name or ""),
-            manager_name_keys=manager_keys,
-        ):
+        if kpi_client_excluded_from_brought(str(client_name or "")):
             continue
         label = _norm_kpi_label(str(name or ""))
         if not label:
@@ -1143,11 +1106,7 @@ async def load_manual_brought_by_label(
             )
             if sale_id is None or mid is None or paid_at is None:
                 continue
-            if kpi_brought_blocked_for_manager(
-                manager_id=int(mid),
-                client_name=str(client_name or ""),
-                manager_name_keys=manager_keys,
-            ):
+            if kpi_client_excluded_from_brought(str(client_name or "")):
                 continue
             sid = int(sale_id)
             sale_client[sid] = str(client_name or "")
@@ -1246,11 +1205,7 @@ async def load_manual_brought_by_label(
         )
         if manager_id is None:
             continue
-        if kpi_brought_blocked_for_manager(
-            manager_id=manager_id,
-            client_name=str(client_name or ""),
-            manager_name_keys=manager_keys,
-        ):
+        if kpi_client_excluded_from_brought(str(client_name or "")):
             continue
         label = _norm_kpi_label(str(name or ""))
         if not label:
@@ -1278,7 +1233,6 @@ async def load_manual_new_sales_by_label(
     """Курс или протокол, заведённый в этом месяце. «Новых» — только владельцу клиента (лид/ФИО CRM)."""
     start, end = month_bounds(ym)
     fio_owners = await load_fio_crm_owner_managers(db, company_id=company_id, pipeline_id=pipeline_id)
-    manager_keys = await load_manager_name_keys(db, company_id=company_id)
     rows = (
         await db.execute(
             select(
@@ -1312,11 +1266,7 @@ async def load_manual_new_sales_by_label(
         )
         if manager_id is None:
             continue
-        if kpi_brought_blocked_for_manager(
-            manager_id=manager_id,
-            client_name=str(client_name or ""),
-            manager_name_keys=manager_keys,
-        ):
+        if kpi_client_excluded_from_brought(str(client_name or "")):
             continue
         label = _norm_kpi_label(str(name or ""))
         if not label:
