@@ -1661,10 +1661,6 @@ export function KpiPage() {
               >
                 Ждёт подтверждения: {pendingPayConfirmCount}
               </button>
-            ) : canConfirmPay ? (
-              <p className="kpi-confirm-notice" role="status">
-                Доплаты менеджеров — подтвердите в колонке «Оплата».
-              </p>
             ) : pendingPayConfirmCount > 0 ? (
               <p className="kpi-confirm-notice" role="status">
                 Ждёт подтверждения бухгалтера: {pendingPayConfirmCount}
