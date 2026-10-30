@@ -321,6 +321,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         variant: "online",
         iconKey: "calendar",
       });
+      if (showExtraServices) items.push(extraServicesNavItem());
     }
     if (showKpi && showNavForFeature("kpi")) {
       items.push({

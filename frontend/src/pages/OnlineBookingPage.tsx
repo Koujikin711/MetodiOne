@@ -198,6 +198,7 @@ export function OnlineBookingPage() {
   const [filterDate, setFilterDate] = useState(() => ymdInBookingTz(Date.now()));
   const [journalDate, setJournalDate] = useState(() => ymdInBookingTz(Date.now()));
   const [journalSearch, setJournalSearch] = useState("");
+  const [scheduleSearchOpen, setScheduleSearchOpen] = useState(false);
   const [patientCard, setPatientCard] = useState<BookingPatientHistoryItem | null>(null);
   const [journalCalendarOpen, setJournalCalendarOpen] = useState(false);
   const journalDateWrapRef = useRef<HTMLDivElement>(null);
@@ -257,12 +258,17 @@ export function OnlineBookingPage() {
     currentRole === "administrator" ||
     currentRole === "owner" ||
     currentRole === "super_owner";
-  /** Админ: без вкладок «Журнал» / «Отчёт» — поиск пациента в расписании. */
+  /** Админ клиники / воронки: без вкладок «Журнал» / «Отчёт». */
   const isClinicAdmin =
     currentRole === "admin" || currentRole === "administrator";
+  const isAccountant = currentRole === "accountant";
+  const isOwnerLike = currentRole === "owner" || currentRole === "super_owner";
+  /** Поиск в расписании: админ и бухгалтер — сразу поле; владелец — по иконке. */
+  const canScheduleSearch = isClinicAdmin || isAccountant || isOwnerLike;
+  const scheduleSearchAlwaysOpen = isClinicAdmin || isAccountant;
   const showJournalTabs = !isClinicAdmin;
   const scheduleSearchActive =
-    isClinicAdmin && tab === "online" && journalSearch.trim().length >= 2;
+    canScheduleSearch && tab === "online" && journalSearch.trim().length >= 2;
 
   useEffect(() => {
     if (leadFromQuery == null || !canEditBooking) return;
@@ -460,13 +466,15 @@ export function OnlineBookingPage() {
       ),
     enabled:
       journalSearch.trim().length >= 2 &&
-      (tab === "journal" || (isClinicAdmin && tab === "online")),
+      (tab === "journal" || (canScheduleSearch && tab === "online")),
   });
 
   useEffect(() => {
     if (!isClinicAdmin) return;
     if (tab === "journal" || tab === "upcoming") setTab("online");
   }, [isClinicAdmin, tab]);
+
+  const showScheduleSearchField = scheduleSearchAlwaysOpen || scheduleSearchOpen;
 
   useEffect(() => {
     setPatientCard(null);
@@ -1430,7 +1438,11 @@ export function OnlineBookingPage() {
 
       {tab === "online" && (
         <div className="space-y-3">
-          <div className={isClinicAdmin ? "booking-admin-bar print-screen-only" : "booking-page-toolbar-row"}>
+          <div
+            className={
+              canScheduleSearch ? "booking-admin-bar print-screen-only" : "booking-page-toolbar-row"
+            }
+          >
             <div className="booking-page-date-nav" aria-label="Неделя записи">
               <button
                 type="button"
@@ -1450,17 +1462,44 @@ export function OnlineBookingPage() {
                 ›
               </button>
             </div>
-            {isClinicAdmin ? (
+            {canScheduleSearch && !showScheduleSearchField ? (
+              <button
+                type="button"
+                className="booking-schedule-search-toggle"
+                aria-label="Поиск пациента"
+                title="Поиск: ФИО, телефон или № лида"
+                onClick={() => setScheduleSearchOpen(true)}
+              >
+                <Search className="booking-schedule-search-toggle__icon" aria-hidden />
+              </button>
+            ) : null}
+            {canScheduleSearch && showScheduleSearchField ? (
               <label className="booking-schedule-search">
                 <Search className="booking-schedule-search__icon" aria-hidden />
                 <input
                   type="search"
                   value={journalSearch}
                   onChange={(e) => setJournalSearch(e.target.value)}
-                  placeholder="Найти пациента — ФИО или телефон"
-                  aria-label="Поиск клиента по ФИО или телефону"
+                  placeholder="ФИО, телефон или № лида"
+                  aria-label="Поиск клиента по ФИО, телефону или номеру лида"
                   className="booking-schedule-search__input"
+                  autoFocus={!scheduleSearchAlwaysOpen}
                 />
+                {!scheduleSearchAlwaysOpen ? (
+                  <button
+                    type="button"
+                    className="booking-schedule-search__close"
+                    aria-label="Закрыть поиск"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setScheduleSearchOpen(false);
+                      setJournalSearch("");
+                    }}
+                  >
+                    ×
+                  </button>
+                ) : null}
               </label>
             ) : null}
           </div>
@@ -1477,7 +1516,7 @@ export function OnlineBookingPage() {
                 <p className="text-sm text-red-300">{(patientHistoryQuery.error as Error).message}</p>
               )}
               {patientHistoryQuery.data && patientHistoryQuery.data.length === 0 && (
-                <p className="booking-patient-find__empty">Никого не нашли. Проверьте ФИО или номер.</p>
+                <p className="booking-patient-find__empty">Никого не нашли. Проверьте ФИО, телефон или № лида.</p>
               )}
               {patientHistoryQuery.data && patientHistoryQuery.data.length > 0 ? (
                 <ul className="booking-patient-find__list">

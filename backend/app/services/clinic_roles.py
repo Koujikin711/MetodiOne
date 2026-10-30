@@ -11,7 +11,7 @@ ADMINISTRATOR_ROLES = frozenset({UserRole.administrator})
 # Онлайн-запись + дебиторка только курсы/протоколы
 CURATOR_ROLES = frozenset({UserRole.curator})
 
-# Расходы, чаты, канбан, запись, KPI, журнал, сотрудники
+# Расходы, чаты, канбан, запись+поиск, доп.услуги, KPI, журнал, сотрудники, карточка лида
 ACCOUNTANT_ROLES = frozenset({UserRole.accountant})
 
 

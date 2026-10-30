@@ -1857,6 +1857,15 @@ async def booking_patient_history(
         return []
 
     like = f"%{term}%"
+    match_conds = [
+        BookingAppointment.patient_name.ilike(like),
+        BookingAppointment.patient_phone.ilike(like),
+    ]
+    # Чистый номер — поиск по id лида (и запасной по id записи)
+    if term.isdigit():
+        num = int(term)
+        match_conds.append(BookingAppointment.lead_id == num)
+        match_conds.append(BookingAppointment.id == num)
     rows = (
         await db.execute(
             select(
@@ -1875,10 +1884,7 @@ async def booking_patient_history(
             .join(BookingSpecialist, BookingAppointment.specialist_id == BookingSpecialist.id)
             .where(
                 BookingAppointment.company_id == company_id,
-                or_(
-                    BookingAppointment.patient_name.ilike(like),
-                    BookingAppointment.patient_phone.ilike(like),
-                ),
+                or_(*match_conds),
             )
             .order_by(BookingAppointment.start_at.desc(), BookingAppointment.id.desc())
             .limit(limit * 20)

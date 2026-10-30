@@ -199,11 +199,26 @@ export function LeadDetailPage() {
 
   const role = decodeRoleFromToken(getStoredToken());
   const canRejectLead =
-    role === "owner" || role === "admin" || role === "manager" || role === "administrator";
+    role === "owner" ||
+    role === "super_owner" ||
+    role === "admin" ||
+    role === "manager" ||
+    role === "administrator" ||
+    role === "accountant";
   const canEditLeadProfile =
-    role === "owner" || role === "admin" || role === "manager" || role === "administrator";
+    role === "owner" ||
+    role === "super_owner" ||
+    role === "admin" ||
+    role === "manager" ||
+    role === "administrator" ||
+    role === "accountant";
   const canSetLeadStage =
-    role === "owner" || role === "admin" || role === "manager" || role === "administrator";
+    role === "owner" ||
+    role === "super_owner" ||
+    role === "admin" ||
+    role === "manager" ||
+    role === "administrator" ||
+    role === "accountant";
   const canDeleteLead = role === "owner";
   const bookingViewerQuery = useQuery({
     queryKey: ["booking-viewer-context"],
@@ -647,6 +662,7 @@ export function LeadDetailPage() {
               role === "super_owner" ||
               role === "admin" ||
               role === "administrator" ||
+              role === "accountant" ||
               role === "rop" ? (
                 <Link
                   to={`/kpi?lead_id=${query.data.id}`}

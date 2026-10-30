@@ -2053,20 +2053,23 @@ async def patch_lead(
     await db.refresh(lead, ["stage"])
     await _assert_expert_lead_access(db, current_user=current_user, lead=lead, company_id=company_id)
 
-    if current_user.role == UserRole.owner:
+    if current_user.role in (UserRole.owner, UserRole.super_owner, UserRole.accountant):
         pass
-    elif current_user.role in (UserRole.admin, UserRole.manager):
+    elif current_user.role in (UserRole.admin, UserRole.manager, UserRole.administrator):
         pipeline_id = lead.stage.pipeline_id if lead.stage else None
-        allowed = await _manager_pipeline_ids(db, current_user.id)
-        if pipeline_id is None or pipeline_id not in allowed:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Lead is outside manager directions",
-            )
+        if current_user.role == UserRole.administrator:
+            pass
+        else:
+            allowed = await _manager_pipeline_ids(db, current_user.id)
+            if pipeline_id is None or pipeline_id not in allowed:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Lead is outside manager directions",
+                )
     else:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Редактирование карточки доступно владельцу, админу и менеджеру воронки",
+            detail="Редактирование карточки доступно владельцу, админу, бухгалтеру и менеджеру воронки",
         )
 
     patch = body.model_dump(exclude_unset=True)
@@ -2369,10 +2372,17 @@ async def reject_lead(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> LeadRead:
-    if current_user.role not in (UserRole.owner, UserRole.manager, UserRole.admin, UserRole.administrator):
+    if current_user.role not in (
+        UserRole.owner,
+        UserRole.super_owner,
+        UserRole.manager,
+        UserRole.admin,
+        UserRole.administrator,
+        UserRole.accountant,
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Только владелец, админ воронки, администратор или менеджер",
+            detail="Только владелец, админ воронки, администратор, бухгалтер или менеджер",
         )
 
     lead = await db.get(Lead, lead_id)
@@ -2457,6 +2467,7 @@ async def update_lead_status(
         UserRole.manager,
         UserRole.admin,
         UserRole.administrator,
+        UserRole.accountant,
     ):
         hints = {
             "Новый лид": "Стадия «Новый лид» ставится автоматически при поступлении лида",
@@ -2474,13 +2485,18 @@ async def update_lead_status(
         UserRole.manager,
         UserRole.super_owner,
         UserRole.administrator,
+        UserRole.accountant,
     ):
         if target_name in MANAGER_SETTABLE_STAGE_NAMES:
             allowed = True
         elif current_user.role in (UserRole.owner, UserRole.super_owner):
             # Владелец двигает по канбану любые стадии, включая Архив.
             allowed = True
-        elif current_user.role in (UserRole.admin, UserRole.administrator) and target_name not in AUTO_ONLY_STAGE_NAMES:
+        elif current_user.role in (
+            UserRole.admin,
+            UserRole.administrator,
+            UserRole.accountant,
+        ) and target_name not in AUTO_ONLY_STAGE_NAMES:
             allowed = True
     if (
         not allowed
