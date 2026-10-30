@@ -2816,7 +2816,7 @@ function SalesReportSection({
                         Цена — за сколько продали. Оплачено — всего. Неполная (Курс 15 / Протокол) и ниже мин. (Курс) — строка есть, серым «не в оплату», в % не входит. Итого в шапке — только зачтённое.
                       </p>
                       <ul className="space-y-2 sm:hidden">
-                        {detailQuery.data.rows.map((r) => {
+                        {detailQuery.data.rows.map((r, idx) => {
                           const credited = num(r.brought_amount);
                           const monthPay = num(r.month_paid_amount);
                           const showAmt = credited > 0 ? credited : monthPay;
@@ -2824,7 +2824,12 @@ function SalesReportSection({
                           return (
                           <li key={`${r.source}-${r.source_id}`} className="rounded-xl border border-[var(--mo-border)] px-3 py-2">
                             <div className="flex items-start justify-between gap-2">
-                              <p className="truncate text-sm font-semibold text-[var(--mo-text)]">{r.client_name}</p>
+                              <p className="min-w-0 truncate text-sm text-[var(--mo-text)]">
+                                <span className="kpi-row-num mr-2 inline-block w-5 text-right tabular-nums mo-muted">
+                                  {idx + 1}
+                                </span>
+                                {r.client_name}
+                              </p>
                               <span className={`shrink-0 text-sm tabular-nums ${notPaid ? "mo-muted" : "font-semibold text-[var(--mo-text)]"}`}>
                                 {showAmt > 0 ? formatMoney(showAmt) : "—"}
                                 {notPaid ? " · не в оплату" : ""}
@@ -2843,6 +2848,7 @@ function SalesReportSection({
                       <table className="kpi-data-table hidden w-full text-sm sm:table">
                         <thead>
                           <tr>
+                            <th className="kpi-row-num">№</th>
                             <th>Клиент</th>
                             <th>Цена</th>
                             <th>Оплачено</th>
@@ -2852,13 +2858,14 @@ function SalesReportSection({
                           </tr>
                         </thead>
                         <tbody>
-                          {detailQuery.data.rows.map((r) => {
+                          {detailQuery.data.rows.map((r, idx) => {
                             const credited = num(r.brought_amount);
                             const monthPay = num(r.month_paid_amount);
                             const showAmt = credited > 0 ? credited : monthPay;
                             const notPaid = credited <= 0 && monthPay > 0;
                             return (
                             <tr key={`${r.source}-${r.source_id}`}>
+                              <td className="kpi-row-num tabular-nums mo-muted">{idx + 1}</td>
                               <td>{r.client_name}</td>
                               <td className="tabular-nums">{formatMoney(num(r.service_amount))}</td>
                               <td className="tabular-nums">{formatMoney(num(r.paid_amount))}</td>

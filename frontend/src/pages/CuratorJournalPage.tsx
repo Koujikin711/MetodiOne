@@ -798,6 +798,7 @@ export function CuratorJournalPage() {
               <thead>
                 <tr>
                   <th className="cj-sticky-corner" rowSpan={2}>
+                    <span className="cj-corner-num">№</span>
                     ФИО
                   </th>
                   {monthQuery.data.days.map((d) => {
@@ -842,17 +843,22 @@ export function CuratorJournalPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredParticipants.map((p) => (
+                {filteredParticipants.map((p, idx) => (
                   <tr key={p.id} className="border-t border-[var(--mo-border)]">
                     <th className="cj-sticky-name">
-                      <button
-                        type="button"
-                        className="cj-person-name text-left hover:underline"
-                        title={p.display_name}
-                        onClick={() => setHistoryMemberId(p.id)}
-                      >
-                        {p.display_name}
-                      </button>
+                      <div className="cj-person-row">
+                        <span className="cj-row-num" aria-hidden>
+                          {idx + 1}
+                        </span>
+                        <button
+                          type="button"
+                          className="cj-person-name text-left hover:underline"
+                          title={p.display_name}
+                          onClick={() => setHistoryMemberId(p.id)}
+                        >
+                          {p.display_name}
+                        </button>
+                      </div>
                     </th>
                     {monthQuery.data!.days.map((d) => {
                       const pauseNote = coveringPause(p, d)?.comment?.trim();
@@ -968,17 +974,22 @@ export function CuratorJournalPage() {
                 →
               </button>
             </div>
-            {filteredParticipants.map((p) => {
+            {filteredParticipants.map((p, idx) => {
               const e = entryMap.get(`${p.id}|${mobileDay}`);
               return (
                 <div key={p.id} className="cj-person-card">
-                  <button
-                    type="button"
-                    className="cj-person-name hover:underline"
-                    onClick={() => setHistoryMemberId(p.id)}
-                  >
-                    {p.display_name}
-                  </button>
+                  <div className="cj-person-row">
+                    <span className="cj-row-num" aria-hidden>
+                      {idx + 1}
+                    </span>
+                    <button
+                      type="button"
+                      className="cj-person-name hover:underline"
+                      onClick={() => setHistoryMemberId(p.id)}
+                    >
+                      {p.display_name}
+                    </button>
+                  </div>
                   {dayIsPaused(p, mobileDay) ? (
                     <p className="mt-2 text-sm text-[var(--mo-muted)]">
                       П · пауза{coveringPause(p, mobileDay)?.comment?.trim() ? ` · ${coveringPause(p, mobileDay)?.comment?.trim()}` : ""}

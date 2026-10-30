@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Журнал куратора · полное ФИО</title>
+  <title>Журнал куратора · нумерация</title>
   <style>
     :root {
       --bg: #0b1220;
@@ -16,8 +16,7 @@
       --ok: #34d399;
       --bad: #f87171;
       --empty: #64748b;
-      --accent: #93c5fd;
-      --name-w: 18.5rem;
+      --name-w: 20rem;
       --cell: 1.85rem;
     }
     * { box-sizing: border-box; }
@@ -33,6 +32,8 @@
     .eyebrow { color: var(--muted); font-size: 11px; letter-spacing: 0.04em; margin: 0 0 0.4rem; }
     h1 { margin: 0; font-size: 1.2rem; font-weight: 650; }
     .lead { color: var(--muted); font-size: 0.88rem; line-height: 1.45; margin: 0.45rem 0 1rem; max-width: 44rem; }
+    .grid { display: grid; gap: 1rem; }
+    @media (min-width: 900px) { .grid { grid-template-columns: 1.2fr 0.9fr; } }
     .panel {
       border: 1px solid var(--border);
       border-radius: 0.9rem;
@@ -85,9 +86,24 @@
       color: var(--muted);
       padding: 0.45rem 0.85rem;
     }
+    .corner-num, .row-num {
+      display: inline-block;
+      width: 1.55rem;
+      margin-right: 0.45rem;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      color: var(--muted);
+      font-weight: 400;
+      font-size: 0.75rem;
+    }
+    thead .corner-num { font-size: 0.72rem; }
+    .name .row {
+      display: flex;
+      align-items: baseline;
+      gap: 0.45rem;
+    }
     .name button {
       display: block;
-      width: 100%;
       margin: 0;
       padding: 0;
       border: 0;
@@ -122,74 +138,116 @@
     .ok { color: var(--ok); }
     .bad { color: var(--bad); }
     .empty { color: var(--empty); }
+    .modal {
+      margin: 0.75rem;
+      border-radius: 0.9rem;
+      border: 1px solid var(--border);
+      background: #1a263c;
+      overflow: hidden;
+    }
+    .modal-hd {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      gap: 0.75rem; padding: 0.75rem 0.9rem; border-bottom: 1px solid var(--border);
+    }
+    .modal-hd h2 { margin: 0; font-size: 0.98rem; font-weight: 650; }
+    .modal-hd p { margin: 0.2rem 0 0; font-size: 0.75rem; color: var(--muted); }
+    .modal-hd .close {
+      border: 1px solid var(--border); background: transparent; color: var(--text);
+      border-radius: 0.45rem; padding: 0.3rem 0.55rem; font-size: 0.78rem;
+    }
+    .modal-bd { padding: 0.55rem 0.75rem 0.85rem; }
+    .kpi-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; text-align: left; }
+    .kpi-table th, .kpi-table td { border-bottom: 1px solid rgba(148,163,184,0.18); padding: 0.45rem 0.35rem; }
+    .kpi-table th { color: var(--muted); font-size: 0.72rem; font-weight: 650; text-transform: uppercase; letter-spacing: 0.03em; }
+    .kpi-table .n { width: 2rem; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; font-weight: 400; }
+    .kpi-table .amt { text-align: right; font-variant-numeric: tabular-nums; }
     .foot { margin-top: 1rem; font-size: 0.75rem; color: var(--muted); line-height: 1.45; }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <p class="eyebrow">Лок UI · Журнал куратора</p>
-    <h1>Полное ФИО · спокойнее сетка</h1>
-    <p class="lead">Колонка имени шире — фамилия и имя целиком в одну строку. День / Пауза / Убрать по-прежнему только в модалке «История участника».</p>
+    <p class="eyebrow">Лок UI · нумерация</p>
+    <h1>№ слева · спокойно · tabular</h1>
+    <p class="lead">Порядковый номер в журнале куратора и в модалке KPI «Курс 15». Без жирного, выравнивание вправо.</p>
 
-    <section class="panel">
-      <p class="tag">Десктоп-таблица</p>
-      <table>
-        <thead>
-          <tr>
-            <th class="name date-h" rowspan="2">ФИО</th>
-            <th class="date-h" colspan="3">27.10</th>
-            <th class="date-h" colspan="3">28.10</th>
-            <th class="date-h is-today" colspan="3">29.10</th>
-            <th class="date-h" colspan="3">30.10</th>
-          </tr>
-          <tr>
-            <th class="sub-h">Дн</th><th class="sub-h">Фт</th><th class="sub-h">Жб</th>
-            <th class="sub-h">Дн</th><th class="sub-h">Фт</th><th class="sub-h">Жб</th>
-            <th class="sub-h">Дн</th><th class="sub-h">Фт</th><th class="sub-h">Жб</th>
-            <th class="sub-h">Дн</th><th class="sub-h">Фт</th><th class="sub-h">Жб</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <th class="name"><button type="button">Зокирова Фотима</button></th>
-            <td><span class="cell ok">✓</span></td><td><span class="cell ok">✓</span></td><td><span class="cell ok">✓</span></td>
-            <td><span class="cell ok">✓</span></td><td><span class="cell ok">✓</span></td><td><span class="cell ok">✓</span></td>
-            <td><span class="cell empty">○</span></td><td><span class="cell empty">○</span></td><td><span class="cell empty">○</span></td>
-            <td><span class="cell empty">○</span></td><td><span class="cell empty">○</span></td><td><span class="cell empty">○</span></td>
-          </tr>
-          <tr>
-            <th class="name"><button type="button">Кароматуллозода Махмуджон</button></th>
-            <td><span class="cell ok">✓</span></td><td><span class="cell ok">✓</span></td><td><span class="cell ok">✓</span></td>
-            <td><span class="cell bad">✕</span></td><td><span class="cell bad">✕</span></td><td><span class="cell ok">✓</span></td>
-            <td><span class="cell empty">○</span></td><td><span class="cell empty">○</span></td><td><span class="cell empty">○</span></td>
-            <td><span class="cell empty">○</span></td><td><span class="cell empty">○</span></td><td><span class="cell empty">○</span></td>
-          </tr>
-          <tr>
-            <th class="name"><button type="button">Курбонмамадов Амин</button></th>
-            <td><span class="cell ok">✓</span></td><td><span class="cell ok">✓</span></td><td><span class="cell ok">✓</span></td>
-            <td><span class="cell ok">✓</span></td><td><span class="cell ok">✓</span></td><td><span class="cell ok">✓</span></td>
-            <td><span class="cell empty">○</span></td><td><span class="cell empty">○</span></td><td><span class="cell empty">○</span></td>
-            <td><span class="cell empty">○</span></td><td><span class="cell empty">○</span></td><td><span class="cell empty">○</span></td>
-          </tr>
-          <tr>
-            <th class="name"><button type="button">Мансурзода Абдуллох</button></th>
-            <td><span class="cell ok">✓</span></td><td><span class="cell ok">✓</span></td><td><span class="cell ok">✓</span></td>
-            <td><span class="cell ok">✓</span></td><td><span class="cell ok">✓</span></td><td><span class="cell ok">✓</span></td>
-            <td><span class="cell empty">○</span></td><td><span class="cell empty">○</span></td><td><span class="cell empty">○</span></td>
-            <td><span class="cell empty">○</span></td><td><span class="cell empty">○</span></td><td><span class="cell empty">○</span></td>
-          </tr>
-          <tr>
-            <th class="name"><button type="button">Махмадшоев Мустафо</button></th>
-            <td><span class="cell ok">✓</span></td><td><span class="cell ok">✓</span></td><td><span class="cell ok">✓</span></td>
-            <td><span class="cell ok">✓</span></td><td><span class="cell ok">✓</span></td><td><span class="cell ok">✓</span></td>
-            <td><span class="cell empty">○</span></td><td><span class="cell empty">○</span></td><td><span class="cell empty">○</span></td>
-            <td><span class="cell empty">○</span></td><td><span class="cell empty">○</span></td><td><span class="cell empty">○</span></td>
-          </tr>
-        </tbody>
-      </table>
-    </section>
+    <div class="grid">
+      <section class="panel">
+        <p class="tag">Журнал куратора</p>
+        <table>
+          <thead>
+            <tr>
+              <th class="name date-h" rowspan="2"><span class="corner-num">№</span>ФИО</th>
+              <th class="date-h" colspan="3">27.10</th>
+              <th class="date-h is-today" colspan="3">29.10</th>
+            </tr>
+            <tr>
+              <th class="sub-h">Дн</th><th class="sub-h">Фт</th><th class="sub-h">Жб</th>
+              <th class="sub-h">Дн</th><th class="sub-h">Фт</th><th class="sub-h">Жб</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th class="name"><div class="row"><span class="row-num">1</span><button type="button">Абдуаюбзода Бибимох</button></div></th>
+              <td><span class="cell ok">✓</span></td><td><span class="cell ok">✓</span></td><td><span class="cell ok">✓</span></td>
+              <td><span class="cell empty">○</span></td><td><span class="cell empty">○</span></td><td><span class="cell empty">○</span></td>
+            </tr>
+            <tr>
+              <th class="name"><div class="row"><span class="row-num">2</span><button type="button">Ашурова Ахдия</button></div></th>
+              <td><span class="cell ok">✓</span></td><td><span class="cell ok">✓</span></td><td><span class="cell ok">✓</span></td>
+              <td><span class="cell empty">○</span></td><td><span class="cell empty">○</span></td><td><span class="cell empty">○</span></td>
+            </tr>
+            <tr>
+              <th class="name"><div class="row"><span class="row-num">3</span><button type="button">Кароматуллозода Махмуджон</button></div></th>
+              <td><span class="cell bad">✕</span></td><td><span class="cell bad">✕</span></td><td><span class="cell ok">✓</span></td>
+              <td><span class="cell empty">○</span></td><td><span class="cell empty">○</span></td><td><span class="cell empty">○</span></td>
+            </tr>
+            <tr>
+              <th class="name"><div class="row"><span class="row-num">4</span><button type="button">Курбонмамадов Амин</button></div></th>
+              <td><span class="cell ok">✓</span></td><td><span class="cell ok">✓</span></td><td><span class="cell ok">✓</span></td>
+              <td><span class="cell empty">○</span></td><td><span class="cell empty">○</span></td><td><span class="cell empty">○</span></td>
+            </tr>
+            <tr>
+              <th class="name"><div class="row"><span class="row-num">5</span><button type="button">Мансурзода Абдуллох</button></div></th>
+              <td><span class="cell ok">✓</span></td><td><span class="cell ok">✓</span></td><td><span class="cell ok">✓</span></td>
+              <td><span class="cell empty">○</span></td><td><span class="cell empty">○</span></td><td><span class="cell empty">○</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
 
-    <p class="foot">Лок: полное ФИО без обрезки · зебра строк · мягче отступы. После «пуш» так в журнале.</p>
+      <section class="panel">
+        <p class="tag">KPI · отчёт по услуге</p>
+        <div class="modal">
+          <div class="modal-hd">
+            <div>
+              <h2>Курс 15 · Алибекзода Мавлуда</h2>
+              <p>2026-10 · новых 5 · привёл 6 500,00 TJS</p>
+            </div>
+            <button type="button" class="close">Закрыть</button>
+          </div>
+          <div class="modal-bd">
+            <table class="kpi-table">
+              <thead>
+                <tr>
+                  <th class="n">№</th>
+                  <th>Клиент</th>
+                  <th class="amt">Привёл</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td class="n">1</td><td>Амонов Ахмад</td><td class="amt">1 300,00</td></tr>
+                <tr><td class="n">2</td><td>Хотамзода Ахмад</td><td class="amt">1 300,00</td></tr>
+                <tr><td class="n">3</td><td>Русланзод Усмон</td><td class="amt">1 300,00</td></tr>
+                <tr><td class="n">4</td><td>Одинаева Хафса</td><td class="amt">1 300,00</td></tr>
+                <tr><td class="n">5</td><td>Мирзомуродзода Аличон</td><td class="amt">1 300,00</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <p class="foot">После «пуш» так в журнале и в модалке KPI.</p>
   </div>
 </body>
 </html>
