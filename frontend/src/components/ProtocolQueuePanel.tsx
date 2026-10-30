@@ -375,8 +375,8 @@ export function ProtocolQueuePanel({
       ) : null}
 
       {rows.length > 0 ? (
-        <div className="mo-table-scroll rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)]">
-          <table className="w-full min-w-[860px] text-left text-sm">
+        <div className="mo-table-scroll mo-table-scroll--page rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)]">
+          <table className="w-full min-w-[1100px] text-left text-sm">
             <thead>
               <tr className="border-b border-[var(--mo-border)] text-[11px] uppercase tracking-wide mo-muted">
                 <th className="px-3 py-2 font-medium">Пациент</th>

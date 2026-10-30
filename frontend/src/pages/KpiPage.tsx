@@ -1411,8 +1411,8 @@ export function KpiPage() {
   return (
     <div
       className={[
-        "sales-space-page mo-print-doc mo-print-wide relative mx-auto w-full max-w-none space-y-2 sm:space-y-5 sm:pb-10",
-        tab === "plan" && isOwner ? "pb-[6.5rem]" : "pb-4",
+        "sales-space-page mo-print-doc mo-print-wide relative mx-auto w-full max-w-none space-y-2 sm:space-y-5",
+        tab === "plan" && isOwner ? "pb-[6.5rem]" : "pb-10 sm:pb-14",
       ].join(" ")}
     >
       <PrintMasthead
@@ -2170,7 +2170,7 @@ export function KpiPage() {
           <p className="hidden text-sm text-[var(--mo-text-muted)] sm:block">
             Смена менеджера здесь же меняет карточку CRM (если продажа привязана).
           </p>
-          <div className="mo-table-scroll hidden rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)] sm:block">
+          <div className="mo-table-scroll mo-table-scroll--page hidden rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)] sm:block">
             <table className="sold-course-sheet w-full min-w-[1280px] text-left">
               <thead>
                 <tr className="border-b border-[var(--mo-border)] text-[11px] uppercase tracking-wide mo-muted">

@@ -4719,11 +4719,24 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   -webkit-overflow-scrolling: touch;
 }
 
+/* KPI / длинные списки: без потолка по высоте — страница скроллится до конца. */
+.mo-table-scroll.mo-table-scroll--page {
+  max-height: none;
+  overflow-x: auto;
+  overflow-y: visible;
+  overscroll-behavior: auto;
+}
+
 .mo-table-scroll thead th {
   position: sticky;
   top: 0;
   z-index: 1;
   background: var(--mo-surface);
+}
+
+.mo-table-scroll.mo-table-scroll--page thead th {
+  /* sticky внутри page-scroll без max-height плохо цепляется — оставляем обычный thead */
+  position: static;
 }
 
 /* Страницы на всю оставшуюся ширину/высоту shell (чат, аналитика, …) */

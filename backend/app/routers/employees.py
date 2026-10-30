@@ -38,7 +38,8 @@ from app.services.audit import write_audit_event
 from app.services.chief_expert_access import assert_owner_admin_or_chief_expert, assert_owner_or_chief_expert
 from app.services.debtor_collection import clinic_today
 from app.services.green_api_send import send_green_text_async
-from app.services.mail import send_email
+from app.services.mail import send_email, smtp_misconfig_hint
+from app.services.phone_match import whatsapp_e164_digits
 
 router = APIRouter(prefix="/employees", tags=["employees"])
 
@@ -439,8 +440,8 @@ async def _send_employee_credentials_whatsapp(
     invite_token: str,
     prefer_pipeline_ids: list[int] | None = None,
 ) -> tuple[bool, str | None]:
-    digits = _norm_phone(phone or "")
-    if len(digits) < 7:
+    digits = whatsapp_e164_digits(phone or "")
+    if len(digits) < 9:
         return False, "У сотрудника нет телефона"
     integ = await _active_green_integration_for_company(
         db,
@@ -770,6 +771,7 @@ async def invite_employee(
         details=f"email_sent={email_sent}, whatsapp_sent={wa_sent}, role={u.role.value}",
     )
 
+    mail_hint = smtp_misconfig_hint()
     if email_sent and wa_sent:
         detail = "Сотрудник создан. Приглашение ушло на email и в WhatsApp."
     elif email_sent:
@@ -777,13 +779,16 @@ async def invite_employee(
         if wa_err:
             detail += f" WhatsApp: {wa_err}"
     elif wa_sent:
-        detail = "Сотрудник создан. Приглашение ушло в WhatsApp (письмо не ушло)."
+        detail = "Сотрудник создан. Приглашение ушло в WhatsApp."
+        detail += f" Письмо не ушло ({mail_hint or 'проверьте SMTP / пароль приложения Gmail'})."
     else:
-        detail = (
-            "Сотрудник создан. Email и WhatsApp не ушли — скопируйте ссылку и пароль с экрана."
-        )
+        detail = "Сотрудник создан. Email и WhatsApp не ушли — скопируйте ссылку и пароль с экрана."
+        if mail_hint:
+            detail += f" Почта: {mail_hint}."
+        elif not email_sent:
+            detail += " Почта: SMTP отклонил отправку (часто просрочен пароль приложения Gmail)."
         if wa_err:
-            detail += f" {wa_err}"
+            detail += f" WhatsApp: {wa_err}."
 
     return InviteEmployeeResult(
         employee=emp,

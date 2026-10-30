@@ -8,6 +8,17 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
+def smtp_misconfig_hint() -> str | None:
+    """Коротко: чего не хватает в env для почты (без секретов)."""
+    if not (settings.smtp_host or "").strip():
+        return "SMTP_HOST пуст на сервере Amvera"
+    if not (settings.smtp_user or "").strip():
+        return "SMTP_USER пуст"
+    if not (settings.smtp_password or "").strip():
+        return "SMTP_PASSWORD пуст (нужен пароль приложения Gmail)"
+    return None
+
+
 def send_email(
     to_email: str,
     subject: str,
@@ -15,8 +26,9 @@ def send_email(
     html_body: str | None = None,
     attachments: list[tuple[str, bytes]] | None = None,
 ) -> bool:
-    if not settings.smtp_host:
-        logger.warning("SMTP_HOST пуст — письмо не отправлено (%s)", to_email)
+    hint = smtp_misconfig_hint()
+    if hint:
+        logger.warning("%s — письмо не отправлено (%s)", hint, to_email)
         return False
     msg = EmailMessage()
     msg["Subject"] = subject
@@ -49,14 +61,15 @@ def send_email(
                     server.login(user, password)
                 server.send_message(msg)
         return True
-    except Exception:
+    except Exception as e:
         logger.exception(
-            "SMTP send failed to=%s host=%s port=%s from=%s user=%s",
+            "SMTP send failed to=%s host=%s port=%s from=%s user=%s err=%s",
             to_email,
             settings.smtp_host,
             port,
             settings.smtp_from or settings.smtp_user,
             user or "—",
+            e,
         )
         return False
 
