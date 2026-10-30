@@ -92,6 +92,9 @@ class InviteEmployeeResult(BaseModel):
     employee: EmployeeRead
     invite_url: str
     temp_password_sent_to_email: bool
+    whatsapp_sent: bool = False
+    temp_password: str = ""
+    detail: str = ""
 
 
 class PatchEmployeePipelinesBody(BaseModel):
@@ -688,6 +691,7 @@ async def invite_employee(
         u.role = body.role
         u.hashed_password = hash_password(temp_password)
         u.invite_token = invite_token
+        u.must_change_password = True
         u.is_active = True
         await db.flush()
     else:
@@ -699,6 +703,7 @@ async def invite_employee(
             role=body.role,
             hashed_password=hash_password(temp_password),
             invite_token=invite_token,
+            must_change_password=True,
             is_active=True,
         )
         db.add(u)
@@ -738,7 +743,7 @@ async def invite_employee(
 
     invite_url = _build_invite_url(invite_token)
     intro = "Вам восстановили доступ к CRM." if rehire else "Вас пригласили в CRM."
-    sent = _send_employee_credentials_email(
+    email_sent = _send_employee_credentials_email(
         email,
         temp_password,
         invite_token,
@@ -746,11 +751,47 @@ async def invite_employee(
         subject="Приглашение в CRM",
         heading="Приглашение в CRM",
     )
-    # Сотрудника сохраняем даже если SMTP упал — владелец отдаст ссылку вручную.
+    emp = await _employee_read(db, u)
+    wa_sent, wa_err = await _send_employee_credentials_whatsapp(
+        db,
+        company_id=company_id,
+        phone=phone,
+        email=email,
+        temp_password=temp_password,
+        invite_token=invite_token,
+        prefer_pipeline_ids=emp.pipeline_ids,
+    )
+    await write_audit_event(
+        db,
+        entity_type="user",
+        entity_id=u.id,
+        action="employee_invited",
+        current_user=current_user,
+        details=f"email_sent={email_sent}, whatsapp_sent={wa_sent}, role={u.role.value}",
+    )
+
+    if email_sent and wa_sent:
+        detail = "Сотрудник создан. Приглашение ушло на email и в WhatsApp."
+    elif email_sent:
+        detail = "Сотрудник создан. Приглашение ушло на email."
+        if wa_err:
+            detail += f" WhatsApp: {wa_err}"
+    elif wa_sent:
+        detail = "Сотрудник создан. Приглашение ушло в WhatsApp (письмо не ушло)."
+    else:
+        detail = (
+            "Сотрудник создан. Email и WhatsApp не ушли — скопируйте ссылку и пароль с экрана."
+        )
+        if wa_err:
+            detail += f" {wa_err}"
+
     return InviteEmployeeResult(
-        employee=await _employee_read(db, u),
+        employee=emp,
         invite_url=invite_url,
-        temp_password_sent_to_email=sent,
+        temp_password_sent_to_email=email_sent,
+        whatsapp_sent=wa_sent,
+        temp_password=temp_password,
+        detail=detail,
     )
 
 

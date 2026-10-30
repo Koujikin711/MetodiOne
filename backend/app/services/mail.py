@@ -1,5 +1,6 @@
 import logging
 import smtplib
+import ssl
 from email.message import EmailMessage
 
 from app.config import settings
@@ -26,23 +27,36 @@ def send_email(
         msg.add_alternative(html_body, subtype="html")
     for filename, payload in attachments or []:
         msg.add_attachment(payload, maintype="text", subtype="csv", filename=filename)
+    user = (settings.smtp_user or "").strip()
+    # Gmail App Password часто копируют с пробелами — они ломают login.
+    password = "".join((settings.smtp_password or "").split())
+    port = int(settings.smtp_port or 587)
     try:
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=20) as server:
-            server.ehlo()
-            if settings.smtp_port in (587, 25):
-                server.starttls()
+        if port == 465:
+            context = ssl.create_default_context()
+            with smtplib.SMTP_SSL(settings.smtp_host, port, timeout=20, context=context) as server:
                 server.ehlo()
-            if settings.smtp_user:
-                server.login(settings.smtp_user, settings.smtp_password)
-            server.send_message(msg)
+                if user:
+                    server.login(user, password)
+                server.send_message(msg)
+        else:
+            with smtplib.SMTP(settings.smtp_host, port, timeout=20) as server:
+                server.ehlo()
+                if port in (587, 25):
+                    server.starttls(context=ssl.create_default_context())
+                    server.ehlo()
+                if user:
+                    server.login(user, password)
+                server.send_message(msg)
         return True
     except Exception:
         logger.exception(
-            "SMTP send failed to=%s host=%s port=%s from=%s",
+            "SMTP send failed to=%s host=%s port=%s from=%s user=%s",
             to_email,
             settings.smtp_host,
-            settings.smtp_port,
+            port,
             settings.smtp_from or settings.smtp_user,
+            user or "—",
         )
         return False
 

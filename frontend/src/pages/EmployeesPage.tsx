@@ -30,6 +30,9 @@ interface InviteResult {
   employee: Employee;
   invite_url: string;
   temp_password_sent_to_email: boolean;
+  whatsapp_sent?: boolean;
+  temp_password?: string;
+  detail?: string;
 }
 
 interface SmtpConfig {
@@ -151,7 +154,13 @@ export function EmployeesPage() {
   const [editSpecialization, setEditSpecialization] = useState("");
   const [editAlsoExpert, setEditAlsoExpert] = useState(false);
   const [editPipelineIds, setEditPipelineIds] = useState<number[]>([]);
-  const [issuedLogin, setIssuedLogin] = useState<{ email: string; password: string; detail: string } | null>(null);
+  const [issuedLogin, setIssuedLogin] = useState<{
+    email: string;
+    password: string;
+    detail: string;
+    inviteUrl?: string;
+  } | null>(null);
+  const [inviteResult, setInviteResult] = useState<InviteResult | null>(null);
 
   const pipelines = pipelinesQuery.data ?? [];
   const pipelineById = useMemo(() => new Map(pipelines.map((p) => [p.id, p])), [pipelines]);
@@ -377,13 +386,11 @@ export function EmployeesPage() {
       setCourseStreamGapDays(10);
       void qc.invalidateQueries({ queryKey: ["employees"] });
       void qc.invalidateQueries({ queryKey: ["booking-specialists"] });
-
-      if (r.temp_password_sent_to_email) {
-        toast.success("Сотрудник приглашён — письмо отправлено");
-        window.prompt("Ссылка приглашения (письмо уже ушло на email):", r.invite_url);
+      setInviteResult(r);
+      if (r.temp_password_sent_to_email || r.whatsapp_sent) {
+        toast.success(r.detail || "Сотрудник приглашён");
       } else {
-        toast.error("Сотрудник добавлен, но письмо не ушло. Скопируйте ссылку вручную.");
-        window.prompt("SMTP не сработал — отправьте эту ссылку сотруднику:", r.invite_url);
+        toast.success("Сотрудник добавлен — отправьте ссылку вручную");
       }
     },
     onError: (e: Error) => toast.error(e.message),
@@ -1362,6 +1369,83 @@ export function EmployeesPage() {
           </div>
         </div>
       )}
+
+      {inviteResult ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-lg rounded-2xl crm-modal-panel border p-6 shadow-2xl">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="lux-subheading">Сотрудник добавлен</h2>
+              <button type="button" className="mo-modal-close" onClick={() => setInviteResult(null)}>
+                Закрыть
+              </button>
+            </div>
+            <p className="mt-3 text-sm text-[var(--mo-text)]">
+              {inviteResult.detail ||
+                (inviteResult.temp_password_sent_to_email
+                  ? "Приглашение отправлено."
+                  : "Скопируйте ссылку и пароль и отправьте сотруднику.")}
+            </p>
+            <div className="mt-4 space-y-2 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-3 text-sm">
+              <p>
+                <span className="mo-muted">ФИО:</span>{" "}
+                <span className="font-medium">{inviteResult.employee.full_name || "—"}</span>
+              </p>
+              <p>
+                <span className="mo-muted">Логин:</span>{" "}
+                <span className="font-medium">{inviteResult.employee.email}</span>
+              </p>
+              {inviteResult.temp_password ? (
+                <p className="break-all">
+                  <span className="mo-muted">Пароль:</span>{" "}
+                  <span className="font-semibold tracking-wide">{inviteResult.temp_password}</span>
+                </p>
+              ) : null}
+              <p className="break-all">
+                <span className="mo-muted">Ссылка:</span>{" "}
+                <a
+                  href={inviteResult.invite_url}
+                  className="text-[var(--mo-accent)] underline"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {inviteResult.invite_url}
+                </a>
+              </p>
+              <p className="text-[11px] mo-muted">
+                Email: {inviteResult.temp_password_sent_to_email ? "отправлено" : "не ушло"}
+                {" · "}
+                WhatsApp: {inviteResult.whatsapp_sent ? "отправлено" : "не ушло"}
+              </p>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={async () => {
+                  const text = [
+                    `Логин: ${inviteResult.employee.email}`,
+                    inviteResult.temp_password ? `Пароль: ${inviteResult.temp_password}` : null,
+                    `Вход: ${inviteResult.invite_url}`,
+                  ]
+                    .filter(Boolean)
+                    .join("\n");
+                  try {
+                    await navigator.clipboard.writeText(text);
+                    toast.success("Скопировано");
+                  } catch {
+                    window.prompt("Скопируйте доступ:", text);
+                  }
+                }}
+              >
+                Копировать доступ
+              </button>
+              <button type="button" className="btn-secondary" onClick={() => setInviteResult(null)}>
+                Готово
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
