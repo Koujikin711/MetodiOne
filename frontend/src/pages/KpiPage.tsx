@@ -15,6 +15,7 @@ import { OwnerPaidAdjust } from "@/components/OwnerPaidAdjust";
 import { ProtocolQueuePanel } from "@/components/ProtocolQueuePanel";
 import { PrintButton } from "@/components/PrintButton";
 import { PrintMasthead, PrintSign, printMonthLabel } from "@/components/PrintMasthead";
+import { Settings } from "@/components/icons";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import { apiFetch, getStoredToken } from "@/lib/api";
@@ -1294,14 +1295,12 @@ export function KpiPage() {
   }
 
   const tabs: { id: TabId; label: string; shortLabel: string; show: boolean }[] = [
-    { id: "plan", label: "Услуги", shortLabel: "Услуги", show: isOwner },
     {
       id: "sales",
       label: "Продажи",
       shortLabel: "Продажи",
       show: (isOwner || isAdminOrOwner || isManager) && !isCurator && !isAccountant,
     },
-    { id: "company", label: "Отчёт компании", shortLabel: "Отчёт", show: isOwner || isAccountant },
     { id: "manual", label: "Курсы / протоколы", shortLabel: "Курсы", show: isAdminOrOwner || isManager },
     {
       id: "protocols",
@@ -1315,6 +1314,7 @@ export function KpiPage() {
       shortLabel: "Долги",
       show: isAdminOrOwner || isCurator,
     },
+    { id: "company", label: "Отчёт компании", shortLabel: "Отчёт", show: isOwner || isAccountant },
   ];
 
   const manualPlanItems = (planQuery.data?.items ?? []).filter((x) => x.source_type === "manual");
@@ -1418,7 +1418,7 @@ export function KpiPage() {
       <PrintMasthead
         title={tab === "debtors" ? "Дебиторка" : "KPI продаж"}
         meta={[
-          tab === "debtors" ? "" : visibleTabs.find((t) => t.id === tab)?.label,
+          tab === "debtors" ? "" : tab === "plan" ? "Услуги" : visibleTabs.find((t) => t.id === tab)?.label,
           printMonthLabel(yearMonth),
           tab === "debtors"
             ? `стоимость курсов ${formatMoney(debtorCourseTotal)} · дебиторка ${formatMoney(debtorPriceTotal)}`
@@ -1432,7 +1432,31 @@ export function KpiPage() {
           className="mb-0"
           title="KPI продаж"
           description="У каждой услуги свой процент. Заработок — этот процент от суммы, которую менеджер привёл по ней."
-          actions={tab === "plan" ? undefined : <PrintButton />}
+          actions={
+            <>
+              {isOwner ? (
+                <button
+                  type="button"
+                  className={[
+                    "journal-icon-btn print-hide inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] text-[var(--mo-text)]",
+                    tab === "plan" ? "ring-2 ring-[var(--mo-accent)] border-transparent" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  aria-label="Услуги"
+                  title="Услуги"
+                  aria-pressed={tab === "plan"}
+                  onClick={() => setTab("plan")}
+                >
+                  <Settings className="h-5 w-5" />
+                  <span className="journal-icon-btn__tip" role="tooltip">
+                    Услуги
+                  </span>
+                </button>
+              ) : null}
+              <PrintButton />
+            </>
+          }
         />
       </header>
 
