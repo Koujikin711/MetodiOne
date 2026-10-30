@@ -216,6 +216,13 @@ class SalesKpiOwnerPaidAdjust(BaseModel):
     reason: str = Field(..., min_length=3, max_length=500)
 
 
+class SalesKpiManualSaleServiceAmountPatch(BaseModel):
+    """Смена стоимости курса/протокола в списке продаж (без ожидания дебиторки)."""
+
+    service_amount: Decimal = Field(..., ge=0)
+    reason: str = Field(..., min_length=3, max_length=500)
+
+
 class SalesKpiManualSalePaymentPatch(BaseModel):
     """Доплата по курсу/протоколу (не перезапись итога)."""
 
@@ -302,6 +309,12 @@ class SalesKpiManualSaleFlowPatch(BaseModel):
 
     group_no: int = Field(..., ge=1, le=20)
     stream_no: int = Field(..., ge=1, le=10)
+
+
+class SalesKpiManualSalePlanItemPatch(BaseModel):
+    """Смена продукта KPI у уже открытой продажи (например Протокол → Курс). Суммы не трогаем."""
+
+    plan_item_id: int = Field(..., ge=1)
 
 
 class SalesKpiManualSaleManagerPatch(BaseModel):

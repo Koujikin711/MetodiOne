@@ -12,6 +12,7 @@ import { MonthYearPicker } from "@/components/MonthYearPicker";
 import { CompanyMonthCompare } from "@/components/CompanyMonthCompare";
 import { ServiceRevenueCharts } from "@/components/ServiceRevenueCharts";
 import { OwnerPaidAdjust } from "@/components/OwnerPaidAdjust";
+import { OwnerServiceAmountAdjust } from "@/components/OwnerServiceAmountAdjust";
 import { ProtocolQueuePanel } from "@/components/ProtocolQueuePanel";
 import { PrintButton } from "@/components/PrintButton";
 import { PrintMasthead, PrintSign, printMonthLabel } from "@/components/PrintMasthead";
@@ -725,6 +726,8 @@ export function KpiPage() {
   const meQuery = useCurrentUserMe();
   const isCurator = role === "curator" || (role === "expert" && Boolean(meQuery.data?.also_curator));
   const isAccountant = role === "accountant";
+  /** Смена типа / потока / менеджера продажи. */
+  const canEditSaleMeta = isAdminOrOwner || isAccountant;
   const kpiOps = isAdminOrOwner || isManager || isAccountant;
   /** Подтверждение доплат менеджера — бухгалтер или владелец компании. */
   const canConfirmPay =
@@ -1175,6 +1178,24 @@ export function KpiPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const changeSalePlanItem = useMutation({
+    mutationFn: async (body: { id: number; planItemId: number }) => {
+      await apiFetch<SalesKpiManualSale>(`/api/sales-kpi/manual-sales/${body.id}/plan-item`, {
+        method: "PATCH",
+        body: JSON.stringify({ plan_item_id: body.planItemId }),
+      });
+    },
+    onSuccess: () => {
+      toast.success("Тип продажи сохранён");
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-manual-sales"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-sales-report"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-service-earnings"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-debtors"] });
+      void queryClient.invalidateQueries({ queryKey: ["curator-journal"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const payMutation = useMutation({
     mutationFn: async ({ id, add, paid_at }: { id: number; add: number; paid_at: string }) => {
       await apiFetch<SalesKpiManualSale>(`/api/sales-kpi/manual-sales/${id}/payment`, {
@@ -1207,6 +1228,24 @@ export function KpiPage() {
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-manual-sales"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-debtors"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-payment-journal"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-sales-report"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-company-report"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-service-earnings"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const adjustServiceAmountMutation = useMutation({
+    mutationFn: async (body: { id: number; service_amount: number; reason: string }) => {
+      await apiFetch<SalesKpiManualSale>(`/api/sales-kpi/manual-sales/${body.id}/service-amount`, {
+        method: "PATCH",
+        body: JSON.stringify({ service_amount: body.service_amount, reason: body.reason }),
+      });
+    },
+    onSuccess: () => {
+      toast.success("Стоимость сохранена. Запись есть в аудите.");
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-manual-sales"] });
+      void queryClient.invalidateQueries({ queryKey: ["sales-kpi-debtors"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-sales-report"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-company-report"] });
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-service-earnings"] });
@@ -2078,10 +2117,34 @@ export function KpiPage() {
                     >
                       {s.client_name}
                     </button>
-                    <p className="truncate text-[11px] text-[var(--mo-text-muted)]">
-                      {s.plan_item_name}
-                    </p>
-                    {isAdminOrOwner ? (
+                    {canEditSaleMeta ? (
+                      <select
+                        className="mo-input mt-1 max-w-full text-[11px]"
+                        aria-label={`Тип продажи ${s.client_name}`}
+                        title="Сменить продукт: Курс / Протокол"
+                        value={s.plan_item_id}
+                        disabled={changeSalePlanItem.isPending}
+                        onChange={(e) => {
+                          const next = Number(e.target.value);
+                          if (!next || next === s.plan_item_id) return;
+                          changeSalePlanItem.mutate({ id: s.id, planItemId: next });
+                        }}
+                      >
+                        {manualPlanItems.map((it) => (
+                          <option key={it.id} value={it.id}>
+                            {it.name}
+                          </option>
+                        ))}
+                        {!manualPlanItems.some((it) => it.id === s.plan_item_id) ? (
+                          <option value={s.plan_item_id}>{s.plan_item_name}</option>
+                        ) : null}
+                      </select>
+                    ) : (
+                      <p className="truncate text-[11px] text-[var(--mo-text-muted)]">
+                        {s.plan_item_name}
+                      </p>
+                    )}
+                    {canEditSaleMeta ? (
                       <div className="mt-1 flex gap-1">
                         <SaleNumberSelect
                           value={s.group_no}
@@ -2113,7 +2176,7 @@ export function KpiPage() {
                   </span>
                 </div>
                 <div className="mt-1">
-                  {isAdminOrOwner ? (
+                  {canEditSaleMeta ? (
                     <SaleManagerCell
                       sale={s}
                       managers={managers}
@@ -2126,8 +2189,18 @@ export function KpiPage() {
                   )}
                 </div>
                 <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-[var(--mo-text)]">
-                  <span className="tabular-nums">
+                  <span className="inline-flex items-center tabular-nums">
                     {formatMoney(num(s.paid_amount))} / {formatMoney(num(s.service_amount))}
+                    {canFixDebtors && (s.status === "active" || s.status === "completed") ? (
+                      <OwnerServiceAmountAdjust
+                        serviceAmount={num(s.service_amount)}
+                        paidAmount={num(s.paid_amount)}
+                        pending={adjustServiceAmountMutation.isPending}
+                        onApply={(body) =>
+                          adjustServiceAmountMutation.mutate({ id: s.id, ...body })
+                        }
+                      />
+                    ) : null}
                   </span>
                   <PaymentDecisions
                     sale={s}
@@ -2224,9 +2297,35 @@ export function KpiPage() {
                     <td className="whitespace-nowrap tabular-nums">
                       {s.sold_at ? formatSaleDtCompact(s.sold_at) : "—"}
                     </td>
-                    <td>{s.plan_item_name}</td>
+                    <td>
+                      {canEditSaleMeta ? (
+                        <select
+                          className="mo-input kpi-course-flow kpi-course-flow--wide"
+                          aria-label={`Тип продажи ${s.client_name}`}
+                          title="Сменить продукт: Курс / Протокол"
+                          value={s.plan_item_id}
+                          disabled={changeSalePlanItem.isPending}
+                          onChange={(e) => {
+                            const next = Number(e.target.value);
+                            if (!next || next === s.plan_item_id) return;
+                            changeSalePlanItem.mutate({ id: s.id, planItemId: next });
+                          }}
+                        >
+                          {manualPlanItems.map((it) => (
+                            <option key={it.id} value={it.id}>
+                              {it.name}
+                            </option>
+                          ))}
+                          {!manualPlanItems.some((it) => it.id === s.plan_item_id) ? (
+                            <option value={s.plan_item_id}>{s.plan_item_name}</option>
+                          ) : null}
+                        </select>
+                      ) : (
+                        s.plan_item_name
+                      )}
+                    </td>
                     <td className="whitespace-nowrap">
-                      {isAdminOrOwner ? (
+                      {canEditSaleMeta ? (
                         <SaleNumberSelect
                           value={s.group_no}
                           options={KPI_GROUP_OPTIONS}
@@ -2246,7 +2345,7 @@ export function KpiPage() {
                       )}
               </td>
                     <td>
-                      {isAdminOrOwner ? (
+                      {canEditSaleMeta ? (
                         <SaleManagerCell
                           sale={s}
                           managers={managers}
@@ -2270,7 +2369,19 @@ export function KpiPage() {
                       </button>
                     </td>
                     <td className="tabular-nums">{s.client_phone || "—"}</td>
-                    <td className="whitespace-nowrap tabular-nums">{formatMoney(num(s.service_amount))}</td>
+                    <td className="whitespace-nowrap tabular-nums">
+                      {formatMoney(num(s.service_amount))}
+                      {canFixDebtors && (s.status === "active" || s.status === "completed") ? (
+                        <OwnerServiceAmountAdjust
+                          serviceAmount={num(s.service_amount)}
+                          paidAmount={num(s.paid_amount)}
+                          pending={adjustServiceAmountMutation.isPending}
+                          onApply={(body) =>
+                            adjustServiceAmountMutation.mutate({ id: s.id, ...body })
+                          }
+                        />
+                      ) : null}
+                    </td>
                     <td className="whitespace-nowrap tabular-nums">
                       {formatMoney(num(s.paid_amount))}
                       {isCompanyOwner && s.status === "active" ? (

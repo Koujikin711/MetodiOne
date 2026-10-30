@@ -71,12 +71,14 @@ from app.schemas.sales_kpi import (
     SalesKpiManualSaleFlowPatch,
     SalesKpiManualSaleLinkLeadPatch,
     SalesKpiManualSaleManagerPatch,
+    SalesKpiManualSalePlanItemPatch,
     SalesKpiMonthCompare,
     SalesKpiMonthCompareService,
     SalesKpiManualSaleOut,
     SalesKpiManualSalePaymentOut,
     SalesKpiManualSalePaymentPatch,
     SalesKpiOwnerPaidAdjust,
+    SalesKpiManualSaleServiceAmountPatch,
     SalesKpiPaymentConfirmIn,
     SalesKpiManualPaymentJournalRow,
     SalesKpiManualSaleSoldAtPatch,
@@ -2254,6 +2256,72 @@ def _audit_plain(value: str | None) -> str:
     return " ".join((value or "").replace(",", " ").split())
 
 
+@router.patch("/manual-sales/{sale_id}/service-amount", response_model=SalesKpiManualSaleOut)
+async def patch_manual_sale_service_amount(
+    sale_id: int,
+    body: SalesKpiManualSaleServiceAmountPatch,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> SalesKpiManualSaleOut:
+    """Владелец/админ меняет стоимость курса или протокола прямо в продажах."""
+    _assert_kpi_access(current_user)
+    _assert_debtor_correct_access(current_user)
+    sale = await db.get(SalesKpiManualSale, sale_id)
+    if sale is None or sale.company_id != company_id:
+        raise HTTPException(status_code=404, detail="Продажа не найдена")
+    if sale.status == "returned":
+        raise HTTPException(status_code=400, detail="По возвращённой продаже цену не правят")
+    if sale.status not in ("active", "completed"):
+        raise HTTPException(status_code=400, detail="Цену правят у открытой или завершённой продажи")
+
+    reason = " ".join((body.reason or "").split())
+    before = Decimal(str(sale.service_amount or 0)).quantize(Decimal("0.01"))
+    after = Decimal(str(body.service_amount)).quantize(Decimal("0.01"))
+    paid = Decimal(str(sale.paid_amount or 0)).quantize(Decimal("0.01"))
+    if after > 0 and paid > after:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Стоимость не может быть меньше уже оплаченного ({paid})",
+        )
+    if before != after:
+        from app.services.audit import write_audit_event
+        from app.services.patient_ltv import mirror_manual_sale_purchase
+
+        sale.service_amount = after
+        sale.updated_at = datetime.now(UTC)
+        item = await db.get(SalesKpiPlanItem, sale.plan_item_id)
+        await write_audit_event(
+            db,
+            entity_type="kpi_manual_sale",
+            entity_id=int(sale.id),
+            action="service_amount_changed",
+            current_user=current_user,
+            details=(
+                f"service {before}→{after}; paid={paid}; "
+                f"client={sale.client_name!r}; reason={reason!r}"
+            ),
+        )
+        await mirror_manual_sale_purchase(db, sale=sale, item_name=item.name if item else "")
+        await db.commit()
+        await db.refresh(sale)
+    else:
+        item = await db.get(SalesKpiPlanItem, sale.plan_item_id)
+
+    manager = await db.get(User, sale.manager_user_id)
+    payments = (await _load_sale_payments(db, [int(sale.id)])).get(int(sale.id), [])
+    return _manual_sale_out(
+        sale,
+        plan_item_name=item.name if item else "",
+        manager_name=str(
+            (manager.full_name if manager else None)
+            or (manager.email if manager else None)
+            or f"#{sale.manager_user_id}"
+        ),
+        payments=payments,
+    )
+
+
 @router.patch("/manual-sales/{sale_id}/paid", response_model=SalesKpiManualSaleOut)
 async def adjust_manual_sale_paid(
     sale_id: int,
@@ -2615,6 +2683,80 @@ async def _retarget_course_flow(db: AsyncSession, *, company_id: int, sale_id: i
     if members:
         await db.flush()
     await sync_course_flows_from_kpi(db, company_id=company_id, sale_id=int(sale_id))
+
+
+@router.patch("/manual-sales/{sale_id}/plan-item", response_model=SalesKpiManualSaleOut)
+async def patch_manual_sale_plan_item(
+    sale_id: int,
+    body: SalesKpiManualSalePlanItemPatch,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> SalesKpiManualSaleOut:
+    """Владелец / бухгалтер: сменить продукт продажи (Протокол ↔ Курс и т.п.). Оплаты не меняются."""
+    _assert_kpi_access(current_user)
+    _assert_admin_or_owner(current_user)
+    sale = await db.get(SalesKpiManualSale, sale_id)
+    if sale is None or sale.company_id != company_id:
+        raise HTTPException(status_code=404, detail="Продажа не найдена")
+    if sale.status in ("returned", "refused"):
+        raise HTTPException(status_code=400, detail=f"Закрытую продажу нельзя менять: {sale.status}")
+
+    item = await db.get(SalesKpiPlanItem, body.plan_item_id)
+    if item is None or item.company_id != company_id or int(item.pipeline_id) != int(sale.pipeline_id):
+        raise HTTPException(status_code=400, detail="Продукт плана не найден в этой воронке")
+    if item.source_type != "manual":
+        raise HTTPException(status_code=400, detail="Можно выбрать только ручной продукт (курс/протокол)")
+
+    before_id = int(sale.plan_item_id)
+    next_id = int(body.plan_item_id)
+    if before_id != next_id:
+        from app.services.audit import write_audit_event
+        from app.services.patient_ltv import mirror_manual_sale_purchase
+
+        old_item = await db.get(SalesKpiPlanItem, before_id)
+        sale.plan_item_id = next_id
+        sale.updated_at = datetime.now(UTC)
+        await write_audit_event(
+            db,
+            entity_type="kpi_manual_sale",
+            entity_id=int(sale.id),
+            action="plan_item_changed",
+            current_user=current_user,
+            details=(
+                f"plan_item: {before_id} ({(old_item.name if old_item else '?')!r}) → "
+                f"{next_id} ({item.name!r}); client={sale.client_name!r}"
+            ),
+        )
+        await mirror_manual_sale_purchase(db, sale=sale, item_name=item.name)
+        await _retarget_course_flow(db, company_id=company_id, sale_id=int(sale.id))
+        await db.commit()
+        await db.refresh(sale)
+
+    out_item = await db.get(SalesKpiPlanItem, sale.plan_item_id)
+    manager = await db.get(User, sale.manager_user_id)
+    payments = (await _load_sale_payments(db, [int(sale.id)])).get(int(sale.id), [])
+    lead_mid: int | None = None
+    lead_name: str | None = None
+    if sale.lead_id is not None:
+        lead = await db.get(Lead, int(sale.lead_id))
+        if lead is not None and lead.company_id == company_id and lead.manager_id is not None:
+            card = await db.get(User, int(lead.manager_id))
+            lead_mid = int(lead.manager_id)
+            if card is not None:
+                lead_name = str(card.full_name or card.email or f"#{card.id}")
+    return _manual_sale_out(
+        sale,
+        plan_item_name=out_item.name if out_item else (item.name if item else ""),
+        manager_name=str(
+            (manager.full_name if manager else None)
+            or (manager.email if manager else None)
+            or f"#{sale.manager_user_id}"
+        ),
+        payments=payments,
+        lead_manager_user_id=lead_mid,
+        lead_manager_name=lead_name,
+    )
 
 
 @router.patch("/manual-sales/{sale_id}/flow", response_model=SalesKpiManualSaleOut)
