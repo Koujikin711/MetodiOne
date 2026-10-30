@@ -27,6 +27,7 @@ import type {
   SalesKpiDebtorRow,
   SalesKpiDebtorsReport,
   SalesKpiManualSale,
+  SalesKpiManualSalePayment,
   SalesKpiPaymentJournalRow,
   SalesKpiPipelineMeta,
   SalesKpiReferralServiceCell,
@@ -731,6 +732,7 @@ export function KpiPage() {
   const [listQuery, setListQuery] = useState("");
   const [journalSearch, setJournalSearch] = useState("");
   const [journalOpen, setJournalOpen] = useState(false);
+  const [pendingConfirmOpen, setPendingConfirmOpen] = useState(false);
   const [saleProductFilter, setSaleProductFilter] = useState<"all" | "course" | "protocol">("all");
   const [saleFormOpen, setSaleFormOpen] = useState(false);
   const [tab, setTab] = useState<TabId>(
@@ -1346,6 +1348,26 @@ export function KpiPage() {
     );
   }, [manualQuery.data, listQuery, saleProductFilter]);
 
+  const pendingPayConfirms = useMemo(() => {
+    const rows: Array<{
+      sale: SalesKpiManualSale;
+      payment: SalesKpiManualSalePayment;
+    }> = [];
+    for (const sale of manualQuery.data ?? []) {
+      for (const p of sale.payments ?? []) {
+        if ((p.confirmation ?? "confirmed") === "pending") {
+          rows.push({ sale, payment: p });
+        }
+      }
+    }
+    return rows;
+  }, [manualQuery.data]);
+  const pendingPayConfirmCount = pendingPayConfirms.length;
+
+  useEffect(() => {
+    if (pendingPayConfirmCount === 0) setPendingConfirmOpen(false);
+  }, [pendingPayConfirmCount]);
+
   const debtorManagers = useMemo(() => {
     const counts = new Map<string, number>();
     for (const row of debtorsQuery.data?.rows ?? []) {
@@ -1550,6 +1572,74 @@ export function KpiPage() {
               Здесь оплаты: курс и уже купленный протокол в одном списке. Нажмите на пациента — полная история
               оплат. Срок 30 дней — отдельный блок ниже.
             </p>
+            {isManager || pendingPayConfirmCount === 0 ? (
+              <p className="kpi-confirm-notice" role="status">
+                {isManager
+                  ? "Доплата после OK — на подтверждение админу."
+                  : "Доплаты менеджеров — подтвердите в колонке «Оплата»."}
+              </p>
+            ) : (
+              <button
+                type="button"
+                className={[
+                  "kpi-confirm-notice is-urgent is-button",
+                  pendingConfirmOpen ? "is-open" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                aria-expanded={pendingConfirmOpen}
+                onClick={() => setPendingConfirmOpen((v) => !v)}
+              >
+                Ждёт подтверждения: {pendingPayConfirmCount}
+              </button>
+            )}
+            {pendingConfirmOpen && pendingPayConfirmCount > 0 && isAdminOrOwner ? (
+              <ul className="kpi-confirm-queue">
+                {pendingPayConfirms.map(({ sale, payment }) => (
+                  <li key={`${sale.id}-${payment.id}`} className="kpi-confirm-queue__row">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-[var(--mo-text)]">{sale.client_name}</p>
+                      <p className="text-[11px] tabular-nums mo-muted">
+                        {formatMoney(num(payment.amount))}
+                        {sale.client_phone ? ` · ${sale.client_phone}` : ""}
+                        {sale.manager_name ? ` · ${sale.manager_name}` : ""}
+                        {payment.paid_at ? ` · ${String(payment.paid_at).slice(0, 10)}` : ""}
+                      </p>
+                    </div>
+                    <span className="flex shrink-0 flex-nowrap gap-1">
+                      <button
+                        type="button"
+                        className="btn-primary px-2.5 py-1 text-[11px]"
+                        disabled={confirmPayMutation.isPending}
+                        onClick={() =>
+                          confirmPayMutation.mutate({
+                            saleId: sale.id,
+                            paymentId: payment.id,
+                            confirmed: true,
+                          })
+                        }
+                      >
+                        Оплата прошла
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary px-2.5 py-1 text-[11px]"
+                        disabled={confirmPayMutation.isPending}
+                        onClick={() =>
+                          confirmPayMutation.mutate({
+                            saleId: sale.id,
+                            paymentId: payment.id,
+                            confirmed: false,
+                          })
+                        }
+                      >
+                        Оплаты не было
+                      </button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </div>
 
           {(programRequestsQuery.data ?? []).length > 0 ? (
