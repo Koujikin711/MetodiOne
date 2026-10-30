@@ -740,9 +740,7 @@ export function KpiPage() {
   const [pendingConfirmOpen, setPendingConfirmOpen] = useState(false);
   const [saleProductFilter, setSaleProductFilter] = useState<"all" | "course" | "protocol">("all");
   const [saleFormOpen, setSaleFormOpen] = useState(false);
-  const [tab, setTab] = useState<TabId>(
-    isCurator ? "debtors" : isOwner ? "plan" : "sales",
-  );
+  const [tab, setTab] = useState<TabId>(isCurator ? "debtors" : "sales");
 
   const [rateDraft, setRateDraft] = useState<Record<string, string>>({});
   const [nameDraft, setNameDraft] = useState<Record<string, string>>({});
