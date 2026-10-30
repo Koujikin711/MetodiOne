@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>KPI · плотная таблица курсов</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --surface: #121a2b;
+      --elev: #1a263c;
+      --border: rgba(148, 163, 184, 0.28);
+      --text: #e8eef9;
+      --muted: #94a3b8;
+      --input: #152033;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: radial-gradient(1000px 520px at 10% -10%, #1a2744, var(--bg));
+      color: var(--text);
+      padding: 1rem 0.85rem 2rem;
+    }
+    .wrap { max-width: 1180px; margin: 0 auto; }
+    .eyebrow { color: var(--muted); font-size: 11px; letter-spacing: 0.04em; margin: 0 0 0.4rem; }
+    h1 { margin: 0; font-size: 1.15rem; font-weight: 650; }
+    .lead { color: var(--muted); font-size: 0.86rem; line-height: 1.45; margin: 0.4rem 0 1rem; }
+    .panel {
+      border: 1px solid var(--border);
+      border-radius: 0.9rem;
+      background: color-mix(in srgb, var(--surface) 92%, transparent);
+      overflow: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.75rem;
+      line-height: 1.15;
+      min-width: 72rem;
+    }
+    th, td {
+      padding: 0.18rem 0.35rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+      text-align: left;
+      white-space: nowrap;
+    }
+    th {
+      font-size: 0.62rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      font-weight: 650;
+    }
+    select, input, .ok {
+      height: 1.4rem;
+      border: 1px solid var(--border);
+      border-radius: 0.35rem;
+      background: var(--input);
+      color: var(--text);
+      font: inherit;
+      font-size: 0.68rem;
+      padding: 0 0.35rem;
+    }
+    select {
+      -webkit-appearance: none;
+      appearance: none;
+      background-image: none;
+      cursor: pointer;
+    }
+    th:nth-child(3), td:nth-child(3) { width: 1%; padding-left: 0.25rem; padding-right: 0.25rem; }
+    select.flow { width: 4.35rem; min-width: 4.35rem; max-width: 4.35rem; padding: 0 0.3rem; }
+    select.mgr { min-width: 7.5rem; max-width: 9.5rem; }
+    .pay {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.15rem;
+    }
+    .pay input.amt { width: 4.1rem; }
+    .pay input.dt { width: 5.1rem; }
+    .ok {
+      padding: 0 0.35rem;
+      background: #4f46e5;
+      border-color: transparent;
+      color: #fff;
+      font-size: 0.62rem;
+      font-weight: 650;
+    }
+    .note { margin-top: 0.75rem; font-size: 0.75rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <p class="eyebrow">Лок UI · KPI</p>
+    <h1>Курсы / протоколы — плотные строки</h1>
+    <p class="lead">Меньше пустот у «Поток» и «Оплата», чтобы больше строк и все графы помещались в одно окно.</p>
+    <div class="panel">
+      <table>
+        <thead>
+          <tr>
+            <th>Дата</th><th>Тип</th><th>Поток</th><th>Менеджер</th><th>Пациент</th>
+            <th>Телефон</th><th>Сумма</th><th>Оплачено</th><th>Долг</th><th>Оплата</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>30.10 12:40</td><td>Курс 15</td>
+            <td><select class="flow"><option>Поток 9</option></select></td>
+            <td><select class="mgr"><option>Азиззода Саодат</option></select></td>
+            <td>Каримова Зухра</td><td>+992900001122</td><td>15 000</td><td>5 000</td><td>10 000</td>
+            <td><span class="pay"><input class="amt" value="Доплата" readonly /><input class="dt" value="30.10.2026" readonly /><button class="ok" type="button">OK</button></span></td>
+          </tr>
+          <tr>
+            <td>29.10 18:05</td><td>Протокол</td>
+            <td><select class="flow"><option>Поток 3</option></select></td>
+            <td><select class="mgr"><option>Раҳимов Ф.</option></select></td>
+            <td>Нуров Алишер</td><td>+992900003344</td><td>3 000</td><td>1 500</td><td>1 500</td>
+            <td><span class="pay"><input class="amt" value="Доплата" readonly /><input class="dt" value="30.10.2026" readonly /><button class="ok" type="button">OK</button></span></td>
+          </tr>
+          <tr>
+            <td>28.10 09:20</td><td>Курс</td>
+            <td><select class="flow"><option>Поток 1</option></select></td>
+            <td><select class="mgr"><option>Исмоилова М.</option></select></td>
+            <td>Саидов Бахтиёр</td><td>+992900005566</td><td>5 000</td><td>5 000</td><td>0</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td>27.10 16:11</td><td>Курс 15</td>
+            <td><select class="flow"><option>Поток 2</option></select></td>
+            <td><select class="mgr"><option>Азиззода Саодат</option></select></td>
+            <td>Холова Дилбар</td><td>+992900007788</td><td>15 000</td><td>7 000</td><td>8 000</td>
+            <td><span class="pay"><input class="amt" value="Доплата" readonly /><input class="dt" value="30.10.2026" readonly /><button class="ok" type="button">OK</button></span></td>
+          </tr>
+          <tr>
+            <td>26.10 11:02</td><td>Протокол</td>
+            <td><select class="flow"><option>Поток 9</option></select></td>
+            <td><select class="mgr"><option>Раҳимов Ф.</option></select></td>
+            <td>Юсупова Нигина</td><td>+992900009900</td><td>3 000</td><td>0</td><td>3 000</td>
+            <td><span class="pay"><input class="amt" value="Доплата" readonly /><input class="dt" value="30.10.2026" readonly /><button class="ok" type="button">OK</button></span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">В приложении: KPI → «Курсы / протоколы». После ок — «пуш».</p>
+  </div>
+</body>
+</html>

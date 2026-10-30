@@ -359,7 +359,7 @@ function SaleNumberSelect({
   const known = current !== "" && options.includes(Number(current));
   return (
     <select
-      className={optionLabel ? "mo-input min-w-[6.5rem] py-1 text-sm" : "mo-input kpi-course-flow"}
+      className={optionLabel ? "mo-input kpi-course-flow kpi-course-flow--wide" : "mo-input kpi-course-flow"}
       aria-label={label}
       value={current}
       disabled={pending}
@@ -2205,29 +2205,29 @@ export function KpiPage() {
             Смена менеджера здесь же меняет карточку CRM (если продажа привязана).
           </p>
           <div className="mo-table-scroll mo-table-scroll--page hidden rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)] sm:block">
-            <table className="sold-course-sheet w-full min-w-[1280px] text-left">
+            <table className="sold-course-sheet w-full min-w-[72rem] text-left">
               <thead>
-                <tr className="border-b border-[var(--mo-border)] text-[11px] uppercase tracking-wide mo-muted">
-                  <th className="px-3 py-2 font-medium">Дата</th>
-                  <th className="px-3 py-2 font-medium">Тип</th>
-                  <th className="px-3 py-2 font-medium">Поток</th>
-                  <th className="px-3 py-2 font-medium">Менеджер</th>
-                  <th className="px-3 py-2 font-medium">Пациент</th>
-                  <th className="px-3 py-2 font-medium">Телефон</th>
-                  <th className="px-3 py-2 font-medium">Сумма</th>
-                  <th className="px-3 py-2 font-medium">Оплачено</th>
-                  <th className="px-3 py-2 font-medium">Долг</th>
-                  <th className="print-omit px-3 py-2 font-medium">Оплата</th>
+                <tr className="border-b border-[var(--mo-border)] text-[10px] uppercase tracking-wide mo-muted">
+                  <th className="font-medium">Дата</th>
+                  <th className="font-medium">Тип</th>
+                  <th className="font-medium">Поток</th>
+                  <th className="font-medium">Менеджер</th>
+                  <th className="font-medium">Пациент</th>
+                  <th className="font-medium">Телефон</th>
+                  <th className="font-medium">Сумма</th>
+                  <th className="font-medium">Оплачено</th>
+                  <th className="font-medium">Долг</th>
+                  <th className="print-omit font-medium">Оплата</th>
           </tr>
         </thead>
         <tbody>
                 {filteredManualSales.map((s) => (
                   <tr key={s.id} className="border-b border-[var(--mo-border)]">
-                    <td className="whitespace-nowrap px-3 py-2 tabular-nums">
+                    <td className="whitespace-nowrap tabular-nums">
                       {s.sold_at ? formatSaleDtCompact(s.sold_at) : "—"}
                     </td>
-                    <td className="px-3 py-2">{s.plan_item_name}</td>
-                    <td className="whitespace-nowrap px-3 py-2">
+                    <td>{s.plan_item_name}</td>
+                    <td className="whitespace-nowrap">
                       {isAdminOrOwner ? (
                         <SaleNumberSelect
                           value={s.group_no}
@@ -2247,7 +2247,7 @@ export function KpiPage() {
                         groupLabel(s.group_no)
                       )}
               </td>
-                    <td className="px-3 py-2">
+                    <td>
                       {isAdminOrOwner ? (
                         <SaleManagerCell
                           sale={s}
@@ -2261,7 +2261,7 @@ export function KpiPage() {
                         s.manager_name
                       )}
                     </td>
-                    <td className="px-3 py-2 font-medium">
+                    <td className="font-medium">
                       <button
                         type="button"
                         className="text-left font-medium text-[var(--mo-text)] underline-offset-2 hover:underline"
@@ -2271,9 +2271,9 @@ export function KpiPage() {
                         {s.client_name}
                       </button>
                     </td>
-                    <td className="px-3 py-2 tabular-nums">{s.client_phone || "—"}</td>
-                    <td className="whitespace-nowrap px-3 py-2 tabular-nums">{formatMoney(num(s.service_amount))}</td>
-                    <td className="whitespace-nowrap px-3 py-2 tabular-nums">
+                    <td className="tabular-nums">{s.client_phone || "—"}</td>
+                    <td className="whitespace-nowrap tabular-nums">{formatMoney(num(s.service_amount))}</td>
+                    <td className="whitespace-nowrap tabular-nums">
                       {formatMoney(num(s.paid_amount))}
                       {isCompanyOwner && s.status === "active" ? (
                         <OwnerPaidAdjust
@@ -2284,7 +2284,7 @@ export function KpiPage() {
                         />
                       ) : null}
                     </td>
-                    <td className="px-3 py-2">
+                    <td>
                       <span className={["kpi-debt", num(s.debt_amount) <= 0 ? "is-zero" : ""].filter(Boolean).join(" ")}>
                         {formatMoney(num(s.debt_amount))}
                       </span>
@@ -2292,7 +2292,7 @@ export function KpiPage() {
                       {s.status === "refused" ? <div className="text-[10px] mo-muted">отказ</div> : null}
                       {s.status === "completed" ? <div className="text-[10px] mo-muted">завершён</div> : null}
                     </td>
-                    <td className="print-omit px-3 py-2">
+                    <td className="print-omit">
                       <div className="kpi-pay-cell">
                         {s.status === "active" && num(s.debt_amount) > 0 ? (
                           <ManualPayPack
