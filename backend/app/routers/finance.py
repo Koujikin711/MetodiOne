@@ -236,7 +236,6 @@ async def get_expense_catalog(
     current_user: CurrentUser,
 ) -> FinanceExpenseCatalogRead:
     _assert_expenses_access(current_user)
-    await assert_finance_access(db, current_user)
     return FinanceExpenseCatalogRead(**expense_catalog())
 
 
@@ -250,7 +249,6 @@ async def list_expenses(
     limit: int = Query(default=200, ge=1, le=1000),
 ) -> list[FinanceOsvRowRead]:
     _assert_expenses_access(current_user)
-    await assert_finance_access(db, current_user)
     # Диапазон дат (не extract) — чтобы работал индекс txn_date / company_id.
     if month is not None:
         day_from = date(year, month, 1)
@@ -282,7 +280,6 @@ async def list_pay_staff(
 ) -> list[FinanceStaffCard]:
     """Сотрудники и менеджеры для статьи ФОТ."""
     _assert_expenses_access(current_user)
-    await assert_finance_access(db, current_user)
     users = (
         await db.execute(
             select(User)
@@ -318,7 +315,6 @@ async def payroll_sheet(
 ) -> FinancePayrollReport:
     """Ведомость за месяц: оклад, бонус KPI, авансы из расходов. Ничего не выплачивает."""
     _assert_expenses_access(current_user)
-    await assert_finance_access(db, current_user)
     day_from = date(year, month, 1)
     day_to = date(year, month, monthrange(year, month)[1])
     users = (
@@ -558,7 +554,6 @@ async def save_payroll_order(
 ) -> None:
     """Сохранить порядок строк после перетаскивания."""
     _assert_expenses_access(current_user)
-    await assert_finance_access(db, current_user)
     user_ids = list(dict.fromkeys(body.user_ids))
     found = {
         int(uid)
@@ -585,7 +580,6 @@ async def remove_payroll_member(
 ) -> None:
     """Убрать человека с ведомости. Логин сотрудника не закрывается."""
     _assert_expenses_access(current_user)
-    await assert_finance_access(db, current_user)
     user = await db.get(User, user_id)
     if user is None or user.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Сотрудник не найден")
@@ -612,7 +606,6 @@ async def hidden_payroll_members(
 ) -> list[dict]:
     """Кого сняли с ведомости и ещё можно вернуть."""
     _assert_expenses_access(current_user)
-    await assert_finance_access(db, current_user)
     rows = (
         await db.execute(
             select(User.id, User.full_name)
@@ -637,7 +630,6 @@ async def restore_payroll_member(
 ) -> None:
     """Вернуть человека на ведомость."""
     _assert_expenses_access(current_user)
-    await assert_finance_access(db, current_user)
     row = (
         await db.execute(
             select(PayrollSheetHide).where(
@@ -662,7 +654,6 @@ async def save_payroll_adjustment(
 ) -> FinancePayrollRow:
     """Ручная правка начисления. Остальные колонки ведомости не пересчитывает в ответе целиком."""
     _assert_expenses_access(current_user)
-    await assert_finance_access(db, current_user)
     user = await db.get(User, body.user_id)
     if user is None or user.company_id != company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Сотрудник не найден")
@@ -730,7 +721,6 @@ async def create_expense(
     company_id: CurrentCompanyId,
 ) -> FinanceOsvRowRead:
     _assert_expenses_access(current_user)
-    await assert_finance_access(db, current_user)
     if body.employee_user_id is not None:
         person = await db.get(User, body.employee_user_id)
         if person is None or person.company_id != company_id or not person.is_active:
