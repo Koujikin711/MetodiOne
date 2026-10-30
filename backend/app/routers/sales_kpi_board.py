@@ -188,7 +188,6 @@ def _assert_debtor_correct_access(current_user: CurrentUser) -> None:
         UserRole.owner,
         UserRole.super_owner,
         UserRole.admin,
-        UserRole.administrator,
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -216,7 +215,7 @@ def _assert_admin_or_owner(current_user: CurrentUser) -> None:
         UserRole.owner,
         UserRole.super_owner,
         UserRole.admin,
-        UserRole.administrator,
+        UserRole.accountant,
         UserRole.rop,
     ):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец или админ")

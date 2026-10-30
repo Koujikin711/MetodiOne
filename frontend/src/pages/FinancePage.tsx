@@ -10,7 +10,6 @@ import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
 import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import { formatMoney } from "@/lib/money";
-import { AccountantCompanyFinance } from "@/pages/AccountantCompanyFinance";
 import type {
   FinanceDdsReport,
   FinanceIntegrateResult,
@@ -39,10 +38,6 @@ function pct(n: string | number | null | undefined): string {
 }
 
 export function FinancePage() {
-  const role = decodeRoleFromToken(getStoredToken());
-  if (role === "accountant") {
-    return <AccountantCompanyFinance />;
-  }
   return <FinancePageInner />;
 }
 
@@ -54,9 +49,7 @@ function FinancePageInner() {
   const canIntegrate =
     role === "owner" ||
     role === "admin" ||
-    role === "administrator" ||
     role === "super_owner" ||
-    role === "accountant" ||
     isChiefExpert;
   const year = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(year);

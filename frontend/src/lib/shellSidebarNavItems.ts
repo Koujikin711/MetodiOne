@@ -256,9 +256,39 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
     return items;
   }
 
-  // Администратор клиники: чаты, канбан, онлайн-запись, KPI
+  // Администратор клиники: только онлайн-запись, доп. услуги, журнал куратора
   if (isAdministrator) {
     const items: ShellSidebarNavItem[] = [];
+    if (showBooking) {
+      items.push({
+        id: "booking",
+        to: "/booking",
+        title: "Онлайн-записи",
+        labelShort: "Онлайн",
+        labelFull: "Онлайн-запись",
+        variant: "online",
+        iconKey: "calendar",
+      });
+      if (showExtraServices) items.push(extraServicesNavItem());
+    }
+    items.push(curatorJournalNavItem());
+    return items;
+  }
+
+  // Бухгалтер: расходы, чаты, канбан, запись, KPI, журнал, сотрудники
+  if (isAccountant) {
+    const items: ShellSidebarNavItem[] = [];
+    if (showExpenses) {
+      items.push({
+        id: "expenses",
+        to: "/expenses",
+        title: "Расходы",
+        labelShort: "Расходы",
+        labelFull: "Расходы",
+        variant: "finance",
+        iconKey: "wallet",
+      });
+    }
     if (showNavForFeature("chat")) {
       items.push({
         id: "chat",
@@ -291,9 +321,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         variant: "online",
         iconKey: "calendar",
       });
-      if (showExtraServices) items.push(extraServicesNavItem());
     }
-    items.push(curatorJournalNavItem());
     if (showKpi && showNavForFeature("kpi")) {
       items.push({
         id: "kpi",
@@ -305,68 +333,16 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         iconKey: "target",
       });
     }
-    if (showExpenses) {
+    items.push(curatorJournalNavItem());
+    if (showNavForFeature("employees")) {
       items.push({
-        id: "expenses",
-        to: "/expenses",
-        title: "Расходы",
-        labelShort: "Расходы",
-        labelFull: "Расходы",
-        variant: "finance",
-        iconKey: "wallet",
-      });
-    }
-    if (showMarketing) {
-      items.push({
-        id: "marketing",
-        to: "/marketing",
-        title: "Маркетинг",
-        labelShort: "Маркет.",
-        labelFull: "Маркетинг · Meta Ads",
-        variant: "purple",
-        iconKey: "bar-chart",
-      });
-    }
-    if (alsoExpert && bookingEnabled && showNavForFeature("reports")) {
-      items.push(expertWindowNavItem());
-    }
-    return items;
-  }
-
-  // Бухгалтер: финансы (отчёт компании) + расходы
-  if (isAccountant) {
-    const items: ShellSidebarNavItem[] = [];
-    if (showFinanceNav && showNavForFeature("finance")) {
-      items.push({
-        id: "finance",
-        to: "/finance",
-        title: "Финансы",
-        labelShort: "Финансы",
-        labelFull: "Финансы — отчёт компании",
-        variant: "blue",
-        iconKey: "wallet",
-      });
-    }
-    if (showExpenses) {
-      items.push({
-        id: "expenses",
-        to: "/expenses",
-        title: "Расходы",
-        labelShort: "Расходы",
-        labelFull: "Расходы",
-        variant: "finance",
-        iconKey: "wallet",
-      });
-    }
-    if (showMarketing) {
-      items.push({
-        id: "marketing",
-        to: "/marketing",
-        title: "Маркетинг",
-        labelShort: "Маркет.",
-        labelFull: "Маркетинг · Meta Ads",
-        variant: "purple",
-        iconKey: "bar-chart",
+        id: "employees",
+        to: "/employees",
+        title: "Сотрудники",
+        labelShort: "Команда",
+        labelFull: "Сотрудники",
+        variant: "tariff",
+        iconKey: "id-card",
       });
     }
     return items;

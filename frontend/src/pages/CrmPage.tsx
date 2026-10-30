@@ -25,6 +25,7 @@ import {
 import toast from "react-hot-toast";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
+import { AccessDenied } from "@/components/AccessDenied";
 import { CrmToolbar } from "@/components/crm/CrmToolbar";
 import { MessageCircle, Phone, Trash2 } from "@/components/icons";
 import { PatientPhone } from "@/components/PatientPhone";
@@ -806,7 +807,7 @@ export function CrmPage() {
   const isCompanyAdmin =
     currentRole === "owner" ||
     currentRole === "admin" ||
-    currentRole === "administrator" ||
+    currentRole === "accountant" ||
     (currentRole === "expert" && Boolean(meQuery.data?.is_chief_expert));
 
   const refreshAll = useCallback(() => {
@@ -1904,6 +1905,10 @@ export function CrmPage() {
     if (!activeLead) return undefined;
     return sortedStages.find((s) => s.id === activeLead.status_id)?.color;
   }, [activeLead, sortedStages]);
+
+  if (currentRole === "administrator") {
+    return <AccessDenied message="Канбан недоступен для роли администратора клиники." />;
+  }
 
   return (
     <div className={currentRole === "manager" ? "crm-page crm-page--manager" : "crm-page"}>

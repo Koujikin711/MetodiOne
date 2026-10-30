@@ -5,13 +5,13 @@ from __future__ import annotations
 from app.models import UserRole
 from app.services.booking_directions import is_course_like_direction_name
 
-# Чаты + канбан + онлайн-запись + KPI + расходы
+# Онлайн-запись + доп. услуги + журнал куратора
 ADMINISTRATOR_ROLES = frozenset({UserRole.administrator})
 
 # Онлайн-запись + дебиторка только курсы/протоколы
 CURATOR_ROLES = frozenset({UserRole.curator})
 
-# Финансы (отчёт компании) + расходы
+# Расходы, чаты, канбан, запись, KPI, журнал, сотрудники
 ACCOUNTANT_ROLES = frozenset({UserRole.accountant})
 
 
@@ -44,6 +44,7 @@ def can_access_booking(role: UserRole) -> bool:
         UserRole.manager,
         UserRole.expert,
         UserRole.curator,
+        UserRole.accountant,
     )
 
 
@@ -52,9 +53,9 @@ def can_access_kpi(role: UserRole) -> bool:
         UserRole.owner,
         UserRole.super_owner,
         UserRole.admin,
-        UserRole.administrator,
         UserRole.manager,
         UserRole.rop,
+        UserRole.accountant,
     )
 
 
@@ -63,9 +64,9 @@ def can_access_debtors(role: UserRole) -> bool:
         UserRole.owner,
         UserRole.super_owner,
         UserRole.admin,
-        UserRole.administrator,
         UserRole.curator,
         UserRole.rop,
+        UserRole.accountant,
     )
 
 
@@ -73,7 +74,6 @@ def can_access_company_report(role: UserRole) -> bool:
     return role in (
         UserRole.owner,
         UserRole.super_owner,
-        UserRole.accountant,
         UserRole.rop,
     )
 
@@ -84,7 +84,6 @@ def can_access_expenses(role: UserRole) -> bool:
         UserRole.super_owner,
         UserRole.accountant,
         UserRole.admin,
-        UserRole.administrator,
     )
 
 
@@ -93,8 +92,8 @@ def can_access_kanban(role: UserRole) -> bool:
         UserRole.owner,
         UserRole.super_owner,
         UserRole.admin,
-        UserRole.administrator,
         UserRole.expert,
+        UserRole.accountant,
     )
 
 
@@ -103,8 +102,8 @@ def can_access_all_chats(role: UserRole) -> bool:
         UserRole.owner,
         UserRole.super_owner,
         UserRole.admin,
-        UserRole.administrator,
         UserRole.manager,
+        UserRole.accountant,
     )
 
 
@@ -114,13 +113,24 @@ def debtors_course_protocol_only(role: UserRole) -> bool:
 
 
 def can_access_curator_journal(role: UserRole) -> bool:
-    """Журнал куратора / табель потока: админы + куратор."""
+    """Журнал куратора / табель потока: админы + куратор + бухгалтер."""
     return role in (
         UserRole.owner,
         UserRole.super_owner,
         UserRole.admin,
         UserRole.administrator,
         UserRole.curator,
+        UserRole.accountant,
+    )
+
+
+def can_access_employees(role: UserRole) -> bool:
+    """Сотрудники: владелец, админ воронки, бухгалтер."""
+    return role in (
+        UserRole.owner,
+        UserRole.super_owner,
+        UserRole.admin,
+        UserRole.accountant,
     )
 
 

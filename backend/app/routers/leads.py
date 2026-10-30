@@ -691,6 +691,8 @@ async def list_leads(
     Канбан: передайте pipeline_id + per_stage_limit (по умолчанию 500), чтобы не отдавать
     десятки тысяч лидов и не вешать браузер — в каждой колонке будут последние N лидов.
     """
+    if current_user.role == UserRole.administrator:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Нет доступа к канбану")
     if pipeline_id is not None:
         if per_stage_limit is None:
             per_stage_limit = 500

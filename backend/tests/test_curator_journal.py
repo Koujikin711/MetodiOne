@@ -63,6 +63,7 @@ def test_flow_create_schema_period():
 def test_journal_role_access_matrix():
     assert can_access_curator_journal(UserRole.curator)
     assert can_access_curator_journal(UserRole.administrator)
+    assert can_access_curator_journal(UserRole.accountant)
     assert can_access_curator_journal(UserRole.owner)
     assert not can_access_curator_journal(UserRole.manager)
     assert not can_manage_all_flows(UserRole.curator)

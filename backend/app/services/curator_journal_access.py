@@ -13,6 +13,7 @@ _ADMIN_ROLES = frozenset(
         UserRole.super_owner,
         UserRole.admin,
         UserRole.administrator,
+        UserRole.accountant,
     }
 )
 

@@ -12,10 +12,8 @@ _FINANCE_VIEW_ROLES = frozenset(
     {
         UserRole.owner,
         UserRole.admin,
-        UserRole.administrator,
         UserRole.super_owner,
         UserRole.finance_analyst,
-        UserRole.accountant,
     },
 )
 
@@ -23,9 +21,7 @@ _FINANCE_SETTINGS_ROLES = frozenset(
     {
         UserRole.owner,
         UserRole.admin,
-        UserRole.administrator,
         UserRole.super_owner,
-        UserRole.accountant,
     },
 )
 
@@ -62,7 +58,7 @@ async def assert_owner_admin_or_chief_expert(
     *,
     detail: str = "Недостаточно прав",
 ) -> None:
-    if user.role in (UserRole.owner, UserRole.admin, UserRole.super_owner):
+    if user.role in (UserRole.owner, UserRole.admin, UserRole.super_owner, UserRole.accountant):
         return
     if await is_chief_expert(db, user):
         return

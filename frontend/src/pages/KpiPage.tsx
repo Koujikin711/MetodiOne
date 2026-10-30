@@ -725,6 +725,7 @@ export function KpiPage() {
   const meQuery = useCurrentUserMe();
   const isCurator = role === "curator" || (role === "expert" && Boolean(meQuery.data?.also_curator));
   const isAccountant = role === "accountant";
+  const kpiOps = isAdminOrOwner || isManager || isAccountant;
   const salesSpace =
     meQuery.data?.crm_mode === "sales" || Boolean(meQuery.data?.desk_sales_enabled);
 
@@ -737,7 +738,7 @@ export function KpiPage() {
   const [saleProductFilter, setSaleProductFilter] = useState<"all" | "course" | "protocol">("all");
   const [saleFormOpen, setSaleFormOpen] = useState(false);
   const [tab, setTab] = useState<TabId>(
-    isCurator ? "debtors" : isAccountant ? "company" : isOwner ? "plan" : "sales",
+    isCurator ? "debtors" : isOwner ? "plan" : "sales",
   );
 
   const [rateDraft, setRateDraft] = useState<Record<string, string>>({});
@@ -860,7 +861,7 @@ export function KpiPage() {
   const manualQuery = useQuery({
     queryKey: ["sales-kpi-manual-sales", qs],
     queryFn: () => apiFetch<SalesKpiManualSale[]>(`/api/sales-kpi/manual-sales?${qs}`),
-    enabled: Boolean(pipelineId && (isAdminOrOwner || isManager) && tab === "manual"),
+    enabled: Boolean(pipelineId && kpiOps && tab === "manual"),
   });
 
   const programRequestsQuery = useQuery({
@@ -878,7 +879,7 @@ export function KpiPage() {
           manager_name?: string | null;
         }[]
       >("/api/sales-kpi/program-requests"),
-    enabled: Boolean((isAdminOrOwner || isManager) && tab === "manual"),
+    enabled: Boolean(kpiOps && tab === "manual"),
   });
 
   const paymentJournalQuery = useQuery({
@@ -887,7 +888,7 @@ export function KpiPage() {
       apiFetch<SalesKpiPaymentJournalRow[]>(
         `/api/sales-kpi/manual-sales/payments?pipeline_id=${pipelineId}`,
       ),
-    enabled: Boolean(pipelineId && isAdminOrOwner && tab === "manual" && journalOpen),
+    enabled: Boolean(pipelineId && (isAdminOrOwner || isAccountant) && tab === "manual" && journalOpen),
   });
 
   useEffect(() => {
@@ -902,7 +903,7 @@ export function KpiPage() {
   const debtorsQuery = useQuery({
     queryKey: ["sales-kpi-debtors", qs],
     queryFn: () => apiFetch<SalesKpiDebtorsReport>(`/api/sales-kpi/debtors?${qs}`),
-    enabled: Boolean(pipelineId && (isAdminOrOwner || isCurator) && tab === "debtors"),
+    enabled: Boolean(pipelineId && (isAdminOrOwner || isCurator || isAccountant) && tab === "debtors"),
   });
 
   const debtorCollectMutation = useMutation({
@@ -979,7 +980,7 @@ export function KpiPage() {
       apiFetch<SalesKpiCompanyReport>(`/api/sales-kpi/company-report?${qs}`, {
         timeoutMs: 60_000,
       }),
-    enabled: Boolean(pipelineId && (isOwner || isAccountant) && tab === "company"),
+    enabled: Boolean(pipelineId && isOwner && tab === "company"),
     staleTime: 30_000,
   });
 
@@ -1290,7 +1291,7 @@ export function KpiPage() {
     closeSaleMutation.mutate({ id, status, reason });
   }
 
-  if (role === "expert" || role === "finance_analyst") {
+  if (role === "expert" || role === "finance_analyst" || role === "administrator") {
     return <AccessDenied message="Раздел KPI недоступен для вашей роли." />;
   }
 
@@ -1299,22 +1300,22 @@ export function KpiPage() {
       id: "sales",
       label: "Продажи",
       shortLabel: "Продажи",
-      show: (isOwner || isAdminOrOwner || isManager) && !isCurator && !isAccountant,
+      show: kpiOps && !isCurator,
     },
-    { id: "manual", label: "Курсы / протоколы", shortLabel: "Курсы", show: isAdminOrOwner || isManager },
+    { id: "manual", label: "Курсы / протоколы", shortLabel: "Курсы", show: kpiOps },
     {
       id: "protocols",
       label: "Протоколы 30д",
       shortLabel: "30д",
-      show: isAdminOrOwner || isManager,
+      show: kpiOps,
     },
     {
       id: "debtors",
       label: isCurator ? "Дебиторка курсов / протоколов" : "Дебиторка",
       shortLabel: "Долги",
-      show: isAdminOrOwner || isCurator,
+      show: isAdminOrOwner || isCurator || isAccountant,
     },
-    { id: "company", label: "Отчёт компании", shortLabel: "Отчёт", show: isOwner || isAccountant },
+    { id: "company", label: "Отчёт компании", shortLabel: "Отчёт", show: isOwner },
   ];
 
   const manualPlanItems = (planQuery.data?.items ?? []).filter((x) => x.source_type === "manual");
@@ -1584,7 +1585,7 @@ export function KpiPage() {
         />
       ) : null}
 
-      {tab === "company" && (isOwner || isAccountant) ? (
+      {tab === "company" && isOwner ? (
         <CompanyReportSection
           data={companyQuery.data}
           loading={companyQuery.isLoading}
@@ -1593,7 +1594,7 @@ export function KpiPage() {
         />
       ) : null}
 
-      {tab === "manual" && (isAdminOrOwner || isManager) ? (
+      {tab === "manual" && kpiOps ? (
         <>
         <section className="mo-section space-y-3 p-3 sm:space-y-4 sm:p-4">
           <div>
@@ -2328,14 +2329,14 @@ export function KpiPage() {
         </>
       ) : null}
 
-      {tab === "protocols" && (isAdminOrOwner || isManager) ? (
+      {tab === "protocols" && kpiOps ? (
         <ProtocolQueuePanel
           enabled
           canReassign={role === "admin" || role === "administrator" || isCompanyOwner}
         />
       ) : null}
 
-      {tab === "debtors" && (isAdminOrOwner || isCurator) ? (
+      {tab === "debtors" && (isAdminOrOwner || isCurator || isAccountant) ? (
         <section className="mo-section space-y-3 p-3 sm:p-4">
           <div className="print-screen-only flex flex-wrap items-baseline justify-between gap-2">
             <div className="min-w-0">

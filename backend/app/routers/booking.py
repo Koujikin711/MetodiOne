@@ -208,7 +208,13 @@ async def _appointment_lead_pipeline_id(db: AsyncSession, appt: BookingAppointme
 
 
 async def compute_can_manage_journal(db: AsyncSession, appt: BookingAppointment, viewer: User) -> bool:
-    if viewer.role in (UserRole.owner, UserRole.super_owner, UserRole.administrator, UserRole.curator):
+    if viewer.role in (
+        UserRole.owner,
+        UserRole.super_owner,
+        UserRole.administrator,
+        UserRole.curator,
+        UserRole.accountant,
+    ):
         return True
     if viewer.role == UserRole.expert and await is_chief_expert(db, viewer):
         return True
@@ -226,7 +232,13 @@ async def _assert_can_manage_appointment_journal(
     appt: BookingAppointment,
     current_user: User,
 ) -> None:
-    if current_user.role in (UserRole.owner, UserRole.super_owner, UserRole.administrator, UserRole.curator):
+    if current_user.role in (
+        UserRole.owner,
+        UserRole.super_owner,
+        UserRole.administrator,
+        UserRole.curator,
+        UserRole.accountant,
+    ):
         return
     if current_user.role == UserRole.expert and await is_chief_expert(db, current_user):
         return

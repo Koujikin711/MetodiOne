@@ -55,6 +55,7 @@ export function canAccessCuratorJournal(role: UserRole | null, alsoCurator = fal
     role === "super_owner" ||
     role === "admin" ||
     role === "administrator" ||
+    role === "accountant" ||
     role === "curator" ||
     (role === "expert" && alsoCurator)
   );

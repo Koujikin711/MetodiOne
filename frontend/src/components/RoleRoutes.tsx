@@ -56,14 +56,17 @@ export function HomeEntry() {
   if (role === "rop") {
     return <Navigate to="/rop" replace />;
   }
-  if (role === "accountant" || role === "finance_analyst") {
+  if (role === "finance_analyst") {
     return <Navigate to="/finance" replace />;
+  }
+  if (role === "accountant") {
+    return <Navigate to="/expenses" replace />;
   }
   if (role === "curator") {
     return <Navigate to="/booking" replace />;
   }
   if (role === "administrator") {
-    return <Navigate to="/chat" replace />;
+    return <Navigate to="/booking" replace />;
   }
   // Второе пространство: владелец сразу в продажи / калькуляцию, не в канбан клиники
   if (salesSpace) {
@@ -109,7 +112,6 @@ export function RequireNotManager({ children }: { children: ReactNode }) {
     isManagerNavRole(role) ||
     role === "curator" ||
     role === "administrator" ||
-    role === "accountant" ||
     role === "rop"
   ) {
     return (
@@ -154,14 +156,12 @@ export function RequireFinance({ children }: { children: ReactNode }) {
   if (
     r !== "owner" &&
     r !== "admin" &&
-    r !== "administrator" &&
     r !== "super_owner" &&
     r !== "finance_analyst" &&
-    r !== "accountant" &&
     !isChiefExpertFromMe(r, meQuery.data?.is_chief_expert)
   ) {
     return (
-      <AccessDenied message="Раздел «Финансы» доступен владельцу, администратору, бухгалтеру, финансовому аналитику или главному эксперту воронки." />
+      <AccessDenied message="Раздел «Финансы» доступен владельцу, финансовому аналитику или главному эксперту воронки." />
     );
   }
   return <>{children}</>;
@@ -169,15 +169,9 @@ export function RequireFinance({ children }: { children: ReactNode }) {
 
 export function RequireExpenses({ children }: { children: ReactNode }) {
   const r = decodeRoleFromToken(getStoredToken());
-  if (
-    r !== "owner" &&
-    r !== "super_owner" &&
-    r !== "accountant" &&
-    r !== "admin" &&
-    r !== "administrator"
-  ) {
+  if (r !== "owner" && r !== "super_owner" && r !== "accountant" && r !== "admin") {
     return (
-      <AccessDenied message="Раздел «Расходы» доступен бухгалтеру, администратору и владельцу." />
+      <AccessDenied message="Раздел «Расходы» доступен бухгалтеру, админу воронки и владельцу." />
     );
   }
   return <>{children}</>;

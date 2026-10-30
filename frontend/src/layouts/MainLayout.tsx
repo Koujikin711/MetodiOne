@@ -56,17 +56,14 @@ export function MainLayout() {
   const showFinance =
     role === "owner" ||
     role === "admin" ||
-    role === "administrator" ||
     role === "super_owner" ||
     role === "finance_analyst" ||
-    role === "accountant" ||
     isChiefExpert;
   const showExpenses =
     role === "owner" ||
     role === "super_owner" ||
     role === "accountant" ||
-    role === "admin" ||
-    role === "administrator";
+    role === "admin";
   const showMarketing =
     role === "owner" || role === "super_owner" || role === "admin";
   const showIntegrationsHub = role === "owner" || isChiefExpert;
@@ -75,7 +72,7 @@ export function MainLayout() {
     role === "super_owner" ||
     role === "manager" ||
     role === "admin" ||
-    role === "administrator" ||
+    role === "accountant" ||
     role === "curator";
   const crmMode = meQuery.data?.crm_mode;
   const salesSpace = crmMode === "sales" || Boolean(meQuery.data?.desk_sales_enabled);

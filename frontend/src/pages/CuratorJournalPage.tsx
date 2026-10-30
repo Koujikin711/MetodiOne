@@ -343,7 +343,11 @@ export function CuratorJournalPage() {
   const alsoCurator = role === "expert" && Boolean(meQuery.data?.also_curator);
   const allowed = canAccessCuratorJournal(role, alsoCurator);
   const canManageFlows =
-    role === "owner" || role === "admin" || role === "administrator" || role === "super_owner";
+    role === "owner" ||
+    role === "admin" ||
+    role === "administrator" ||
+    role === "accountant" ||
+    role === "super_owner";
 
   const qc = useQueryClient();
   const [section, setSection] = useState<JournalSection>(readJournalSection);

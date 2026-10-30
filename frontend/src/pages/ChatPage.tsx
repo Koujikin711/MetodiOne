@@ -3,6 +3,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
+import { AccessDenied } from "@/components/AccessDenied";
 import { PatientPhone, displayPatientPhone } from "@/components/PatientPhone";
 import { ChatMediaVideo } from "@/components/ChatMediaVideo";
 import { WaitingCallbackModal } from "@/components/WaitingCallbackModal";
@@ -663,7 +664,10 @@ export function ChatPage() {
   const salesSpace =
     meQuery.data?.crm_mode === "sales" || Boolean(meQuery.data?.desk_sales_enabled);
   const showManagerChatBuckets =
-    userRole === "manager" || userRole === "admin" || userRole === "owner";
+    userRole === "manager" ||
+    userRole === "admin" ||
+    userRole === "owner" ||
+    userRole === "accountant";
   const stageTabs = SALES_STAGE_TABS;
   const [chatBucket, setChatBucket] = useState<ChatThreadBucket>("own");
   /** null = все стадии. Со «Ждут ответа» не сочетается. */
@@ -675,7 +679,12 @@ export function ChatPage() {
   const [statusOpen, setStatusOpen] = useState(false);
   const [waitingModalLeadId, setWaitingModalLeadId] = useState<number | null>(null);
 
-  useChatRealtime(userRole === "manager" || userRole === "admin" || userRole === "owner");
+  useChatRealtime(
+    userRole === "manager" ||
+      userRole === "admin" ||
+      userRole === "owner" ||
+      userRole === "accountant",
+  );
 
   useEffect(() => {
     const t = window.setTimeout(() => setThreadSearchDebounced(threadSearch.trim()), 220);
@@ -1211,6 +1220,10 @@ export function ChatPage() {
       onSettled: () => setVoiceFinishing(false),
     });
   };
+
+  if (userRole === "administrator") {
+    return <AccessDenied message="Чаты недоступны для роли администратора клиники." />;
+  }
 
   return (
     <div
