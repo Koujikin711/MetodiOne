@@ -149,6 +149,7 @@ export function EmployeesPage() {
   const [editFullName, setEditFullName] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editPhone, setEditPhone] = useState("");
+  const [editRole, setEditRole] = useState<UserRole>("manager");
   const [editSalary, setEditSalary] = useState("");
   const [editPayoutBank, setEditPayoutBank] = useState("");
   const [editSpecialization, setEditSpecialization] = useState("");
@@ -427,6 +428,7 @@ export function EmployeesPage() {
     setEditFullName(e.full_name ?? "");
     setEditEmail(e.email);
     setEditPhone(e.phone ?? "");
+    setEditRole(e.role);
     setEditSalary(e.base_salary == null || e.base_salary === "" ? "" : String(e.base_salary));
     setEditPayoutBank(e.payout_bank ?? "");
     setEditSpecialization(e.specialization ?? "");
@@ -465,25 +467,32 @@ export function EmployeesPage() {
       const emailChanged = editEmail.trim().toLowerCase() !== (editEmployee.email || "").trim().toLowerCase();
       const phoneChanged = editPhone.trim() !== (editEmployee.phone || "").trim();
       const nameChanged = editFullName.trim() !== (editEmployee.full_name || "").trim();
+      const roleChanged = editRole !== editEmployee.role;
       const salaryChanged = editSalary.trim() !== (editEmployee.base_salary == null ? "" : String(editEmployee.base_salary));
       const bankChanged = editPayoutBank !== (editEmployee.payout_bank || "");
       const specChanged =
-        editEmployee.role === "expert" &&
+        editRole === "expert" &&
         editSpecialization.trim() !== (editEmployee.specialization || "").trim();
       const alsoExpertChanged =
-        (editEmployee.role === "admin" ||
-          editEmployee.role === "administrator" ||
-          editEmployee.role === "expert") &&
+        (editRole === "admin" || editRole === "administrator" || editRole === "expert") &&
         editAlsoExpert !== Boolean(editEmployee.also_expert);
       const pipelinesChanged =
-        canEditPipelines(editEmployee.role) &&
+        canEditPipelines(editRole) &&
         (editPipelineIds.length !== editEmployee.pipeline_ids.length ||
           editPipelineIds.some((id) => !editEmployee.pipeline_ids.includes(id)));
+
+      if (editRole === "expert" && editSpecialization.trim().length < 2) {
+        throw new Error("Для роли «Эксперт» укажите специальность");
+      }
+      if (canEditPipelines(editRole) && editPipelineIds.length === 0) {
+        throw new Error("Нужна хотя бы одна воронка");
+      }
 
       const profileChanged =
         emailChanged ||
         phoneChanged ||
         nameChanged ||
+        roleChanged ||
         specChanged ||
         salaryChanged ||
         bankChanged ||
@@ -499,13 +508,14 @@ export function EmployeesPage() {
           email: editEmail.trim(),
           phone: editPhone.trim(),
           full_name: editFullName.trim(),
-          ...(editEmployee.role === "expert"
+          ...(roleChanged ? { role: editRole } : {}),
+          ...(editRole === "expert"
             ? {
                 specialization: editSpecialization.trim(),
                 also_expert: editAlsoExpert,
               }
             : {}),
-          ...(editEmployee.role === "admin" || editEmployee.role === "administrator"
+          ...(editRole === "admin" || editRole === "administrator"
             ? { also_expert: editAlsoExpert }
             : {}),
           base_salary: editSalary.trim() ? Number(editSalary) : null,
@@ -933,8 +943,8 @@ export function EmployeesPage() {
               <div>
                 <h2 className="lux-subheading">Редактировать сотрудника</h2>
                 <p className="mt-1 text-xs lux-caption">
-                  <span className="employee-role-badge">{roleLabel(editEmployee.role)}</span>
-                  {(editEmployee.role === "admin" || editEmployee.role === "administrator") && editAlsoExpert ? (
+                  <span className="employee-role-badge">{roleLabel(editRole)}</span>
+                  {(editRole === "admin" || editRole === "administrator") && editAlsoExpert ? (
                     <span className="employee-role-badge">Эксперт</span>
                   ) : null}
                 </p>
@@ -956,6 +966,33 @@ export function EmployeesPage() {
                     placeholder="Фамилия Имя"
                   />
                 </label>
+                <label className="employee-edit-field mt-3">
+                  <span>Уровень доступа</span>
+                  <select
+                    value={editRole}
+                    onChange={(ev) => {
+                      const next = ev.target.value as UserRole;
+                      setEditRole(next);
+                      if (next !== "expert" && next !== "admin" && next !== "administrator") {
+                        setEditAlsoExpert(false);
+                      }
+                    }}
+                    className="mo-input"
+                    disabled={editEmployee.role === "owner" && editEmployee.id === myUserId}
+                  >
+                    <option value="owner">Владелец</option>
+                    <option value="manager">Менеджер</option>
+                    <option value="rop">РОП</option>
+                    <option value="expert">Эксперт</option>
+                    <option value="admin">Админ воронки</option>
+                    <option value="administrator">Администратор</option>
+                    <option value="curator">Куратор</option>
+                    <option value="accountant">Бухгалтер</option>
+                  </select>
+                </label>
+                {editEmployee.role === "owner" && editEmployee.id === myUserId ? (
+                  <p className="mt-1 text-[11px] mo-muted">Свою роль владельца здесь сменить нельзя.</p>
+                ) : null}
               </section>
 
               <section className="employee-edit-section">
@@ -1045,7 +1082,7 @@ export function EmployeesPage() {
                 </button>
               </section>
 
-              {editEmployee.role === "admin" || editEmployee.role === "administrator" ? (
+              {editRole === "admin" || editRole === "administrator" ? (
                 <section className="employee-edit-section">
                   <h3 className="employee-edit-section__title">Окно эксперта</h3>
                   <label className="employee-edit-check">
@@ -1059,7 +1096,7 @@ export function EmployeesPage() {
                 </section>
               ) : null}
 
-              {editEmployee.role === "expert" ? (
+              {editRole === "expert" ? (
                 <section className="employee-edit-section">
                   <h3 className="employee-edit-section__title">Онлайн-запись</h3>
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -1084,7 +1121,7 @@ export function EmployeesPage() {
                 </section>
               ) : null}
 
-              {canEditPipelines(editEmployee.role) ? (
+              {canEditPipelines(editRole) ? (
                 <section className="employee-edit-section">
                   <h3 className="employee-edit-section__title">Воронки</h3>
                   <p className="mb-2 text-[11px] mo-muted">
@@ -1116,7 +1153,8 @@ export function EmployeesPage() {
                   !editFullName.trim() ||
                   !editEmail.trim() ||
                   !editPhone.trim() ||
-                  (canEditPipelines(editEmployee.role) && editPipelineIds.length === 0)
+                  (editRole === "expert" && editSpecialization.trim().length < 2) ||
+                  (canEditPipelines(editRole) && editPipelineIds.length === 0)
                 }
                 className="btn-primary w-full disabled:opacity-60"
               >

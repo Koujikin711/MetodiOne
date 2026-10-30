@@ -221,6 +221,19 @@ def _assert_admin_or_owner(current_user: CurrentUser) -> None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец или админ")
 
 
+def _assert_payment_confirm_access(current_user: CurrentUser) -> None:
+    """Подтверждение доплат менеджера — бухгалтер или владелец (не админ)."""
+    if current_user.role not in (
+        UserRole.owner,
+        UserRole.super_owner,
+        UserRole.accountant,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Подтвердить оплату может бухгалтер или владелец",
+        )
+
+
 def _assert_debtors_access(current_user: CurrentUser) -> None:
     from app.services.clinic_roles import can_access_debtors, expert_also_curator
 
@@ -1982,7 +1995,7 @@ async def create_manual_sale(
     link_lead_id = await resolve_kpi_sale_lead_id(db, company_id=company_id, lead_id=body.lead_id)
 
     total_paid = first_paid + second_paid
-    # Сумма менеджера ждёт подтверждения и не входит в выручку, пока админ не скажет «оплата прошла».
+    # Сумма менеджера ждёт подтверждения и не входит в выручку, пока бухгалтер не скажет «оплата прошла».
     booked_paid = Decimal("0") if manager_fills else total_paid
     booked_first = Decimal("0") if manager_fills else first_paid
     first_at = _paid_at_from_input(body.first_paid_at if body.first_paid_at is not None else body.sold_at)
@@ -2404,9 +2417,9 @@ async def confirm_manual_sale_payment(
     company_id: CurrentCompanyId,
     body: SalesKpiPaymentConfirmIn,
 ) -> SalesKpiManualSaleOut:
-    """Админ отмечает, прошла оплата менеджера или нет. В выручку входит только «прошла»."""
+    """Бухгалтер/владелец отмечает, прошла оплата менеджера или нет. В выручку входит только «прошла»."""
     _assert_kpi_access(current_user)
-    _assert_admin_or_owner(current_user)
+    _assert_payment_confirm_access(current_user)
     sale = await db.get(SalesKpiManualSale, sale_id)
     if sale is None or sale.company_id != company_id:
         raise HTTPException(status_code=404, detail="Продажа не найдена")

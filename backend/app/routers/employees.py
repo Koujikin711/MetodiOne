@@ -102,10 +102,25 @@ class PatchEmployeePipelinesBody(BaseModel):
     pipeline_ids: list[int] = Field(default_factory=list)
 
 
+_EDITABLE_ROLES = frozenset(
+    {
+        UserRole.owner,
+        UserRole.manager,
+        UserRole.rop,
+        UserRole.expert,
+        UserRole.admin,
+        UserRole.administrator,
+        UserRole.curator,
+        UserRole.accountant,
+    }
+)
+
+
 class PatchEmployeeContactBody(BaseModel):
     email: str | None = Field(default=None, min_length=3, max_length=320)
     phone: str | None = Field(default=None, min_length=7, max_length=32)
     full_name: str | None = Field(default=None, min_length=2, max_length=255)
+    role: UserRole | None = None
     specialization: str | None = Field(default=None, max_length=255)
     booking_direction_id: int | None = None
     base_salary: Decimal | None = Field(default=None, ge=0)
@@ -871,7 +886,7 @@ async def patch_employee_contact(
     current_user: CurrentUser,
     company_id: CurrentCompanyId,
 ) -> PatchEmployeeContactResult:
-    """Обновить профиль сотрудника: ФИО, контакты, для эксперта — специальность."""
+    """Обновить профиль сотрудника: ФИО, контакты, роль, для эксперта — специальность."""
     await assert_owner_or_chief_expert(db, current_user)
 
     if (
@@ -880,6 +895,7 @@ async def patch_employee_contact(
         and body.full_name is None
         and body.specialization is None
         and body.booking_direction_id is None
+        and "role" not in body.model_fields_set
         and "base_salary" not in body.model_fields_set
         and "payout_bank" not in body.model_fields_set
         and "also_curator" not in body.model_fields_set
@@ -902,6 +918,81 @@ async def patch_employee_contact(
     changed = False
     new_email = target.email
     new_phone = target.phone
+    old_role = target.role
+
+    if "role" in body.model_fields_set and body.role is not None:
+        new_role = body.role
+        if new_role not in _EDITABLE_ROLES:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Такую роль назначить нельзя")
+        if new_role == UserRole.owner and current_user.role not in (UserRole.owner, UserRole.super_owner):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Назначить владельца может только владелец",
+            )
+        if old_role == UserRole.owner and new_role != UserRole.owner:
+            owners_left = await db.scalar(
+                select(func.count())
+                .select_from(User)
+                .where(
+                    User.company_id == company_id,
+                    User.is_active.is_(True),
+                    User.role == UserRole.owner,
+                    User.id != target.id,
+                )
+            )
+            if int(owners_left or 0) < 1:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Нельзя снять роль с единственного владельца",
+                )
+        if new_role == UserRole.expert:
+            spec_text = (body.specialization or "").strip()
+            if len(spec_text) < 2 and old_role != UserRole.expert:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Для роли «Эксперт» укажите специальность",
+                )
+        if old_role != new_role:
+            changed = True
+            target.role = new_role
+            if new_role not in (UserRole.admin, UserRole.administrator, UserRole.expert):
+                target.also_expert = False
+            if new_role != UserRole.expert:
+                target.also_curator = False
+            if old_role == UserRole.expert and new_role != UserRole.expert:
+                spec_row = (
+                    await db.execute(
+                        select(BookingSpecialist).where(BookingSpecialist.crm_user_id == target.id).limit(1),
+                    )
+                ).scalars().first()
+                if spec_row is not None:
+                    spec_row.is_active = False
+            if new_role == UserRole.expert:
+                from app.services.crm_space import company_is_sales_mode
+
+                if not await company_is_sales_mode(db, company_id):
+                    direction_id = body.booking_direction_id
+                    if direction_id is None:
+                        direction_id = await resolve_default_booking_direction_id(db, company_id)
+                    await _sync_expert_calendar_profile(
+                        db,
+                        user=target,
+                        full_name=(body.full_name or target.full_name or "").strip() or target.email,
+                        phone_norm=_norm_phone(body.phone or target.phone or ""),
+                        specialization=(body.specialization or "").strip(),
+                        booking_direction_id=direction_id,
+                        course_streams_enabled=False,
+                        course_stream_max_days=15,
+                        course_stream_min_day_for_next=10,
+                        course_stream_gap_days=10,
+                    )
+            if new_role not in (UserRole.manager, UserRole.admin, UserRole.expert):
+                await db.execute(
+                    delete(UserPipelineAssignment).where(
+                        UserPipelineAssignment.user_id == target.id,
+                        UserPipelineAssignment.company_id == company_id,
+                    )
+                )
 
     if "also_curator" in body.model_fields_set and body.also_curator is not None:
         if target.role != UserRole.expert:

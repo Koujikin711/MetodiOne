@@ -136,7 +136,7 @@ function PaymentDecisions({
           </div>
         ) : (
           <p key={p.id} className="kpi-pay-wait">
-            Ждёт подтверждения админа · {formatMoney(num(p.amount))}
+            Ждёт подтверждения бухгалтера · {formatMoney(num(p.amount))}
           </p>
         ),
       )}
@@ -726,6 +726,9 @@ export function KpiPage() {
   const isCurator = role === "curator" || (role === "expert" && Boolean(meQuery.data?.also_curator));
   const isAccountant = role === "accountant";
   const kpiOps = isAdminOrOwner || isManager || isAccountant;
+  /** Подтверждение доплат менеджера — бухгалтер или владелец компании. */
+  const canConfirmPay =
+    role === "owner" || role === "super_owner" || isAccountant;
   const salesSpace =
     meQuery.data?.crm_mode === "sales" || Boolean(meQuery.data?.desk_sales_enabled);
 
@@ -1056,7 +1059,7 @@ export function KpiPage() {
     onSuccess: () => {
       toast.success(
         isManager
-          ? "Запись сохранена. Оплата ждёт подтверждения админа"
+          ? "Запись сохранена. Оплата ждёт подтверждения бухгалтера"
           : selectedLead
             ? `Продажа добавлена · #${selectedLead.lead_id}`
             : "Продажа добавлена без привязки к пациенту",
@@ -1182,7 +1185,7 @@ export function KpiPage() {
       });
     },
     onSuccess: () => {
-      toast.success(isManager ? "Доплата ждёт подтверждения админа" : "Доплата записана в журнал");
+      toast.success(isManager ? "Доплата ждёт подтверждения бухгалтера" : "Доплата записана в журнал");
       setPayDraft({});
       setPayDates({});
       void queryClient.invalidateQueries({ queryKey: ["sales-kpi-manual-sales"] });
@@ -1603,13 +1606,11 @@ export function KpiPage() {
               Здесь оплаты: курс и уже купленный протокол в одном списке. Нажмите на пациента — полная история
               оплат. Срок 30 дней — отдельный блок ниже.
             </p>
-            {isManager || pendingPayConfirmCount === 0 ? (
+            {isManager ? (
               <p className="kpi-confirm-notice" role="status">
-                {isManager
-                  ? "Доплата после OK — на подтверждение админу."
-                  : "Доплаты менеджеров — подтвердите в колонке «Оплата»."}
+                Доплата после OK — на подтверждение бухгалтеру.
               </p>
-            ) : (
+            ) : canConfirmPay && pendingPayConfirmCount > 0 ? (
               <button
                 type="button"
                 className={[
@@ -1623,8 +1624,16 @@ export function KpiPage() {
               >
                 Ждёт подтверждения: {pendingPayConfirmCount}
               </button>
-            )}
-            {pendingConfirmOpen && pendingPayConfirmCount > 0 && isAdminOrOwner ? (
+            ) : canConfirmPay ? (
+              <p className="kpi-confirm-notice" role="status">
+                Доплаты менеджеров — подтвердите в колонке «Оплата».
+              </p>
+            ) : pendingPayConfirmCount > 0 ? (
+              <p className="kpi-confirm-notice" role="status">
+                Ждёт подтверждения бухгалтера: {pendingPayConfirmCount}
+              </p>
+            ) : null}
+            {pendingConfirmOpen && pendingPayConfirmCount > 0 && canConfirmPay ? (
               <ul className="kpi-confirm-queue">
                 {pendingPayConfirms.map(({ sale, payment }) => (
                   <li key={`${sale.id}-${payment.id}`} className="kpi-confirm-queue__row">
@@ -2124,7 +2133,7 @@ export function KpiPage() {
                   </span>
                   <PaymentDecisions
                     sale={s}
-                    canConfirm={isAdminOrOwner}
+                    canConfirm={canConfirmPay}
                     pending={confirmPayMutation.isPending}
                     onDecide={(saleId, paymentId, confirmed) =>
                       confirmPayMutation.mutate({ saleId, paymentId, confirmed })
@@ -2308,7 +2317,7 @@ export function KpiPage() {
                         <PaymentDecisions
                           dense
                           sale={s}
-                          canConfirm={isAdminOrOwner}
+                          canConfirm={canConfirmPay}
                           pending={confirmPayMutation.isPending}
                           onDecide={(saleId, paymentId, confirmed) =>
                             confirmPayMutation.mutate({ saleId, paymentId, confirmed })
