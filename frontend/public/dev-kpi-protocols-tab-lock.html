@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>KPI · отдельная вкладка Протоколы 30д</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --surface: #121a2b;
+      --elev: #1a263c;
+      --border: rgba(148, 163, 184, 0.28);
+      --text: #e8eef9;
+      --muted: #94a3b8;
+      --accent: #a5b4fc;
+      --accent-fill: #818cf8;
+      --ok: #34d399;
+      --warn: #fbbf24;
+      --bad: #f87171;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: radial-gradient(1000px 520px at 10% -10%, #1a2744, var(--bg));
+      color: var(--text);
+      padding: 1rem 0.85rem 2rem;
+    }
+    .wrap { max-width: 1080px; margin: 0 auto; }
+    .eyebrow { color: var(--muted); font-size: 11px; letter-spacing: 0.04em; margin: 0 0 0.35rem; }
+    h1 { margin: 0; font-size: 1.15rem; font-weight: 650; }
+    .lead { color: var(--muted); font-size: 0.86rem; line-height: 1.45; margin: 0.4rem 0 1rem; max-width: 40rem; }
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      margin-bottom: 1rem;
+    }
+    .tab {
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text);
+      border-radius: 0.65rem;
+      padding: 0.45rem 0.8rem;
+      font-size: 0.84rem;
+    }
+    .tab.active {
+      background: var(--accent-fill);
+      border-color: transparent;
+      color: #fff;
+      font-weight: 650;
+      box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.25);
+    }
+    .panel {
+      border: 1px solid var(--border);
+      border-radius: 0.9rem;
+      background: color-mix(in srgb, var(--surface) 92%, transparent);
+      overflow: hidden;
+    }
+    .hd {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.5rem 1rem;
+      padding: 0.85rem 1rem 0.55rem;
+    }
+    .hd h2 { margin: 0; font-size: 1.05rem; font-weight: 650; }
+    .counts { display: flex; flex-wrap: wrap; gap: 0.75rem; font-size: 0.8rem; color: var(--muted); }
+    .counts .attn { color: #fdba74; font-weight: 650; }
+    .filters {
+      display: flex; flex-wrap: wrap; gap: 0.55rem; align-items: end;
+      padding: 0 1rem 0.75rem;
+    }
+    .filters label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.7rem; color: var(--muted); }
+    .filters input {
+      height: 2rem; border-radius: 0.45rem; border: 1px solid var(--border);
+      background: #0f172a; color: var(--text); padding: 0 0.55rem; min-width: 10rem;
+    }
+    .filters .chk { flex-direction: row; align-items: center; gap: 0.4rem; font-size: 0.78rem; color: var(--text); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    th {
+      text-align: left; padding: 0.45rem 0.75rem; font-size: 0.68rem; letter-spacing: 0.04em;
+      text-transform: uppercase; color: var(--muted); border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border); background: var(--elev);
+    }
+    td { padding: 0.55rem 0.75rem; border-bottom: 1px solid rgba(148,163,184,0.16); vertical-align: top; }
+    .ok { color: var(--ok); }
+    .soon { color: var(--warn); }
+    .out { color: var(--bad); }
+    .foot { margin-top: 0.9rem; font-size: 0.75rem; color: var(--muted); line-height: 1.45; }
+    .note { margin: 0 0 0.85rem; font-size: 0.8rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <p class="eyebrow">Лок UI · KPI</p>
+    <h1>«Протоколы 30д» — отдельная вкладка</h1>
+    <p class="lead">Таблица срока больше не под «Курсы / протоколы». Открывается своим пунктом в шапке KPI.</p>
+
+    <p class="note">Графа вкладок (как на 2 скрине) + экран протоколов (как на 1 скрине):</p>
+
+    <div class="tabs">
+      <button type="button" class="tab">Услуги</button>
+      <button type="button" class="tab">Продажи</button>
+      <button type="button" class="tab">Отчёт компании</button>
+      <button type="button" class="tab">Курсы / протоколы</button>
+      <button type="button" class="tab active">Протоколы 30д</button>
+      <button type="button" class="tab">Дебиторка</button>
+    </div>
+
+    <section class="panel">
+      <div class="hd">
+        <h2>Протоколы — срок 30 дней</h2>
+        <div class="counts">
+          <span>В сроке 5</span>
+          <span>Скоро 1</span>
+          <span>Вышел 41</span>
+          <span class="attn">Внимание 42</span>
+        </div>
+      </div>
+      <div class="filters">
+        <label>Поиск<input value="ФИО / телефон / #" readonly /></label>
+        <label>«Скоро» (дней)<input value="7" style="min-width:4rem" readonly /></label>
+        <label class="chk"><input type="checkbox" checked disabled /> Показать все: 1-й, 2-й и 3-й протокол</label>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Пациент</th>
+            <th>Протокол</th>
+            <th>Статус</th>
+            <th>Начало</th>
+            <th>Осталось</th>
+            <th>Менеджер</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Махмудова Хатича<br /><span style="color:var(--muted);font-size:0.72rem">#40754</span></td>
+            <td>#1 / 1</td>
+            <td class="ok">В сроке</td>
+            <td>24.10.26</td>
+            <td>24 дн.</td>
+            <td>Давлатова Ситора</td>
+          </tr>
+          <tr>
+            <td>Абдуаюбзода Бибимох<br /><span style="color:var(--muted);font-size:0.72rem">#40112</span></td>
+            <td>#2 / 2</td>
+            <td class="soon">Скоро конец</td>
+            <td>05.10.26</td>
+            <td>4 дн.</td>
+            <td>Алибекзода Мавлуда</td>
+          </tr>
+          <tr>
+            <td>Закияи Алишер<br /><span style="color:var(--muted);font-size:0.72rem">#39880</span></td>
+            <td>#1 / 1</td>
+            <td class="out">Срок вышел — ждёт следующий</td>
+            <td>20.09.26</td>
+            <td>−8 дн.</td>
+            <td>Хайдарзода Мухриддин</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <p class="foot">«Курсы / протоколы» остаётся списком продаж/доплат. «Протоколы 30д» — только очередь срока.</p>
+  </div>
+</body>
+</html>

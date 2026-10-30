@@ -378,8 +378,13 @@ export function EmployeesPage() {
       void qc.invalidateQueries({ queryKey: ["employees"] });
       void qc.invalidateQueries({ queryKey: ["booking-specialists"] });
 
-      toast.success("Сотрудник приглашён");
-      window.prompt("Приглашение отправлено сотруднику на email:", `Invite: ${r.invite_url}`);
+      if (r.temp_password_sent_to_email) {
+        toast.success("Сотрудник приглашён — письмо отправлено");
+        window.prompt("Ссылка приглашения (письмо уже ушло на email):", r.invite_url);
+      } else {
+        toast.error("Сотрудник добавлен, но письмо не ушло. Скопируйте ссылку вручную.");
+        window.prompt("SMTP не сработал — отправьте эту ссылку сотруднику:", r.invite_url);
+      }
     },
     onError: (e: Error) => toast.error(e.message),
   });

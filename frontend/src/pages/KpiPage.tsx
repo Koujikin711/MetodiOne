@@ -37,7 +37,7 @@ import type {
   SalesKpiWeightedPlan,
 } from "@/lib/types";
 
-type TabId = "plan" | "sales" | "company" | "manual" | "debtors";
+type TabId = "plan" | "sales" | "company" | "manual" | "protocols" | "debtors";
 
 function todayYmd(): string {
   const n = new Date();
@@ -1304,6 +1304,12 @@ export function KpiPage() {
     { id: "company", label: "Отчёт компании", shortLabel: "Отчёт", show: isOwner || isAccountant },
     { id: "manual", label: "Курсы / протоколы", shortLabel: "Курсы", show: isAdminOrOwner || isManager },
     {
+      id: "protocols",
+      label: "Протоколы 30д",
+      shortLabel: "30д",
+      show: isAdminOrOwner || isManager,
+    },
+    {
       id: "debtors",
       label: isCurator ? "Дебиторка курсов / протоколов" : "Дебиторка",
       shortLabel: "Долги",
@@ -2295,13 +2301,14 @@ export function KpiPage() {
             {manualQuery.isLoading ? <p className="mt-2 text-sm lux-caption">Загрузка…</p> : null}
           </div>
         </section>
-        <div className="mt-4">
-          <ProtocolQueuePanel
-            enabled
-            canReassign={role === "admin" || role === "administrator" || isCompanyOwner}
-          />
-        </div>
         </>
+      ) : null}
+
+      {tab === "protocols" && (isAdminOrOwner || isManager) ? (
+        <ProtocolQueuePanel
+          enabled
+          canReassign={role === "admin" || role === "administrator" || isCompanyOwner}
+        />
       ) : null}
 
       {tab === "debtors" && (isAdminOrOwner || isCurator) ? (

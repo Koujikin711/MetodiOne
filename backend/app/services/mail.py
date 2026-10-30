@@ -1,7 +1,10 @@
+import logging
 import smtplib
 from email.message import EmailMessage
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 def send_email(
@@ -12,6 +15,7 @@ def send_email(
     attachments: list[tuple[str, bytes]] | None = None,
 ) -> bool:
     if not settings.smtp_host:
+        logger.warning("SMTP_HOST пуст — письмо не отправлено (%s)", to_email)
         return False
     msg = EmailMessage()
     msg["Subject"] = subject
@@ -33,5 +37,12 @@ def send_email(
             server.send_message(msg)
         return True
     except Exception:
+        logger.exception(
+            "SMTP send failed to=%s host=%s port=%s from=%s",
+            to_email,
+            settings.smtp_host,
+            settings.smtp_port,
+            settings.smtp_from or settings.smtp_user,
+        )
         return False
 

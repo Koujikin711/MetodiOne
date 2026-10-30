@@ -746,15 +746,7 @@ async def invite_employee(
         subject="Приглашение в CRM",
         heading="Приглашение в CRM",
     )
-    if not sent:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                "Не удалось отправить письмо приглашения. "
-                "Проверьте SMTP_HOST/PORT/USER/PASSWORD/FROM (должно отправляться с metoditj@gmail.com)."
-            ),
-        )
-
+    # Сотрудника сохраняем даже если SMTP упал — владелец отдаст ссылку вручную.
     return InviteEmployeeResult(
         employee=await _employee_read(db, u),
         invite_url=invite_url,
