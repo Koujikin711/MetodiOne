@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 from app.services.analytics_overview_money import overview_visit_money, prior_visit_debt
-from app.services.company_month_compare import build_month_compare
+from app.services.company_month_compare import build_month_compare, kpi_payment_as_visit
 
 
 def test_overview_skips_course_package_and_cancelled():
@@ -44,3 +44,21 @@ def test_month_compare_uses_cash_date_and_skips_cancelled():
     names = [row["name"] for row in built["services"]]
     assert "Массаж" in names
     assert "ТМС" in names
+
+
+def test_month_compare_includes_kpi_protocol_payments():
+    """Протокол из KPI-продаж должен попадать в услугу «Протокол», не только запись."""
+    october_cash = datetime(2026, 10, 15, tzinfo=UTC)
+    august_cash = datetime(2026, 8, 12, tzinfo=UTC)
+    booking = (Decimal("5800"), "completed", october_cash, october_cash, "Протокол")
+    kpi_oct = kpi_payment_as_visit(Decimal("12000"), october_cash, "Протокол")
+    kpi_aug = kpi_payment_as_visit(Decimal("30000"), august_cash, "Протокол")
+    assert kpi_oct is not None and kpi_aug is not None
+    built = build_month_compare(
+        datetime(2026, 10, 1).date(),
+        [booking, kpi_oct, kpi_aug],
+    )
+    proto = next(row for row in built["services"] if row["name"] == "Протокол")
+    assert proto["revenue"][-1] == Decimal("17800.00")  # окт: запись 5800 + KPI 12000
+    assert proto["revenue"][-3] == Decimal("30000.00")  # авг: KPI
+    assert built["revenue"][-1] == Decimal("17800.00")

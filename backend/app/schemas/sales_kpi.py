@@ -505,6 +505,14 @@ class SalesKpiCompanyReport(BaseModel):
     revenue_manual: Decimal = Field(
         description="Course/protocol KPI payments in month (shown separately; not in clinic revenue_total).",
     )
+    revenue_manual_new: Decimal = Field(
+        default=Decimal("0"),
+        description="Первые оплаты курса/протокола в месяце (новые продажи).",
+    )
+    revenue_manual_topup: Decimal = Field(
+        default=Decimal("0"),
+        description="Доплаты по уже открытым продажам (сбор с дебиторки).",
+    )
     debtor_total: Decimal
     debtor_booking: Decimal
     debtor_manual: Decimal

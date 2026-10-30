@@ -234,7 +234,7 @@ export function CompanyMonthCompare({
                   <p>
                     {bars[last] && bars[prev]
                       ? `${bars[last].label} к ${bars[prev].label}: ${pctDelta(bars[last].revenue, bars[prev].revenue)}`
-                      : "Оплаты визитов по дате сдачи денег."}
+                      : "Визиты + курсы/протоколы KPI по дате оплаты."}
                   </p>
                 </header>
                 <div style={{ height: 280 }}>
@@ -259,7 +259,10 @@ export function CompanyMonthCompare({
               <header className="mo-chart-card__head">
                 <h3>Услуги по месяцам</h3>
                 <p>
-                  {byCount ? "Сколько записей у каждой услуги." : "Оплаты визитов по услуге."} Выбранный месяц — справа.
+                  {byCount
+                    ? "Сколько записей у каждой услуги."
+                    : "Оплаты визитов и KPI (курс/протокол) по услуге."}{" "}
+                  Выбранный месяц — справа.
                 </p>
               </header>
               <div style={{ height: 280 }}>

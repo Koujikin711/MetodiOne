@@ -1319,6 +1319,10 @@ export interface SalesKpiCompanyReport {
   revenue_total: string | number;
   revenue_booking: string | number;
   revenue_manual: string | number;
+  /** Первые оплаты курсов/протоколов в месяце. */
+  revenue_manual_new?: string | number;
+  /** Доплаты (сбор с дебиторки) в месяце. */
+  revenue_manual_topup?: string | number;
   debtor_total: string | number;
   debtor_booking: string | number;
   debtor_manual: string | number;

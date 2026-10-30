@@ -40,7 +40,11 @@ from app.models import (
     UserPipelineAssignment,
     UserRole,
 )
-from app.services.company_month_compare import build_month_compare, month_starts
+from app.services.company_month_compare import (
+    build_month_compare,
+    kpi_payment_as_visit,
+    month_starts,
+)
 from app.services.crm_space import company_is_sales_mode
 from app.services.payroll_facts import load_referral_rows
 from app.services.debtor_collection import (
@@ -3511,7 +3515,7 @@ async def company_month_compare(
     pipeline_id: int = Query(..., ge=1),
     year_month: str = Query(..., description="YYYY-MM"),
 ) -> SalesKpiMonthCompare:
-    """Шесть месяцев до выбранного: касса визитов и число записей. Без полного отчёта."""
+    """Шесть месяцев: касса визитов + подтверждённые оплаты курсов/протоколов KPI."""
     _assert_kpi_access(current_user)
     _assert_company_report_access(current_user)
     await _load_pipeline(db, company_id, pipeline_id)
@@ -3582,6 +3586,65 @@ async def company_month_compare(
             )
         ).all()
         visits = list(appt_rows)
+
+    # Курсы/протоколы из KPI-продаж — иначе «Протокол» на графике только из онлайн-записи.
+    kpi_pay_rows = (
+        await db.execute(
+            select(
+                SalesKpiManualSalePayment.amount,
+                SalesKpiManualSalePayment.paid_at,
+                SalesKpiPlanItem.name,
+            )
+            .join(SalesKpiManualSale, SalesKpiManualSale.id == SalesKpiManualSalePayment.sale_id)
+            .join(SalesKpiPlanItem, SalesKpiPlanItem.id == SalesKpiManualSale.plan_item_id)
+            .where(
+                SalesKpiManualSalePayment.company_id == company_id,
+                SalesKpiManualSale.company_id == company_id,
+                SalesKpiManualSale.pipeline_id == pipeline_id,
+                SalesKpiManualSale.status.in_(("active", "completed")),
+                SalesKpiManualSalePayment.amount > 0,
+                SalesKpiManualSalePayment.paid_at.is_not(None),
+                SalesKpiManualSalePayment.paid_at >= window_start,
+                SalesKpiManualSalePayment.paid_at < window_end,
+                SalesKpiManualSalePayment.rejected_at.is_(None),
+                # Только подтверждённые (владелец/бухгалтер); ожидание менеджера не в кассе.
+                SalesKpiManualSalePayment.confirmed_at.is_not(None),
+            ),
+        )
+    ).all()
+    for amount, paid_at, pname in kpi_pay_rows:
+        row = kpi_payment_as_visit(amount, paid_at, pname)
+        if row is not None:
+            visits.append(row)
+
+    # Продажи без журнала платежей: paid_amount целиком в месяц sold_at.
+    legacy_manual = (
+        await db.execute(
+            select(
+                SalesKpiManualSale.paid_amount,
+                SalesKpiManualSale.sold_at,
+                SalesKpiPlanItem.name,
+            )
+            .join(SalesKpiPlanItem, SalesKpiPlanItem.id == SalesKpiManualSale.plan_item_id)
+            .where(
+                SalesKpiManualSale.company_id == company_id,
+                SalesKpiManualSale.pipeline_id == pipeline_id,
+                SalesKpiManualSale.status.in_(("active", "completed")),
+                SalesKpiManualSale.paid_amount > 0,
+                SalesKpiManualSale.sold_at >= window_start,
+                SalesKpiManualSale.sold_at < window_end,
+                ~exists(
+                    select(SalesKpiManualSalePayment.id).where(
+                        SalesKpiManualSalePayment.sale_id == SalesKpiManualSale.id,
+                    ),
+                ),
+            ),
+        )
+    ).all()
+    for amount, sold_at, pname in legacy_manual:
+        row = kpi_payment_as_visit(amount, sold_at, pname)
+        if row is not None:
+            visits.append(row)
 
     built = build_month_compare(ym, visits)
     return SalesKpiMonthCompare(
@@ -3991,26 +4054,54 @@ async def company_report(
             debtor_booking += _booking_open_debt(sa, pa, open_refunds.get(int(aid), Decimal("0")))
 
     # Курсы/протоколы: платежи с paid_at в этом месяце → выручка месяца.
-    # KPI менеджера считается отдельно: +1 в месяц, когда оплата впервые дошла до 25%.
+    # Новые = is_first; доплаты = остальное (сбор с дебиторки).
+    manual_sale_ids = select(SalesKpiManualSale.id).where(
+        SalesKpiManualSale.company_id == company_id,
+        SalesKpiManualSale.pipeline_id == pipeline_id,
+        SalesKpiManualSale.status.in_(("active", "completed")),
+    )
     revenue_manual_paid = (
         await db.execute(
             select(func.coalesce(func.sum(SalesKpiManualSalePayment.amount), 0)).where(
                 SalesKpiManualSalePayment.company_id == company_id,
                 SalesKpiManualSalePayment.paid_at >= start,
                 SalesKpiManualSalePayment.paid_at < end,
-                SalesKpiManualSalePayment.sale_id.in_(
-                    select(SalesKpiManualSale.id).where(
-                        SalesKpiManualSale.company_id == company_id,
-                        SalesKpiManualSale.pipeline_id == pipeline_id,
-                        SalesKpiManualSale.status == "active",
-                    ),
-                ),
+                SalesKpiManualSalePayment.rejected_at.is_(None),
+                SalesKpiManualSalePayment.sale_id.in_(manual_sale_ids),
             ),
         )
     ).scalar_one()
     revenue_manual = Decimal(str(revenue_manual_paid or 0))
 
-    # Старые продажи без строк в журнале: один раз относим paid_amount к месяцу sold_at.
+    revenue_manual_new_raw = (
+        await db.execute(
+            select(func.coalesce(func.sum(SalesKpiManualSalePayment.amount), 0)).where(
+                SalesKpiManualSalePayment.company_id == company_id,
+                SalesKpiManualSalePayment.paid_at >= start,
+                SalesKpiManualSalePayment.paid_at < end,
+                SalesKpiManualSalePayment.rejected_at.is_(None),
+                SalesKpiManualSalePayment.is_first.is_(True),
+                SalesKpiManualSalePayment.sale_id.in_(manual_sale_ids),
+            ),
+        )
+    ).scalar_one()
+    revenue_manual_new = Decimal(str(revenue_manual_new_raw or 0))
+
+    revenue_manual_topup_raw = (
+        await db.execute(
+            select(func.coalesce(func.sum(SalesKpiManualSalePayment.amount), 0)).where(
+                SalesKpiManualSalePayment.company_id == company_id,
+                SalesKpiManualSalePayment.paid_at >= start,
+                SalesKpiManualSalePayment.paid_at < end,
+                SalesKpiManualSalePayment.rejected_at.is_(None),
+                SalesKpiManualSalePayment.is_first.is_(False),
+                SalesKpiManualSalePayment.sale_id.in_(manual_sale_ids),
+            ),
+        )
+    ).scalar_one()
+    revenue_manual_topup = Decimal(str(revenue_manual_topup_raw or 0))
+
+    # Старые продажи без строк в журнале: один раз относим paid_amount к месяцу sold_at (как «новые»).
     legacy_manual_rows = (
         await db.execute(
             select(SalesKpiManualSale).where(
@@ -4018,7 +4109,7 @@ async def company_report(
                 SalesKpiManualSale.pipeline_id == pipeline_id,
                 SalesKpiManualSale.sold_at >= start,
                 SalesKpiManualSale.sold_at < end,
-                SalesKpiManualSale.status == "active",
+                SalesKpiManualSale.status.in_(("active", "completed")),
                 SalesKpiManualSale.paid_amount > 0,
                 ~exists(
                     select(SalesKpiManualSalePayment.id).where(
@@ -4029,7 +4120,9 @@ async def company_report(
         )
     ).scalars().all()
     for sale in legacy_manual_rows:
-        revenue_manual += Decimal(str(sale.paid_amount or 0))
+        amt = Decimal(str(sale.paid_amount or 0))
+        revenue_manual += amt
+        revenue_manual_new += amt
 
     manual_debt_sales = (
         await db.execute(
@@ -4316,6 +4409,8 @@ async def company_report(
         revenue_total=revenue_total,
         revenue_booking=revenue_booking,
         revenue_manual=revenue_manual,
+        revenue_manual_new=revenue_manual_new,
+        revenue_manual_topup=revenue_manual_topup,
         debtor_total=debtor_total,
         debtor_booking=debtor_booking,
         debtor_manual=debtor_manual,

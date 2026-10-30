@@ -348,6 +348,8 @@ export function CuratorJournalPage() {
     role === "administrator" ||
     role === "accountant" ||
     role === "super_owner";
+  /** Убрать участника из потока — только владелец. */
+  const canRemoveFromList = role === "owner" || role === "super_owner";
 
   const qc = useQueryClient();
   const [section, setSection] = useState<JournalSection>(readJournalSection);
@@ -525,7 +527,7 @@ export function CuratorJournalPage() {
     mutationFn: (id: number) =>
       apiFetch<Membership>(`/api/curator-journal/memberships/${id}/leave`, { method: "POST" }),
     onSuccess: () => {
-      toast.success("Убран из потока");
+      toast.success("Удалён из списка потока");
       setHistoryMemberId(null);
       void qc.invalidateQueries({ queryKey: ["curator-journal", "month", selectedFlowId] });
       void qc.invalidateQueries({ queryKey: ["curator-journal", "day-summary", selectedFlowId] });
@@ -536,9 +538,12 @@ export function CuratorJournalPage() {
   });
 
   function removeFromFlow(p: Membership) {
+    if (!canRemoveFromList) return;
     const day = p.program_day_index != null ? `, день ${p.program_day_index}` : "";
     const start = p.program_started_on ? `, старт ${formatRuDate(p.program_started_on)}` : "";
-    const ok = window.confirm(`Убрать «${p.display_name}»${day}${start} из этого потока?`);
+    const ok = window.confirm(
+      `Удалить «${p.display_name}»${day}${start} из списка этого потока?`,
+    );
     if (!ok) return;
     leaveMut.mutate(p.id);
   }
@@ -805,6 +810,11 @@ export function CuratorJournalPage() {
                     <span className="cj-corner-num">№</span>
                     ФИО
                   </th>
+                  {canRemoveFromList ? (
+                    <th className="cj-sticky-top cj-remove-col" rowSpan={2}>
+                      Удалить
+                    </th>
+                  ) : null}
                   {monthQuery.data.days.map((d) => {
                     const isToday = d === todayIso();
                     return (
@@ -864,6 +874,19 @@ export function CuratorJournalPage() {
                         </button>
                       </div>
                     </th>
+                    {canRemoveFromList ? (
+                      <td className="cj-remove-col">
+                        <button
+                          type="button"
+                          className="cj-remove-btn"
+                          title="Удалить из списка"
+                          disabled={leaveMut.isPending}
+                          onClick={() => removeFromFlow(p)}
+                        >
+                          Удалить
+                        </button>
+                      </td>
+                    ) : null}
                     {monthQuery.data!.days.map((d) => {
                       const pauseNote = coveringPause(p, d)?.comment?.trim();
                       if (dayIsPaused(p, d)) {
@@ -993,6 +1016,17 @@ export function CuratorJournalPage() {
                     >
                       {p.display_name}
                     </button>
+                    {canRemoveFromList ? (
+                      <button
+                        type="button"
+                        className="cj-remove-btn ml-auto"
+                        title="Удалить из списка"
+                        disabled={leaveMut.isPending}
+                        onClick={() => removeFromFlow(p)}
+                      >
+                        Удалить
+                      </button>
+                    ) : null}
                   </div>
                   {dayIsPaused(p, mobileDay) ? (
                     <p className="mt-2 text-sm text-[var(--mo-muted)]">
@@ -1144,6 +1178,7 @@ export function CuratorJournalPage() {
           year={year}
           month={month}
           leavePending={leaveMut.isPending}
+          canRemove={canRemoveFromList}
           onPause={(m) => setPauseDraft({ id: m.id, name: m.display_name, comment: "" })}
           onResume={(id) => pauseMut.mutate({ id, resume: true })}
           onRemove={removeFromFlow}
@@ -1851,6 +1886,7 @@ function HistoryModal({
   year,
   month,
   leavePending,
+  canRemove,
   onPause,
   onResume,
   onRemove,
@@ -1860,6 +1896,7 @@ function HistoryModal({
   year: number;
   month: number;
   leavePending: boolean;
+  canRemove: boolean;
   onPause: (m: Membership) => void;
   onResume: (id: number) => void;
   onRemove: (m: Membership) => void;
@@ -1904,24 +1941,41 @@ function HistoryModal({
                 >
                   {m.is_paused ? "Продолжить" : "Пауза"}
                 </button>
-                <button
-                  type="button"
-                  className="cj-person-action is-muted"
-                  disabled={leavePending}
-                  onClick={() => onRemove(m)}
-                >
-                  Убрать
-                </button>
+                {canRemove ? (
+                  <button
+                    type="button"
+                    className="cj-person-action is-danger"
+                    disabled={leavePending}
+                    onClick={() => onRemove(m)}
+                  >
+                    Удалить из списка
+                  </button>
+                ) : null}
               </span>
             )}
             {openPauseComment(m) ? (
               <p className="mt-1 text-xs text-[var(--mo-muted)]">{openPauseComment(m)}</p>
             ) : null}
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className={["grid gap-2", canRemove && !m.left_on ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"].join(" ")}>
             <SummaryCard title="Дневник" body={`${h.diary_done}/${h.diary_total_days}`} />
             <SummaryCard title="Фото" body={`${h.photo_done}/${h.photo_total_days}`} />
             <SummaryCard title="Дней с жалобами" body={String(h.complaint_days)} />
+            {canRemove && !m.left_on ? (
+              <div className="rounded-xl border border-dashed border-[var(--mo-danger)]/40 bg-[var(--mo-danger)]/5 p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--mo-danger)]">
+                  Удалить из списка
+                </p>
+                <button
+                  type="button"
+                  className="btn-secondary mt-2 w-full border-[var(--mo-danger)]/40 py-2 text-sm text-[var(--mo-danger)]"
+                  disabled={leavePending}
+                  onClick={() => onRemove(m)}
+                >
+                  Удалить
+                </button>
+              </div>
+            ) : null}
           </div>
           {h.recurring.length ? (
             <div>

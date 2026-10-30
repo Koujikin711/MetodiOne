@@ -1,8 +1,10 @@
-"""Шесть месяцев выручки визитов для отчёта компании.
+"""Шесть месяцев кассы для отчёта компании.
 
-Касса — как в отчёте: дата сдачи денег (paid_at, иначе начало визита).
-Отменённые записи не входят. Пакеты «Курс» и «Протокол» здесь остаются,
-потому что отчёт компании считает их оплату визита в выручку визитов.
+Касса визитов — дата сдачи денег (paid_at, иначе начало визита).
+Отменённые записи не входят.
+
+Плюс подтверждённые оплаты KPI «Курс / Протокол / …» по paid_at и имени
+продукта плана — иначе протоколы из вкладки продаж не видны на графике.
 """
 
 from __future__ import annotations
@@ -42,6 +44,22 @@ def month_labels(months) -> list[str]:
         base = SHORT_MONTHS[m.month - 1]
         labels.append(f"{base} {str(m.year)[2:]}" if mixed else base)
     return labels
+
+
+def kpi_payment_as_visit(
+    amount,
+    paid_at: datetime | None,
+    product_name: str | None,
+) -> tuple | None:
+    """Строка оплаты KPI → тот же формат, что у визита для build_month_compare."""
+    paid = Decimal(str(amount or 0))
+    if paid <= 0 or paid_at is None:
+        return None
+    name = (product_name or "").strip() or "Курс / протокол"
+    stamp = _utc(paid_at)
+    if stamp is None:
+        return None
+    return (paid, "completed", stamp, stamp, name)
 
 
 def build_month_compare(year_month, visits: list[tuple]) -> dict:

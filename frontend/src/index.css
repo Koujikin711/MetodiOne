@@ -12918,6 +12918,10 @@ html:has(.studio-root) {
   color: var(--mo-text-muted);
 }
 
+.cj-person-action.is-danger {
+  color: var(--mo-danger);
+}
+
 .cj-person-action:hover {
   text-decoration: underline;
 }
@@ -12926,6 +12930,76 @@ html:has(.studio-root) {
   opacity: 0.45;
   cursor: not-allowed;
   text-decoration: none;
+}
+
+.curator-journal-table .cj-remove-col {
+  position: sticky;
+  left: var(--cj-name-w);
+  z-index: 12;
+  width: 4.6rem;
+  min-width: 4.6rem;
+  max-width: 4.6rem;
+  padding: 0.25rem 0.2rem;
+  border-right: 1px solid var(--mo-border);
+  background: var(--mo-surface);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.curator-journal-table thead .cj-remove-col {
+  top: 0;
+  z-index: 35;
+  font-size: 0.65rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--mo-text-muted);
+  background: var(--mo-surface-elevated);
+}
+
+.curator-journal-table tbody tr:nth-child(even) .cj-remove-col {
+  background: color-mix(in srgb, var(--mo-surface-elevated) 55%, var(--mo-surface));
+}
+
+.curator-journal-table tbody tr:hover .cj-remove-col {
+  background: var(--mo-surface-elevated);
+}
+
+.cj-remove-btn {
+  border: 1px solid color-mix(in srgb, var(--mo-danger) 40%, var(--mo-border));
+  border-radius: 0.45rem;
+  background: color-mix(in srgb, var(--mo-danger) 8%, transparent);
+  color: var(--mo-danger);
+  padding: 0.2rem 0.4rem;
+  font-size: 0.65rem;
+  font-weight: 650;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.cj-remove-btn:hover {
+  background: color-mix(in srgb, var(--mo-danger) 16%, transparent);
+}
+
+.cj-remove-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+:root[data-theme="dark"] .curator-journal-table .cj-remove-col {
+  background: #1a263c;
+}
+
+:root[data-theme="dark"] .curator-journal-table tbody tr:nth-child(even) .cj-remove-col {
+  background: #1e2b42;
+}
+
+:root[data-theme="dark"] .curator-journal-table tbody tr:hover .cj-remove-col {
+  background: #243552;
+}
+
+:root[data-theme="dark"] .curator-journal-table thead .cj-remove-col {
+  background: #1a263c;
 }
 
 .cj-person-card {

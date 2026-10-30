@@ -928,6 +928,12 @@ async def leave_membership(
     db: Annotated[AsyncSession, Depends(get_db)],
     left_on: date | None = None,
 ) -> MembershipOut:
+    """Удалить участника из списка потока — только владелец."""
+    if user.role not in (UserRole.owner, UserRole.super_owner):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Удалить из списка может только владелец",
+        )
     m = (
         await db.execute(
             select(CuratorFlowMembership).where(

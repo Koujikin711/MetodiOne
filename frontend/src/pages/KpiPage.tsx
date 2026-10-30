@@ -3166,7 +3166,7 @@ function CompanyReportSection({
             ? "Сводка за выбранный месяц (не сумма с прошлых). Выручка = продажи стола + платежи по курсам с датой в этом месяце. Дебиторка — остаток на конец месяца с переносом."
             : "Сводка за месяц. Выручка = оплаты визитов по дате сдачи денег (как ОСВ). Курсы KPI показаны отдельно и в эту сумму не входят. Дебиторка = остаток визитов + долги пакетов."}
         </p>
-        <div className="kpi-report-metrics mt-3 grid grid-cols-2 gap-2 sm:mt-4 sm:gap-3 lg:grid-cols-5">
+        <div className="kpi-report-metrics mt-3 grid grid-cols-2 gap-2 sm:mt-4 sm:gap-3 lg:grid-cols-3 xl:grid-cols-6">
           <div className="kpi-report-metric rounded-xl border border-[var(--mo-border)] p-2.5 sm:p-3">
             <div className="text-[11px] mo-muted sm:text-xs">Выполнение плана</div>
             <div className="kpi-report-metric__value mt-1 font-semibold text-[var(--mo-text)]">
@@ -3194,6 +3194,31 @@ function CompanyReportSection({
                   }`}
             </div>
           </div>
+          {Number(data.revenue_manual) > 0 ||
+          Number(data.revenue_manual_new ?? 0) > 0 ||
+          Number(data.revenue_manual_topup ?? 0) > 0 ? (
+            <div className="kpi-report-metric col-span-2 rounded-xl border border-[var(--mo-border)] p-2.5 sm:p-3 lg:col-span-1 xl:col-span-2">
+              <div className="text-[11px] mo-muted sm:text-xs">Оплаты курсов / протоколов</div>
+              <div className="kpi-report-metric__value mt-1 font-semibold kpi-actual-value">
+                {formatMoney(data.revenue_manual)}
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <div className="rounded-lg border border-[var(--mo-border)] bg-[var(--mo-surface)] px-2 py-1.5">
+                  <div className="text-[10px] uppercase tracking-wide mo-muted">Новые</div>
+                  <div className="mt-0.5 text-sm font-semibold tabular-nums text-[var(--mo-text)]">
+                    {formatMoney(data.revenue_manual_new ?? 0)}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-[var(--mo-border)] bg-[var(--mo-surface)] px-2 py-1.5">
+                  <div className="text-[10px] uppercase tracking-wide mo-muted">Доплаты</div>
+                  <div className="mt-0.5 text-sm font-semibold tabular-nums text-[var(--mo-text)]">
+                    {formatMoney(data.revenue_manual_topup ?? 0)}
+                  </div>
+                  <div className="text-[10px] mo-muted">с дебиторки</div>
+                </div>
+              </div>
+            </div>
+          ) : null}
           <div className="kpi-report-metric rounded-xl border border-rose-500/30 bg-rose-500/5 p-2.5 sm:p-3">
             <div className="text-[11px] mo-muted sm:text-xs">Возвраты (TJS)</div>
             <div className="kpi-report-metric__value mt-1 font-semibold tabular-nums text-rose-700 dark:text-rose-300">
