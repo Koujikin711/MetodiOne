@@ -3186,29 +3186,18 @@ function CompanyReportSection({
             </div>
             <div className="kpi-report-metric__hint mt-1 mo-muted">
               {hideBookingExperts
-                ? `стол ${formatMoney(data.revenue_booking)} · курсы ${formatMoney(data.revenue_manual)}`
+                ? `стол ${formatMoney(data.revenue_booking)} · курсы ${formatMoney(data.revenue_manual)}${
+                    Number(data.revenue_manual) > 0
+                      ? ` · новые ${formatMoney(data.revenue_manual_new ?? 0)} · доплаты ${formatMoney(data.revenue_manual_topup ?? 0)}`
+                      : ""
+                  }`
                 : `визиты ${formatMoney(data.revenue_booking)}${
                     Number(data.revenue_manual) > 0
-                      ? ` · курсы KPI ${formatMoney(data.revenue_manual)} отдельно`
+                      ? ` · курсы KPI ${formatMoney(data.revenue_manual)} · новые ${formatMoney(data.revenue_manual_new ?? 0)} · доплаты ${formatMoney(data.revenue_manual_topup ?? 0)}`
                       : ""
                   }`}
             </div>
           </div>
-          {Number(data.revenue_manual) > 0 ||
-          Number(data.revenue_manual_new ?? 0) > 0 ||
-          Number(data.revenue_manual_topup ?? 0) > 0 ? (
-            <div className="kpi-report-metric rounded-xl border border-[var(--mo-border)] p-2.5 sm:p-3">
-              <div className="text-[11px] mo-muted sm:text-xs">Оплаты курсов / протоколов</div>
-              <div className="mt-0.5 text-[10px] tabular-nums mo-muted sm:text-[11px]">
-                новые {formatMoney(data.revenue_manual_new ?? 0)}
-                <span className="mx-1 opacity-50">·</span>
-                доплаты {formatMoney(data.revenue_manual_topup ?? 0)}
-              </div>
-              <div className="kpi-report-metric__value mt-1 font-semibold kpi-actual-value">
-                {formatMoney(data.revenue_manual)}
-              </div>
-            </div>
-          ) : null}
           <div className="kpi-report-metric rounded-xl border border-rose-500/30 bg-rose-500/5 p-2.5 sm:p-3">
             <div className="text-[11px] mo-muted sm:text-xs">Возвраты (TJS)</div>
             <div className="kpi-report-metric__value mt-1 font-semibold tabular-nums text-rose-700 dark:text-rose-300">
