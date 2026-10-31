@@ -45,8 +45,10 @@ KPI_COURSE_BROUGHT_MONTH_OVERRIDES: dict[tuple[str, str], Decimal] = {
     ("2026-10", "махмадшоев мустафо"): Decimal("3500.00"),
 }
 # Разово окт 2026: Камолзода Марва — доплата 5800 в Привёл Ситоре (#96), не Новых.
+# Разово окт 2026: Махмадов Мавлончон — доплаты 3000+2600 в Привёл Мулкии (#7).
 KPI_COURSE_BROUGHT_FORCE: dict[tuple[str, str], tuple[int, Decimal]] = {
     ("2026-10", "камолзода марва"): (96, Decimal("5800.00")),
+    ("2026-10", "махмадов мавлончон"): (7, Decimal("5600.00")),
 }
 # Разово: этих пациентов не показывать и не считать в Привёл/Новых (без смены правил).
 KPI_EXCLUDE_CLIENT_FIO_KEYS = frozenset(
@@ -252,8 +254,8 @@ def course_stage_credits_for_payments(
 
     Мин. зависит от цены: ~10 000 → 3000; 15–17 000 → 5000 (потолка нет).
     Пока накопление < мин. — 0. При первом пороге — накопление как есть.
-    После порога каждая подтверждённая доплата идёт в «Привёл» в месяц платежа
-    (как есть), даже если сумма меньше минимума — иначе доплата пропадает из отчёта.
+    Дальше мелкие доплаты (< мин. этой цены) сами по себе в «Привёл» не идут:
+    копятся, пока снова не наберётся мин. (или пока не закроют всю цену).
     """
     price = Decimal(str(service_amount or 0)).quantize(Decimal("0.01"))
     minimum = course_stage_amount(price)
@@ -262,6 +264,7 @@ def course_stage_credits_for_payments(
     ordered = sorted(payments, key=lambda row: row[0])
     cum = Decimal("0.00")
     unlocked = False
+    pending = Decimal("0.00")
     credits: list[tuple[datetime, int, Decimal]] = []
     for paid_at, amount, manager_id in ordered:
         amt = Decimal(str(amount or 0)).quantize(Decimal("0.01"))
@@ -272,11 +275,19 @@ def course_stage_credits_for_payments(
             if cum < minimum:
                 continue
             unlocked = True
-            # Первый раз перешли минимум — вся накопленная сумма как есть.
             credits.append((paid_at, int(manager_id), cum))
             continue
-        # После порога — каждая доплата в свой месяц.
-        credits.append((paid_at, int(manager_id), amt))
+        if amt >= minimum:
+            if pending > 0:
+                credits.append((paid_at, int(manager_id), (pending + amt).quantize(Decimal("0.01"))))
+                pending = Decimal("0.00")
+            else:
+                credits.append((paid_at, int(manager_id), amt))
+            continue
+        pending = (pending + amt).quantize(Decimal("0.01"))
+        if pending >= minimum or cum >= price:
+            credits.append((paid_at, int(manager_id), pending))
+            pending = Decimal("0.00")
     return credits
 
 

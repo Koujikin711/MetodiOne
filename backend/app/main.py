@@ -590,9 +590,8 @@ async def _ensure_default_company(session: AsyncSession) -> int:
     return int(c.id)
 
 
-@asynccontextmanager
-async def lifespan(_: FastAPI):
-    _install_asyncio_dns_exception_handler()
+async def _run_startup_db_and_seed() -> None:
+    """Миграции + сиды. Не должны вечно блокировать lifespan (Amvera 503)."""
     try:
         # Отдельная транзакция: если длинная миграция откатится, колонка всё равно останется.
         async with engine.begin() as conn:
@@ -648,6 +647,21 @@ async def lifespan(_: FastAPI):
         await ensure_canonical_pipeline_stages()
     except Exception as exc:
         logger.exception("startup seed/enum failed (API still starts): %s", exc)
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    _install_asyncio_dns_exception_handler()
+    # 2 реплики / lock на миграциях раньше вешали uvicorn до yield → Amvera 503.
+    boot_task = asyncio.create_task(_run_startup_db_and_seed(), name="startup-db-seed")
+    try:
+        await asyncio.wait_for(asyncio.shield(boot_task), timeout=60.0)
+    except TimeoutError:
+        logger.error(
+            "startup DB/seed still running after 60s — accepting traffic; boot continues in background",
+        )
+    except Exception:
+        logger.exception("startup DB/seed failed before accept")
     stop_event = asyncio.Event()
 
     async def _deferred_chat_indexes() -> None:
@@ -799,6 +813,8 @@ async def lifespan(_: FastAPI):
     reminder_task.cancel()
     deferred_chat_task.cancel()
     deferred_heavy_task.cancel()
+    if not boot_task.done():
+        boot_task.cancel()
     try:
         await reminder_task
     except asyncio.CancelledError:
@@ -811,6 +827,12 @@ async def lifespan(_: FastAPI):
         await deferred_heavy_task
     except asyncio.CancelledError:
         pass
+    try:
+        await boot_task
+    except asyncio.CancelledError:
+        pass
+    except Exception:
+        logger.exception("startup boot task ended with error")
     await engine.dispose()
 
 

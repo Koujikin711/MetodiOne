@@ -1368,30 +1368,26 @@ async def _service_earning_detail(
                 and paid >= force[1]
                 and is_main_course_product(item.name)
             )
-            listed_mid = int(sale.manager_user_id) if sale.manager_user_id is not None else None
-            # В списке менеджера — и «чьи» по владельцу KPI, и где он стоит в карточке продажи.
-            if owner_mid != manager_id and listed_mid != manager_id and not force_for_me:
+            if owner_mid != manager_id and not force_for_me:
                 continue
-            credit_mid = int(manager_id) if (owner_mid == manager_id or force_for_me) else None
             is_new = sale.sold_at is not None and start <= sale.sold_at < end and paid > 0
             payments = pays_by_sale.get(int(sale.id), [])
             brought_amt = Decimal("0.00")
             month_paid_amt = Decimal("0.00")
             for paid_at, amt, mid in payments:
-                # Оплаты месяца по этой продаже — чтобы доплата была видна у менеджера карточки.
-                if paid_at < start or paid_at >= end:
+                if mid != manager_id and not force_for_me:
                     continue
-                if owner_mid != manager_id and listed_mid != manager_id and mid != manager_id and not force_for_me:
+                if paid_at < start or paid_at >= end:
                     continue
                 pay = Decimal(str(amt or 0)).quantize(Decimal("0.01"))
                 if pay > 0:
                     month_paid_amt = (month_paid_amt + pay).quantize(Decimal("0.01"))
-            if credit_mid is not None and is_main_course_product(item.name):
+            if is_main_course_product(item.name):
                 for paid_at, mid, credit in course_stage_credits_for_payments(
                     service_amount=price,
                     payments=payments,
                 ):
-                    if mid != credit_mid:
+                    if mid != manager_id:
                         continue
                     if paid_at < start or paid_at >= end:
                         continue
@@ -1407,26 +1403,26 @@ async def _service_earning_detail(
                     if month_paid_amt < force[1]:
                         month_paid_amt = force[1]
                     is_new = False
-            elif credit_mid is not None and protocol_brought_waits_for_full_price(item.name):
+            elif protocol_brought_waits_for_full_price(item.name):
                 for paid_at, mid, credit in protocol_full_pay_credits_for_payments(
                     service_amount=price,
                     payments=payments,
                 ):
-                    if mid != credit_mid:
+                    if mid != manager_id:
                         continue
                     if paid_at < start or paid_at >= end:
                         continue
                     brought_amt += credit
-            elif credit_mid is not None:
+            else:
                 for paid_at, amt, mid in payments:
-                    if mid != credit_mid:
+                    if mid != manager_id:
                         continue
                     if paid_at < start or paid_at >= end:
                         continue
                     brought_amt += amt
 
             # Продажа без строк журнала: legacy — вся оплата в месяц sold_at у владельца
-            if not payments and is_new and paid > 0 and credit_mid is not None:
+            if not payments and is_new and paid > 0:
                 month_paid_amt = paid
                 if is_main_course_product(item.name):
                     brought_amt = course_brought_from_gross(price, paid)
@@ -1453,8 +1449,6 @@ async def _service_earning_detail(
                 note = "закрытие цены · вся накопленная сумма"
             elif brought_amt > 0:
                 note = "этап / доплата в месяце"
-            elif credit_mid is None and month_paid_amt > 0:
-                note = "доплата в месяце · Привёл у открывшего продажу"
             elif protocol_brought_waits_for_full_price(item.name) or is_main_course_product(item.name):
                 note = (
                     "ниже мин. — показано, не в оплату"
