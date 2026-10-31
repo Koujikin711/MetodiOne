@@ -5386,7 +5386,8 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 @media print {
-  .expenses-page {
+  /* Именованная страница на html — иначе Chrome даёт пустой 1-й лист */
+  html:has(.expenses-page) {
     page: expenses-sheet;
   }
 
@@ -13234,7 +13235,8 @@ html:has(.studio-root) {
   .fixed {
     display: none !important;
   }
-  .mo-print-wide {
+  /* Именованная страница на html — иначе Chrome даёт пустой 1-й лист */
+  html:has(.mo-print-wide):not(:has(.expenses-page)) {
     page: mo-print-wide;
   }
   .mo-print-head {
