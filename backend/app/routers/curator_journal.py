@@ -1288,21 +1288,19 @@ async def get_month_journal(
     flow = await _get_flow(db, company_id, flow_id)
     assert_flow_readable(user, flow)
     days = _month_days_in_flow(flow, year, month)
-    month_start = date(year, month, 1)
     month_end = date(year, month, calendar.monthrange(year, month)[1])
 
+    # Только активные: «Удалить из списка» сразу убирает строку.
+    # (Раньше left_on в этом месяце оставлял человека в сетке до конца месяца.)
     mq = select(CuratorFlowMembership).where(
         CuratorFlowMembership.flow_id == flow_id,
         CuratorFlowMembership.company_id == company_id,
         CuratorFlowMembership.joined_on <= month_end,
-        or_(
-            CuratorFlowMembership.left_on.is_(None),
-            CuratorFlowMembership.left_on >= month_start,
-        ),
+        CuratorFlowMembership.left_on.is_(None),
     )
     mq = mq.order_by(CuratorFlowMembership.display_name)
     participants = list((await db.execute(mq)).scalars().all())
-    flow_active_count = len([m for m in participants if m.left_on is None])
+    flow_active_count = len(participants)
     # ILIKE в PG с локалью C не складывает кириллицу («ансор» ≠ «Ансор»).
     # Фильтр в Python через casefold — корректно для Tajik/RU ФИО.
     if q and q.strip():
@@ -1462,10 +1460,8 @@ async def day_summary(
             select(CuratorFlowMembership).where(
                 CuratorFlowMembership.flow_id == flow_id,
                 CuratorFlowMembership.joined_on <= day,
-                or_(
-                    CuratorFlowMembership.left_on.is_(None),
-                    CuratorFlowMembership.left_on >= day,
-                ),
+                # Уже убранные из списка не считаются в сводке дня.
+                CuratorFlowMembership.left_on.is_(None),
             )
         )
     ).scalars().all()

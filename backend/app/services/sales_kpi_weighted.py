@@ -252,9 +252,8 @@ def course_stage_credits_for_payments(
 
     Мин. зависит от цены: ~10 000 → 3000; 15–17 000 → 5000 (потолка нет).
     Пока накопление < мин. — 0. При первом пороге — накопление как есть.
-    Дальше мелкие доплаты (< мин. этой цены) сами по себе в «Привёл» не идут:
-    копятся, пока снова не наберётся мин. (или пока не закроют всю цену).
-    Пример: курс 17 000, доплата 3000 — не в «Привёл» (мин. 5000, не 3000 от курса 10к).
+    После порога каждая подтверждённая доплата идёт в «Привёл» в месяц платежа
+    (как есть), даже если сумма меньше минимума — иначе доплата пропадает из отчёта.
     """
     price = Decimal(str(service_amount or 0)).quantize(Decimal("0.01"))
     minimum = course_stage_amount(price)
@@ -263,7 +262,6 @@ def course_stage_credits_for_payments(
     ordered = sorted(payments, key=lambda row: row[0])
     cum = Decimal("0.00")
     unlocked = False
-    pending = Decimal("0.00")
     credits: list[tuple[datetime, int, Decimal]] = []
     for paid_at, amount, manager_id in ordered:
         amt = Decimal(str(amount or 0)).quantize(Decimal("0.01"))
@@ -277,18 +275,8 @@ def course_stage_credits_for_payments(
             # Первый раз перешли минимум — вся накопленная сумма как есть.
             credits.append((paid_at, int(manager_id), cum))
             continue
-        # После порога: платёж ≥ мин. этой цены — сразу; иначе копим до мин. / полной цены.
-        if amt >= minimum:
-            if pending > 0:
-                credits.append((paid_at, int(manager_id), (pending + amt).quantize(Decimal("0.01"))))
-                pending = Decimal("0.00")
-            else:
-                credits.append((paid_at, int(manager_id), amt))
-            continue
-        pending = (pending + amt).quantize(Decimal("0.01"))
-        if pending >= minimum or cum >= price:
-            credits.append((paid_at, int(manager_id), pending))
-            pending = Decimal("0.00")
+        # После порога — каждая доплата в свой месяц.
+        credits.append((paid_at, int(manager_id), amt))
     return credits
 
 

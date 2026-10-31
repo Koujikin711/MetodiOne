@@ -587,11 +587,10 @@ def test_course_brought_from_gross_as_paid_after_minimum():
 
 
 def test_course_stage_credits_as_paid_after_minimum():
-    """5000 открывает; доплата < мин. цены (3000 на 17к) сама не в Привёл — копится до мин."""
+    """5000 открывает; дальше каждая доплата — в свой месяц (как есть)."""
     t0 = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
     t1 = datetime(2026, 10, 10, 12, 0, tzinfo=UTC)
     t2 = datetime(2026, 10, 20, 12, 0, tzinfo=UTC)
-    # 5000 открыл; 3000 копится; +2000 → пакет 5000 (не 3000 отдельно на курс 15к)
     credits = course_stage_credits_for_payments(
         service_amount=Decimal("15000"),
         payments=[
@@ -602,20 +601,27 @@ def test_course_stage_credits_as_paid_after_minimum():
     )
     assert [(c[0], c[2]) for c in credits] == [
         (t0, Decimal("5000.00")),
-        (t2, Decimal("5000.00")),
+        (t1, Decimal("3000.00")),
+        (t2, Decimal("2000.00")),
     ]
 
-    # Махмадов: 17 000, уже 5400, доплата 3000 — 3000 НЕ в Привёл (мин. 5000)
+    # Махмадов: 17 000, 5400 в сентябре + доплаты октября — все в Привёл
     t_open = datetime(2026, 9, 14, 12, 0, tzinfo=UTC)
     t_top = datetime(2026, 10, 19, 12, 0, tzinfo=UTC)
+    t_top2 = datetime(2026, 10, 29, 12, 0, tzinfo=UTC)
     makh = course_stage_credits_for_payments(
         service_amount=Decimal("17000"),
         payments=[
             (t_open, Decimal("5400"), 7),
             (t_top, Decimal("3000"), 7),
+            (t_top2, Decimal("2600"), 7),
         ],
     )
-    assert makh == [(t_open, 7, Decimal("5400.00"))]
+    assert makh == [
+        (t_open, 7, Decimal("5400.00")),
+        (t_top, 7, Decimal("3000.00")),
+        (t_top2, 7, Decimal("2600.00")),
+    ]
 
     once = course_stage_credits_for_payments(
         service_amount=Decimal("15000"),
@@ -643,7 +649,7 @@ def test_course_stage_credits_as_paid_after_minimum():
         (t_oct, 7, Decimal("5600.00")),
     ]
 
-    # Два мелких платежа: зачёт при накоплении ≥ 5000 — вся сумма 6000
+    # Два мелких платежа до порога: зачёт при накоплении ≥ 5000
     t_a = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
     t_b = datetime(2026, 10, 5, 12, 0, tzinfo=UTC)
     split = course_stage_credits_for_payments(
