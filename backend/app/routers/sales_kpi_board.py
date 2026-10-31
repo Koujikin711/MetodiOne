@@ -1402,7 +1402,7 @@ async def _service_earning_detail(
                     computed=brought_amt,
                 )
                 if force_for_me and force is not None:
-                    # Разово: доплата в Привёл (не Новых), если сумма уже в KPI.
+                    # Разово: доплата в Привёл (не Новых). force=0 — строка видна, в зачёт не входит.
                     brought_amt = force[1]
                     if month_paid_amt < force[1]:
                         month_paid_amt = force[1]
@@ -1453,6 +1453,8 @@ async def _service_earning_detail(
                 note = "закрытие цены · вся накопленная сумма"
             elif brought_amt > 0:
                 note = "этап / доплата в месяце"
+            elif force_for_me and force is not None and force[1] <= 0:
+                note = "не в оплату · не в зачёт"
             elif protocol_brought_waits_for_full_price(item.name) or is_main_course_product(item.name):
                 note = (
                     "ниже мин. — показано, не в оплату"
