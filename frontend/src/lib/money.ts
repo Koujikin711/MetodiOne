@@ -13,17 +13,27 @@ const moneyFmtInt = new Intl.NumberFormat("ru-RU", {
   maximumFractionDigits: 0,
 });
 
+const amountFmt = new Intl.NumberFormat("ru-RU", {
+  maximumFractionDigits: 2,
+  minimumFractionDigits: 2,
+});
+
+const amountFmtInt = new Intl.NumberFormat("ru-RU", {
+  maximumFractionDigits: 0,
+});
+
 export function formatMoney(
   value: string | number | null | undefined,
-  opts?: { digits?: number; empty?: string },
+  opts?: { digits?: number; empty?: string; currency?: boolean },
 ): string {
   if (value === null || value === undefined || value === "") {
     return opts?.empty ?? "—";
   }
   const n = Number(value);
   if (!Number.isFinite(n)) return opts?.empty ?? "—";
-  if (opts?.digits === 0) return moneyFmtInt.format(n);
-  return moneyFmt.format(n);
+  const withCurrency = opts?.currency !== false;
+  if (opts?.digits === 0) return withCurrency ? moneyFmtInt.format(n) : amountFmtInt.format(n);
+  return withCurrency ? moneyFmt.format(n) : amountFmt.format(n);
 }
 
 /**

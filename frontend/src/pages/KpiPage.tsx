@@ -3188,16 +3188,18 @@ function CompanyReportSection({
             </div>
             <div className="kpi-report-metric__hint mo-muted">
               <span className="kpi-report-metric__hint-line">
-                {hideBookingExperts ? "стол" : "визиты"} {formatMoney(data.revenue_booking)}
+                {hideBookingExperts ? "стол" : "визиты"}{" "}
+                {formatMoney(data.revenue_booking, { currency: false })}
               </span>
               {Number(data.revenue_manual) > 0 ? (
                 <>
                   <span className="kpi-report-metric__hint-line">
-                    {hideBookingExperts ? "курсы" : "курсы KPI"} {formatMoney(data.revenue_manual)}
+                    {hideBookingExperts ? "курсы" : "курсы KPI"}{" "}
+                    {formatMoney(data.revenue_manual, { currency: false })}
                   </span>
                   <span className="kpi-report-metric__hint-line">
-                    новые {formatMoney(data.revenue_manual_new ?? 0)} · доплаты{" "}
-                    {formatMoney(data.revenue_manual_topup ?? 0)}
+                    новые {formatMoney(data.revenue_manual_new ?? 0, { currency: false })} · доплаты{" "}
+                    {formatMoney(data.revenue_manual_topup ?? 0, { currency: false })}
                   </span>
                 </>
               ) : null}
@@ -3210,8 +3212,9 @@ function CompanyReportSection({
             </div>
             <div className="kpi-report-metric__hint mo-muted">
               <span className="kpi-report-metric__hint-line">
-                {hideBookingExperts ? "стол" : "визиты"} {formatMoney(data.refunds_booking ?? 0)} · курсы{" "}
-                {formatMoney(data.refunds_manual ?? 0)}
+                {hideBookingExperts ? "стол" : "визиты"}{" "}
+                {formatMoney(data.refunds_booking ?? 0, { currency: false })} · курсы{" "}
+                {formatMoney(data.refunds_manual ?? 0, { currency: false })}
               </span>
             </div>
           </div>
@@ -3222,8 +3225,9 @@ function CompanyReportSection({
             </div>
             <div className="kpi-report-metric__hint mo-muted">
               <span className="kpi-report-metric__hint-line">
-                {hideBookingExperts ? "запись" : "визиты"} {formatMoney(data.debtor_booking)} · курсы{" "}
-                {formatMoney(data.debtor_manual)}
+                {hideBookingExperts ? "запись" : "визиты"}{" "}
+                {formatMoney(data.debtor_booking, { currency: false })} · курсы{" "}
+                {formatMoney(data.debtor_manual, { currency: false })}
               </span>
             </div>
           </div>
