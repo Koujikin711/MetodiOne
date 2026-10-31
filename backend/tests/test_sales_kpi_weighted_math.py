@@ -674,3 +674,18 @@ def test_makhmadov_mavlonchon_october_force_5600_mulkiya():
         ym=date(2026, 9, 1),
         client_name="Махмадов Мавлончон",
     ) is None
+
+
+def test_khurshedzoda_and_taygunov_october_force_sitora():
+    assert course_brought_force_entry(
+        ym=date(2026, 10, 1),
+        client_name="Хуршедзода Абдулло",
+    ) == (96, Decimal("5600.00"))
+    assert course_brought_force_entry(
+        ym=date(2026, 10, 1),
+        client_name="Тайгунов Тайгун",
+    ) == (96, Decimal("5907.00"))
+    assert course_brought_force_entry(
+        ym=date(2026, 9, 1),
+        client_name="Хуршедзода Абдулло",
+    ) is None
