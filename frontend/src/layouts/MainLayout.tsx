@@ -81,7 +81,7 @@ export function MainLayout() {
   const bookingEnabled = meQuery.isSuccess && meQuery.data?.booking_enabled !== false;
   const deskSalesEnabled = salesSpace;
   const showExtraServices =
-    role === "owner" || role === "admin" || role === "administrator";
+    role === "owner" || role === "admin" || role === "administrator" || role === "accountant";
   const managerChatFirst = chatStagesEnabled && isManagerLikeNav;
   const { showNavForFeature } = useTariffNavAccess();
   const { expanded: sidebarExpanded, toggle: toggleSidebar } = useShellSidebarExpanded();

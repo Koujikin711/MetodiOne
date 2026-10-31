@@ -122,6 +122,15 @@ function firstNameOnly(full: string | null | undefined): string {
 }
 
 function canAccessExtraServices(role: string | null): boolean {
+  return (
+    role === "owner" ||
+    role === "admin" ||
+    role === "administrator" ||
+    role === "accountant"
+  );
+}
+
+function canEditExtraServiceSettings(role: string | null): boolean {
   return role === "owner" || role === "admin" || role === "administrator";
 }
 
@@ -133,9 +142,14 @@ export function ExtraServicesPage() {
   const qc = useQueryClient();
   const role = decodeRoleFromToken(getStoredToken());
   const accessOk = canAccessExtraServices(role);
+  const settingsOk = canEditExtraServiceSettings(role);
   const [tab, setTab] = useState<TabId>("new");
   const [yearMonth, setYearMonth] = useState(defaultYearMonth);
   const range = useMemo(() => monthRange(yearMonth), [yearMonth]);
+
+  useEffect(() => {
+    if (!settingsOk && tab === "settings") setTab("new");
+  }, [settingsOk, tab]);
 
   const typesQuery = useQuery({
     queryKey: ["extra-service-types"],
@@ -330,16 +344,18 @@ export function ExtraServicesPage() {
         </div>
         <div className="extra-services-head-actions">
           {tab === "report" || tab === "journal" ? <PrintButton /> : null}
-          <button
-            type="button"
-            className={["extra-services-settings-btn", tab === "settings" ? "is-active" : ""].join(" ")}
-            aria-label="Настройки %"
-            title="Настройки %"
-            aria-pressed={tab === "settings"}
-            onClick={() => setTab((prev) => (prev === "settings" ? "new" : "settings"))}
-          >
-            <Settings className="h-[1.05rem] w-[1.05rem]" aria-hidden />
-          </button>
+          {settingsOk ? (
+            <button
+              type="button"
+              className={["extra-services-settings-btn", tab === "settings" ? "is-active" : ""].join(" ")}
+              aria-label="Настройки %"
+              title="Настройки %"
+              aria-pressed={tab === "settings"}
+              onClick={() => setTab((prev) => (prev === "settings" ? "new" : "settings"))}
+            >
+              <Settings className="h-[1.05rem] w-[1.05rem]" aria-hidden />
+            </button>
+          ) : null}
           <MonthYearPicker className="extra-services-month-picker" value={yearMonth} onChange={setYearMonth} />
         </div>
       </div>
@@ -394,15 +410,21 @@ export function ExtraServicesPage() {
             </label>
             {!activeTypes.length ? (
               <p className="text-xs mo-muted">
-                Сначала добавьте услуги в настройках %{" "}
-                <button
-                  type="button"
-                  className="text-[var(--mo-accent-hover)] underline"
-                  onClick={() => setTab("settings")}
-                >
-                  открыть
-                </button>
-                .
+                {settingsOk ? (
+                  <>
+                    Сначала добавьте услуги в настройках %{" "}
+                    <button
+                      type="button"
+                      className="text-[var(--mo-accent-hover)] underline"
+                      onClick={() => setTab("settings")}
+                    >
+                      открыть
+                    </button>
+                    .
+                  </>
+                ) : (
+                  <>Справочник услуг ещё пуст — попросите владельца добавить типы в настройках.</>
+                )}
               </p>
             ) : null}
             <label className="extra-services-field">
@@ -542,7 +564,7 @@ export function ExtraServicesPage() {
         </div>
       ) : null}
 
-      {tab === "settings" ? (
+      {tab === "settings" && settingsOk ? (
         <div className="space-y-4">
           <form
             className="space-y-3 rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] p-4"

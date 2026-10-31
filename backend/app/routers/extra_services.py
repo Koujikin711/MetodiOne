@@ -30,13 +30,15 @@ router = APIRouter(prefix="/extra-services", tags=["extra-services"])
 _MONEY = Decimal("0.01")
 # Кассы формы «Доп услуги». В отчёте они всегда видны, даже с нулём.
 _CASHBOX_PRESETS = ("Касса", "ДС", "Алиф", "Эсхата")
-# Только главный (owner) и администратор (admin / administrator).
-_ACCESS_ROLES = (
+# Журнал / отчёт / продажи: владелец, админ, бухгалтер.
+# Настройки типов (%) — без бухгалтера.
+_SETTINGS_ROLES = (
     UserRole.owner,
     UserRole.super_owner,
     UserRole.admin,
     UserRole.administrator,
 )
+_ACCESS_ROLES = (*_SETTINGS_ROLES, UserRole.accountant)
 
 
 def _assert_access(user: CurrentUser) -> None:
@@ -45,7 +47,8 @@ def _assert_access(user: CurrentUser) -> None:
 
 
 def _assert_settings(user: CurrentUser) -> None:
-    _assert_access(user)
+    if user.role not in _SETTINGS_ROLES:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Настройки доп. услуг недоступны")
 
 
 def _money(v: Decimal | float | int | str) -> Decimal:
