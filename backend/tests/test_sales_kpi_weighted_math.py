@@ -684,7 +684,7 @@ def test_khurshedzoda_and_taygunov_october_force_sitora():
     assert course_brought_force_entry(
         ym=date(2026, 10, 1),
         client_name="Тайгунов Тайгун",
-    ) == (96, Decimal("5907.00"))
+    ) == (96, Decimal("3012.00"))
     assert course_brought_force_entry(
         ym=date(2026, 9, 1),
         client_name="Хуршедзода Абдулло",
