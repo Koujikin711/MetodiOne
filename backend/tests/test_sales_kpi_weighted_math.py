@@ -669,7 +669,7 @@ def test_makhmadov_mavlonchon_october_force_5600_mulkiya():
     assert course_brought_force_entry(
         ym=date(2026, 10, 1),
         client_name="Махмадов Мавлончон",
-    ) == (7, Decimal("5600.00"))
+    ) == ("mulkiya", Decimal("5600.00"))
     assert course_brought_force_entry(
         ym=date(2026, 9, 1),
         client_name="Махмадов Мавлончон",

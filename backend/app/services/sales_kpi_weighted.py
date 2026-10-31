@@ -45,10 +45,10 @@ KPI_COURSE_BROUGHT_MONTH_OVERRIDES: dict[tuple[str, str], Decimal] = {
     ("2026-10", "махмадшоев мустафо"): Decimal("3500.00"),
 }
 # Разово окт 2026: Камолзода Марва — доплата 5800 в Привёл Ситоре (#96), не Новых.
-# Разово окт 2026: Махмадов Мавлончон — доплаты 3000+2600 в Привёл Мулкии (#7).
-KPI_COURSE_BROUGHT_FORCE: dict[tuple[str, str], tuple[int, Decimal]] = {
+# Разово окт 2026: Махмадов Мавлончон — доплаты 3000+2600 в Привёл Мулкии (по ФИО, не hardcode id).
+KPI_COURSE_BROUGHT_FORCE: dict[tuple[str, str], tuple[int | str, Decimal]] = {
     ("2026-10", "камолзода марва"): (96, Decimal("5800.00")),
-    ("2026-10", "махмадов мавлончон"): (7, Decimal("5600.00")),
+    ("2026-10", "махмадов мавлончон"): ("mulkiya", Decimal("5600.00")),
 }
 # Разово: этих пациентов не показывать и не считать в Привёл/Новых (без смены правил).
 KPI_EXCLUDE_CLIENT_FIO_KEYS = frozenset(
@@ -81,10 +81,38 @@ def course_brought_force_entry(
     *,
     ym: date,
     client_name: str | None,
-) -> tuple[int, Decimal] | None:
-    """Разово: (manager_id, Привёл) за месяц. Не Новых — только сумма."""
+) -> tuple[int | str, Decimal] | None:
+    """Разово: (manager_id | 'mulkiya', Привёл) за месяц. Не Новых — только сумма."""
     key = (f"{ym.year:04d}-{ym.month:02d}", fio_key(client_name))
     return KPI_COURSE_BROUGHT_FORCE.get(key)
+
+
+async def resolve_course_brought_force_manager_id(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    spec: int | str,
+) -> int | None:
+    """int как есть; 'mulkiya' → user_id Хайдарзода Мулкия в компании."""
+    if isinstance(spec, int):
+        return int(spec)
+    if str(spec).strip().lower() != "mulkiya":
+        return None
+    from app.services.manager_mulkiya_leads import is_mulkiya_haidarzoda
+
+    rows = (
+        await db.execute(
+            select(User.id, User.full_name).where(
+                User.company_id == company_id,
+                User.is_active.is_(True),
+                User.role == UserRole.manager,
+            ),
+        )
+    ).all()
+    for uid, full_name in rows:
+        if is_mulkiya_haidarzoda(str(full_name or "")):
+            return int(uid)
+    return None
 
 
 def kpi_client_excluded_from_brought(client_name: str | None) -> bool:
@@ -1009,8 +1037,13 @@ async def _inject_course_brought_forces(
 ) -> None:
     """Разовые FORCE: если в KPI есть оплата по ФИО — дописать Привёл менеджеру (не Новых)."""
     period = f"{ym.year:04d}-{ym.month:02d}"
-    for (p, ck), (force_mid, force_amt) in KPI_COURSE_BROUGHT_FORCE.items():
+    for (p, ck), (force_spec, force_amt) in KPI_COURSE_BROUGHT_FORCE.items():
         if p != period or not ck or ck in already:
+            continue
+        force_mid = await resolve_course_brought_force_manager_id(
+            db, company_id=company_id, spec=force_spec,
+        )
+        if force_mid is None:
             continue
         rows = (
             await db.execute(
@@ -1212,12 +1245,16 @@ async def load_manual_brought_by_label(
             if not protocol:
                 force = course_brought_force_entry(ym=ym, client_name=sale_client.get(sid))
                 if force is not None:
-                    # Разово (Камолзода): Привёл на указанного менеджера, без смены общей логики.
-                    force_mid, force_amt = force
-                    month_by_mid = {int(force_mid): force_amt}
-                    fk_force = fio_key(sale_client.get(sid))
-                    if fk_force:
-                        forced_clients.add(fk_force)
+                    # Разово (Камолзода / Махмадов): Привёл на указанного менеджера.
+                    force_spec, force_amt = force
+                    force_mid = await resolve_course_brought_force_manager_id(
+                        db, company_id=company_id, spec=force_spec,
+                    )
+                    if force_mid is not None:
+                        month_by_mid = {int(force_mid): force_amt}
+                        fk_force = fio_key(sale_client.get(sid))
+                        if fk_force:
+                            forced_clients.add(fk_force)
                 elif month_by_mid:
                     total = sum(month_by_mid.values(), Decimal("0.00")).quantize(Decimal("0.01"))
                     overridden = course_brought_month_override(

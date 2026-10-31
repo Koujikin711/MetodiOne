@@ -114,6 +114,7 @@ from app.services.sales_kpi_weighted import (
     completion_ratio,
     contribution,
     course_brought_force_entry,
+    resolve_course_brought_force_manager_id,
     course_brought_from_gross,
     course_brought_month_override,
     course_stage_credits_for_payments,
@@ -1362,12 +1363,12 @@ async def _service_earning_detail(
             price = Decimal(str(sale.service_amount or 0)).quantize(Decimal("0.01"))
             paid = Decimal(str(sale.paid_amount or 0)).quantize(Decimal("0.01"))
             force = course_brought_force_entry(ym=ym, client_name=str(sale.client_name or ""))
-            force_for_me = (
-                force is not None
-                and int(force[0]) == int(manager_id)
-                and paid >= force[1]
-                and is_main_course_product(item.name)
-            )
+            force_mid: int | None = None
+            if force is not None and is_main_course_product(item.name) and paid >= force[1]:
+                force_mid = await resolve_course_brought_force_manager_id(
+                    db, company_id=company_id, spec=force[0],
+                )
+            force_for_me = force_mid is not None and int(force_mid) == int(manager_id)
             if owner_mid != manager_id and not force_for_me:
                 continue
             is_new = sale.sold_at is not None and start <= sale.sold_at < end and paid > 0
