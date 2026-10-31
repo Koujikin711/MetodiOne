@@ -5140,7 +5140,10 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .kpi-report-metric {
+  display: flex;
   min-width: 0;
+  min-height: 7.25rem;
+  flex-direction: column;
   overflow: hidden;
 }
 
@@ -5148,23 +5151,34 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   font-size: 1rem;
   line-height: 1.2;
   font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  white-space: nowrap;
 }
 
 .kpi-report-metric__hint {
+  margin-top: auto;
+  padding-top: 0.35rem;
   font-size: 0.62rem;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+
+.kpi-report-metric__hint-line {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 @media (min-width: 640px) {
+  .kpi-report-metric {
+    min-height: 8rem;
+  }
+
   .kpi-report-metric__value {
-    font-size: 1.5rem;
+    font-size: 1.35rem;
   }
 
   .kpi-report-metric__hint {
-    font-size: 0.75rem;
+    font-size: 0.72rem;
   }
 }
 

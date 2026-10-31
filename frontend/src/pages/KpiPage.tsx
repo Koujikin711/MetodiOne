@@ -3166,16 +3166,18 @@ function CompanyReportSection({
             ? "Сводка за выбранный месяц (не сумма с прошлых). Выручка = продажи стола + платежи по курсам с датой в этом месяце. Дебиторка — остаток на конец месяца с переносом."
             : "Сводка за месяц. Выручка = оплаты визитов по дате сдачи денег (как ОСВ). Курсы KPI показаны отдельно и в эту сумму не входят. Дебиторка = остаток визитов + долги пакетов."}
         </p>
-        <div className="kpi-report-metrics mt-3 grid grid-cols-2 gap-2 sm:mt-4 sm:gap-3 lg:grid-cols-3 xl:grid-cols-6">
+        <div className="kpi-report-metrics mt-3 grid w-full grid-cols-2 gap-2 sm:mt-4 sm:gap-3 lg:grid-cols-5">
           <div className="kpi-report-metric rounded-xl border border-[var(--mo-border)] p-2.5 sm:p-3">
             <div className="text-[11px] mo-muted sm:text-xs">Выполнение плана</div>
             <div className="kpi-report-metric__value mt-1 font-semibold text-[var(--mo-text)]">
               {num(data.plan_completion_percent).toFixed(1)}%
             </div>
             {data.days_in_month ? (
-              <div className="kpi-report-metric__hint mt-1 mo-muted">
-                день {data.days_elapsed ?? 0} из {data.days_in_month} (
-                {num(data.month_progress_percent).toFixed(0)}% месяца)
+              <div className="kpi-report-metric__hint mo-muted">
+                <span className="kpi-report-metric__hint-line">
+                  день {data.days_elapsed ?? 0} из {data.days_in_month} (
+                  {num(data.month_progress_percent).toFixed(0)}%)
+                </span>
               </div>
             ) : null}
           </div>
@@ -3184,18 +3186,21 @@ function CompanyReportSection({
             <div className="kpi-report-metric__value mt-1 font-semibold kpi-actual-value">
               {formatMoney(data.revenue_total)}
             </div>
-            <div className="kpi-report-metric__hint mt-1 mo-muted">
-              {hideBookingExperts
-                ? `стол ${formatMoney(data.revenue_booking)} · курсы ${formatMoney(data.revenue_manual)}${
-                    Number(data.revenue_manual) > 0
-                      ? ` · новые ${formatMoney(data.revenue_manual_new ?? 0)} · доплаты ${formatMoney(data.revenue_manual_topup ?? 0)}`
-                      : ""
-                  }`
-                : `визиты ${formatMoney(data.revenue_booking)}${
-                    Number(data.revenue_manual) > 0
-                      ? ` · курсы KPI ${formatMoney(data.revenue_manual)} · новые ${formatMoney(data.revenue_manual_new ?? 0)} · доплаты ${formatMoney(data.revenue_manual_topup ?? 0)}`
-                      : ""
-                  }`}
+            <div className="kpi-report-metric__hint mo-muted">
+              <span className="kpi-report-metric__hint-line">
+                {hideBookingExperts ? "стол" : "визиты"} {formatMoney(data.revenue_booking)}
+              </span>
+              {Number(data.revenue_manual) > 0 ? (
+                <>
+                  <span className="kpi-report-metric__hint-line">
+                    {hideBookingExperts ? "курсы" : "курсы KPI"} {formatMoney(data.revenue_manual)}
+                  </span>
+                  <span className="kpi-report-metric__hint-line">
+                    новые {formatMoney(data.revenue_manual_new ?? 0)} · доплаты{" "}
+                    {formatMoney(data.revenue_manual_topup ?? 0)}
+                  </span>
+                </>
+              ) : null}
             </div>
           </div>
           <div className="kpi-report-metric rounded-xl border border-rose-500/30 bg-rose-500/5 p-2.5 sm:p-3">
@@ -3203,10 +3208,11 @@ function CompanyReportSection({
             <div className="kpi-report-metric__value mt-1 font-semibold tabular-nums text-rose-700 dark:text-rose-300">
               {formatMoney(data.refunds_total ?? 0)}
             </div>
-            <div className="kpi-report-metric__hint mt-1 mo-muted">
-              {hideBookingExperts
-                ? `стол ${formatMoney(data.refunds_booking ?? 0)} · курсы ${formatMoney(data.refunds_manual ?? 0)}`
-                : `визиты ${formatMoney(data.refunds_booking ?? 0)} · курсы ${formatMoney(data.refunds_manual ?? 0)}`}
+            <div className="kpi-report-metric__hint mo-muted">
+              <span className="kpi-report-metric__hint-line">
+                {hideBookingExperts ? "стол" : "визиты"} {formatMoney(data.refunds_booking ?? 0)} · курсы{" "}
+                {formatMoney(data.refunds_manual ?? 0)}
+              </span>
             </div>
           </div>
           <div className="kpi-report-metric rounded-xl border border-[var(--mo-border)] p-2.5 sm:p-3">
@@ -3214,10 +3220,11 @@ function CompanyReportSection({
             <div className="kpi-report-metric__value mt-1 font-semibold text-amber-600 dark:text-amber-200">
               {formatMoney(data.debtor_total)}
             </div>
-            <div className="kpi-report-metric__hint mt-1 mo-muted">
-              {hideBookingExperts
-                ? `запись ${formatMoney(data.debtor_booking)} · курсы ${formatMoney(data.debtor_manual)}`
-                : `визиты ${formatMoney(data.debtor_booking)} · курсы ${formatMoney(data.debtor_manual)}`}
+            <div className="kpi-report-metric__hint mo-muted">
+              <span className="kpi-report-metric__hint-line">
+                {hideBookingExperts ? "запись" : "визиты"} {formatMoney(data.debtor_booking)} · курсы{" "}
+                {formatMoney(data.debtor_manual)}
+              </span>
             </div>
           </div>
           <div className="kpi-report-metric rounded-xl border border-[var(--mo-border)] p-2.5 sm:p-3">
@@ -3225,7 +3232,9 @@ function CompanyReportSection({
             <div className="kpi-report-metric__value mt-1 font-semibold text-[var(--mo-text)]">
               {formatMoney(data.creditor_total)}
             </div>
-            <div className="mt-1 hidden text-xs mo-muted sm:block">оплачено, срок визита ещё не наступил</div>
+            <div className="kpi-report-metric__hint mo-muted">
+              <span className="kpi-report-metric__hint-line">оплачено, срок ещё не наступил</span>
+            </div>
           </div>
         </div>
 
