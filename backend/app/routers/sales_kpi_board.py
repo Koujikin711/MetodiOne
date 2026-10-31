@@ -1369,6 +1369,9 @@ async def _service_earning_detail(
                     db, company_id=company_id, spec=force[0],
                 )
             force_for_me = force_mid is not None and int(force_mid) == int(manager_id)
+            # Разовый зачёт другому менеджеру — строку у открывшего не показываем.
+            if force_mid is not None and not force_for_me:
+                continue
             if owner_mid != manager_id and not force_for_me:
                 continue
             is_new = sale.sold_at is not None and start <= sale.sold_at < end and paid > 0
