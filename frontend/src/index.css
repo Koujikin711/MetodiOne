@@ -8811,6 +8811,14 @@ li.is-overdue {
   padding: 0 0.28rem !important;
   font-size: 0.64rem !important;
   border-radius: 0.4rem !important;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.kpi-pay-pack__input::-webkit-outer-spin-button,
+.kpi-pay-pack__input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 .kpi-pay-pack .date-field {
