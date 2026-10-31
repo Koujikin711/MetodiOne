@@ -190,15 +190,16 @@ def _assert_company_owner(current_user: CurrentUser) -> None:
 
 
 def _assert_debtor_correct_access(current_user: CurrentUser) -> None:
-    """Снять ложный долг / поправить цену-оплату в дебиторке — владелец или админ."""
+    """Снять ложный долг / поправить цену-оплату в дебиторке — владелец, админ или бухгалтер."""
     if current_user.role not in (
         UserRole.owner,
         UserRole.super_owner,
         UserRole.admin,
+        UserRole.accountant,
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Снять или поправить долг может владелец или админ",
+            detail="Снять или поправить долг может владелец, админ или бухгалтер",
         )
 
 

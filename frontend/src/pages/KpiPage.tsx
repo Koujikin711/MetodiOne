@@ -719,13 +719,13 @@ export function KpiPage() {
   const isOwner = role === "owner" || role === "super_owner" || role === "rop";
   const isCompanyOwner = role === "owner" || role === "super_owner";
   const isAdminOrOwner = isOwner || role === "admin" || role === "administrator";
-  /** Снять / поправить ложный долг — владелец и админ (не РОП). */
-  const canFixDebtors =
-    isCompanyOwner || role === "admin" || role === "administrator";
   const isManager = role === "manager";
   const meQuery = useCurrentUserMe();
   const isCurator = role === "curator" || (role === "expert" && Boolean(meQuery.data?.also_curator));
   const isAccountant = role === "accountant";
+  /** Снять / поправить ложный долг — владелец, админ и бухгалтер (не РОП). */
+  const canFixDebtors =
+    isCompanyOwner || role === "admin" || role === "administrator" || isAccountant;
   /** Смена типа / потока / менеджера продажи. */
   const canEditSaleMeta = isAdminOrOwner || isAccountant;
   const kpiOps = isAdminOrOwner || isManager || isAccountant;
