@@ -8380,14 +8380,24 @@ li.is-overdue {
 }
 
 .sold-course-sheet {
-  font-size: 0.75rem;
-  line-height: 1.15;
+  font-size: 0.8rem;
+  line-height: 1.25;
 }
 
 .sold-course-sheet thead th,
 .sold-course-sheet tbody td {
-  padding: 0.18rem 0.35rem;
+  padding: 0.35rem 0.45rem;
   vertical-align: middle;
+}
+
+.sold-course-sheet__head th,
+.sold-course-sheet thead th {
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+  color: var(--mo-text-muted);
+  white-space: nowrap;
 }
 
 .sold-course-sheet select.mo-input,

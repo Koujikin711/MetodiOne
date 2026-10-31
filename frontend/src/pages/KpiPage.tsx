@@ -2274,17 +2274,17 @@ export function KpiPage() {
           <div className="mo-table-scroll mo-table-scroll--page hidden rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)] sm:block">
             <table className="sold-course-sheet w-full min-w-[72rem] text-left">
               <thead>
-                <tr className="border-b border-[var(--mo-border)] text-[10px] uppercase tracking-wide mo-muted">
-                  <th className="font-medium">Дата</th>
-                  <th className="font-medium">Тип</th>
-                  <th className="font-medium">Поток</th>
-                  <th className="font-medium">Менеджер</th>
-                  <th className="font-medium">Пациент</th>
-                  <th className="font-medium">Телефон</th>
-                  <th className="font-medium">Сумма</th>
-                  <th className="font-medium">Оплачено</th>
-                  <th className="font-medium">Долг</th>
-                  <th className="print-omit font-medium">Оплата</th>
+                <tr className="sold-course-sheet__head border-b border-[var(--mo-border)]">
+                  <th>Дата</th>
+                  <th>Тип</th>
+                  <th>Поток</th>
+                  <th>Менеджер</th>
+                  <th>Пациент</th>
+                  <th>Телефон</th>
+                  <th>Сумма</th>
+                  <th>Оплачено</th>
+                  <th>Долг</th>
+                  <th className="print-omit">Оплата</th>
           </tr>
         </thead>
         <tbody>
