@@ -104,25 +104,28 @@ export function MarketingAdvice({
           <ul className="mkt-advice__creatives">
             {reading.creatives.map((row) => (
               <li key={row.id} className={`mkt-advice__creative is-${row.tone}`}>
-                <div className="mkt-advice__creative-top">
-                  <span className="mkt-advice__chip">{CREATIVE_CHIP[row.tone]}</span>
-                  <span className="mkt-advice__kind">{kindLabel(row.kind)}</span>
-                </div>
-                <p className="mkt-advice__action">{row.action}</p>
-                <p className="mkt-advice__name">
-                  {row.name}
-                  {row.campaign ? (
-                    <span className="mkt-advice__camp"> · {row.campaign}</span>
-                  ) : null}
-                </p>
-                <p className="mkt-advice__why">{row.text}</p>
-                <p className="mkt-advice__next">{row.next}</p>
-                <div className="mkt-advice__meta">
-                  <span>
-                    расход {amount(row.spend)} {currency}
-                  </span>
-                  <span>лиды {Math.round(row.leads).toLocaleString("ru-RU")}</span>
-                  <span>CPL {row.cpl != null ? `${amount(row.cpl)} ${currency}` : "—"}</span>
+                <div className="mkt-advice__creative-row">
+                  <div className="mkt-advice__creative-main">
+                    <div className="mkt-advice__creative-top">
+                      <span className="mkt-advice__chip">{CREATIVE_CHIP[row.tone]}</span>
+                      <span className="mkt-advice__action">{row.action}</span>
+                    </div>
+                    <p className="mkt-advice__name">
+                      <span className="mkt-advice__kind">{kindLabel(row.kind)}</span>
+                      {row.name}
+                      {row.campaign ? <span className="mkt-advice__camp"> · {row.campaign}</span> : null}
+                    </p>
+                    <p className="mkt-advice__why">
+                      {row.text} {row.next}
+                    </p>
+                  </div>
+                  <div className="mkt-advice__meta">
+                    <span>
+                      {amount(row.spend)} {currency}
+                    </span>
+                    <span>{Math.round(row.leads).toLocaleString("ru-RU")} лид.</span>
+                    <span>{row.cpl != null ? `${amount(row.cpl)} ${currency}` : "—"}</span>
+                  </div>
                 </div>
               </li>
             ))}
