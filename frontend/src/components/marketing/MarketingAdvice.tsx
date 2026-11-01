@@ -1,10 +1,17 @@
 import { useMemo } from "react";
 
-import { readAds, type ForecastCampaign, type ForecastDay } from "@/lib/marketingForecast";
+import {
+  readAds,
+  type ForecastCampaign,
+  type ForecastCreative,
+  type ForecastDay,
+  type CreativeTone,
+} from "@/lib/marketingForecast";
 
 type Props = {
   daily: ForecastDay[];
   campaigns: ForecastCampaign[];
+  creatives?: ForecastCreative[];
   accountSpend: number;
   accountLeads: number;
   periodEnd: string;
@@ -18,14 +25,38 @@ const CHIP: Record<"keep" | "stop" | "hold" | "wait", string> = {
   wait: "Рано",
 };
 
+const CREATIVE_CHIP: Record<CreativeTone, string> = {
+  scale: "Увеличить",
+  cut: "Уменьшить",
+  pause: "Остановить",
+  refresh: "Новый ролик",
+  hold: "Как есть",
+  wait: "Рано",
+};
+
 function amount(v: number) {
   return v.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export function MarketingAdvice({ daily, campaigns, accountSpend, accountLeads, periodEnd, currency }: Props) {
+function kindLabel(kind: string) {
+  if (kind === "video") return "видео";
+  if (kind === "image") return "фото";
+  if (kind === "carousel") return "карусель";
+  return "объявление";
+}
+
+export function MarketingAdvice({
+  daily,
+  campaigns,
+  creatives = [],
+  accountSpend,
+  accountLeads,
+  periodEnd,
+  currency,
+}: Props) {
   const reading = useMemo(
-    () => readAds({ daily, campaigns, accountSpend, accountLeads, periodEnd, currency }),
-    [daily, campaigns, accountSpend, accountLeads, periodEnd, currency],
+    () => readAds({ daily, campaigns, creatives, accountSpend, accountLeads, periodEnd, currency }),
+    [daily, campaigns, creatives, accountSpend, accountLeads, periodEnd, currency],
   );
 
   return (
@@ -55,6 +86,48 @@ export function MarketingAdvice({ daily, campaigns, accountSpend, accountLeads, 
           <span className="mkt-advice__kicker">Прогноз</span>
           <p>{reading.forecastNote}</p>
         </article>
+      </div>
+
+      <div className="mkt-advice__panel">
+        <div className="mkt-advice__head">
+          <h3 className="mkt-advice__title">Советы по роликам</h3>
+          {reading.creatives.length > 0 ? (
+            <span className="mkt-advice__count">{reading.creatives.length}</span>
+          ) : null}
+        </div>
+        {reading.creatives.length === 0 ? (
+          <p className="mkt-advice__empty">
+            Объявлений с расходом за период нет. Нажмите «Обновить» — Meta отдаёт ads отдельно от
+            кампаний.
+          </p>
+        ) : (
+          <ul className="mkt-advice__creatives">
+            {reading.creatives.map((row) => (
+              <li key={row.id} className={`mkt-advice__creative is-${row.tone}`}>
+                <div className="mkt-advice__creative-top">
+                  <span className="mkt-advice__chip">{CREATIVE_CHIP[row.tone]}</span>
+                  <span className="mkt-advice__kind">{kindLabel(row.kind)}</span>
+                </div>
+                <p className="mkt-advice__action">{row.action}</p>
+                <p className="mkt-advice__name">
+                  {row.name}
+                  {row.campaign ? (
+                    <span className="mkt-advice__camp"> · {row.campaign}</span>
+                  ) : null}
+                </p>
+                <p className="mkt-advice__why">{row.text}</p>
+                <p className="mkt-advice__next">{row.next}</p>
+                <div className="mkt-advice__meta">
+                  <span>
+                    расход {amount(row.spend)} {currency}
+                  </span>
+                  <span>лиды {Math.round(row.leads).toLocaleString("ru-RU")}</span>
+                  <span>CPL {row.cpl != null ? `${amount(row.cpl)} ${currency}` : "—"}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <div className="mkt-advice__panel">

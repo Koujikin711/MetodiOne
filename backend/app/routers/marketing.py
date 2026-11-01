@@ -28,6 +28,7 @@ from app.models import (
 )
 from app.models.marketing_meta import MarketingMetaSettings
 from app.schemas.marketing import (
+    MarketingAdRow,
     MarketingBrandRow,
     MarketingCampaignRow,
     MarketingDailyPoint,
@@ -464,6 +465,12 @@ async def meta_overview(
 
     assert payload is not None
     camps = [MarketingCampaignRow(**c) for c in (payload.get("campaigns") or [])]
+    ads = []
+    for raw_ad in payload.get("ads") or []:
+        try:
+            ads.append(MarketingAdRow(**raw_ad))
+        except Exception:
+            continue
     brands = [MarketingBrandRow(**b) for b in (payload.get("brands") or [])]
     daily_pts: list[MarketingDailyPoint] = []
     for d in payload.get("daily") or []:
@@ -502,6 +509,7 @@ async def meta_overview(
         followers=int(payload.get("followers") or 0),
         cost_per_lead=payload.get("cost_per_lead"),
         campaigns=camps,
+        ads=ads,
         brands=brands,
         daily=daily_pts,
         managers=managers,

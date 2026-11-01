@@ -182,7 +182,12 @@ async def fetch_insights_range(
     time_increment: int | None = None,
 ) -> list[dict[str, Any]]:
     act = normalize_ad_account_id(ad_account_id)
-    if level == "campaign":
+    if level == "ad":
+        fields = (
+            "ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,"
+            "spend,impressions,clicks,cpc,ctr,reach,frequency,actions,date_start,date_stop"
+        )
+    elif level == "campaign":
         fields = "campaign_id,campaign_name,spend,impressions,clicks,cpc,ctr,reach,frequency,actions,date_start,date_stop"
     else:
         fields = "spend,impressions,clicks,cpc,ctr,reach,frequency,actions,date_start,date_stop"
@@ -277,6 +282,66 @@ def campaign_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "followers": int(bucket["followers"]),
                 "cpc": None,
                 "ctr": None,
+                "cost_per_lead": (spend / Decimal(leads)).quantize(Decimal("0.01")) if leads > 0 else None,
+            }
+        )
+    out.sort(key=lambda x: x["spend"], reverse=True)
+    return out
+
+
+def _guess_creative_kind(ad_name: str) -> str:
+    low = (ad_name or "").casefold()
+    if any(token in low for token in ("ролик", "video", "reel", "reels", "видео")):
+        return "video"
+    if any(token in low for token in ("карусел", "carousel")):
+        return "carousel"
+    if any(token in low for token in ("статик", "фото", "image", "баннер")):
+        return "image"
+    return "ad"
+
+
+def ad_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Агрегат по ad_id за период (объявление / ролик)."""
+    by_id: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        aid = str(row.get("ad_id") or "")
+        if not aid:
+            continue
+        spend = Decimal(str(row.get("spend") or 0))
+        leads = _row_leads(row.get("actions"))
+        impress = int(float(row.get("impressions") or 0))
+        clicks = int(float(row.get("clicks") or 0))
+        ad_name = str(row.get("ad_name") or "—")
+        bucket = by_id.get(aid)
+        if bucket is None:
+            by_id[aid] = {
+                "ad_id": aid,
+                "ad_name": ad_name,
+                "adset_id": str(row.get("adset_id") or "") or None,
+                "adset_name": str(row.get("adset_name") or "") or None,
+                "campaign_id": str(row.get("campaign_id") or "") or None,
+                "campaign_name": str(row.get("campaign_name") or "") or None,
+                "brand": row.get("brand") or None,
+                "kind": _guess_creative_kind(ad_name),
+                "spend": spend,
+                "impressions": impress,
+                "clicks": clicks,
+                "leads": leads,
+            }
+        else:
+            bucket["spend"] += spend
+            bucket["impressions"] += impress
+            bucket["clicks"] += clicks
+            bucket["leads"] += leads
+    out: list[dict[str, Any]] = []
+    for bucket in by_id.values():
+        spend = bucket["spend"]
+        leads = int(bucket["leads"])
+        out.append(
+            {
+                **bucket,
+                "leads": leads,
+                "spend": spend,
                 "cost_per_lead": (spend / Decimal(leads)).quantize(Decimal("0.01")) if leads > 0 else None,
             }
         )

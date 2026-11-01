@@ -1,6 +1,7 @@
 from datetime import date
 
 from app.services.meta_ads_client import (
+    ad_rows,
     campaign_ig_map_from_ads,
     follower_gains_from_daily,
     ig_account_label,
@@ -65,3 +66,36 @@ def test_follower_gain_keeps_a_normal_busy_day():
     total, by_day = follower_gains_from_daily(daily, 12407)
     assert total == 245
     assert by_day["2026-10-13"] == 103
+
+
+def test_ad_rows_aggregate_by_ad_id_and_guess_video():
+    rows = ad_rows(
+        [
+            {
+                "ad_id": "77",
+                "ad_name": "Ролик · до/после",
+                "campaign_id": "10",
+                "campaign_name": "Фарбехи",
+                "spend": "1.2",
+                "impressions": "100",
+                "clicks": "4",
+                "actions": [{"action_type": "onsite_conversion.messaging_conversation_started_7d", "value": "3"}],
+            },
+            {
+                "ad_id": "77",
+                "ad_name": "Ролик · до/после",
+                "campaign_id": "10",
+                "campaign_name": "Фарбехи",
+                "spend": "0.8",
+                "impressions": "50",
+                "clicks": "2",
+                "actions": [{"action_type": "lead", "value": "1"}],
+            },
+        ]
+    )
+    assert len(rows) == 1
+    assert rows[0]["ad_id"] == "77"
+    assert rows[0]["kind"] == "video"
+    assert rows[0]["leads"] == 4
+    assert float(rows[0]["spend"]) == 2.0
+    assert float(rows[0]["cost_per_lead"]) == 0.5

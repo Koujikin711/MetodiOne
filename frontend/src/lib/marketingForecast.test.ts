@@ -59,4 +59,29 @@ describe("readAds", () => {
     expect(reading.forecastNote).toContain("Период закрыт");
     expect(reading.projectedSpend).toBeCloseTo(5 * 7, 5);
   });
+
+  it("suggests scale / cut / pause / refresh on creatives", () => {
+    const reading = readAds({
+      daily: days("2026-10-01", 10, 5, 20),
+      accountSpend: 50,
+      accountLeads: 200,
+      periodEnd: "2026-10-31",
+      campaigns: [{ name: "A", spend: 50, leads: 200 }],
+      creatives: [
+        { id: "1", name: "Дешёвый ролик", campaign: "A", kind: "video", spend: 20, leads: 100 },
+        { id: "2", name: "Очень дорогой", campaign: "A", kind: "video", spend: 15, leads: 10 },
+        { id: "3", name: "Дороговатый", campaign: "A", kind: "video", spend: 12, leads: 30 },
+        { id: "4", name: "Мёртвый ролик", campaign: "A", kind: "video", spend: 4, leads: 0 },
+        { id: "5", name: "Средний", campaign: "A", kind: "image", spend: 8, leads: 30 },
+      ],
+    });
+    expect(reading.creatives.map((row) => [row.name, row.tone])).toEqual([
+      ["Очень дорогой", "pause"],
+      ["Мёртвый ролик", "refresh"],
+      ["Дороговатый", "cut"],
+      ["Средний", "hold"],
+      ["Дешёвый ролик", "scale"],
+    ]);
+    expect(reading.warningLines.join(" ")).toContain("Мёртвый ролик");
+  });
 });

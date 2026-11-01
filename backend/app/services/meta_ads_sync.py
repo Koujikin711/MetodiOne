@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.models.marketing_meta import MarketingMetaSettings, MarketingMetaSnapshot
 from app.services.meta_ads_client import (
+    ad_rows,
     brand_subscriber_rows,
     campaign_rows,
     daily_series,
@@ -153,6 +154,24 @@ async def pull_meta_ads_payload(
         gained = follower_gains.get(str(brand.get("account") or ""))
         brand["followers"] = int(gained["total"]) if gained else 0
 
+    # Объявления / ролики: один срез за период (без дневной нарезки).
+    ads: list[dict[str, Any]] = []
+    try:
+        ad_insight_rows = await fetch_insights_range(
+            token,
+            act,
+            since=since,
+            until=until,
+            level="ad",
+            time_increment=None,
+        )
+        ad_insight_rows = keep_rows_for_instagram_accounts(
+            ad_insight_rows, campaign_ig, ig_labels,
+        )
+        ads = ad_rows(ad_insight_rows)
+    except Exception:
+        logger.exception("Meta Ads level=ad insights failed; campaigns still returned")
+
     daily_pts: list[dict[str, Any]] = []
     for d in daily_series(rows):
         try:
@@ -185,6 +204,7 @@ async def pull_meta_ads_payload(
             "followers": follower_total,
             "cost_per_lead": summary["cost_per_lead"],
             "campaigns": camps,
+            "ads": ads,
             "brands": brand_rows,
             "daily": daily_pts,
         }

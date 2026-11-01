@@ -29,6 +29,20 @@ type CampaignRow = {
   cost_per_lead?: string | number | null;
 };
 
+type AdRow = {
+  ad_id: string;
+  ad_name: string;
+  campaign_id?: string | null;
+  campaign_name?: string | null;
+  brand?: string | null;
+  kind?: string;
+  spend: string | number;
+  impressions?: number;
+  clicks?: number;
+  leads: number;
+  cost_per_lead?: string | number | null;
+};
+
 type BrandRow = {
   account: string;
   followers: number;
@@ -73,6 +87,7 @@ type Overview = {
   followers: number;
   cost_per_lead?: string | number | null;
   campaigns: CampaignRow[];
+  ads?: AdRow[];
   brands: BrandRow[];
   daily: DailyPoint[];
   managers: ManagerRow[];
@@ -232,6 +247,22 @@ export function MarketingPage() {
     () => listedCampaigns.map((row) => ({ name: row.campaign_name, spend: Number(row.spend) || 0, leads: row.leads || 0 })),
     [listedCampaigns],
   );
+  const adviceCreatives = useMemo(() => {
+    const allowed = new Set(listedCampaigns.map((c) => c.campaign_id));
+    return (data?.ads ?? [])
+      .filter((ad) => {
+        if (!ad.campaign_id) return true;
+        return allowed.has(ad.campaign_id);
+      })
+      .map((ad) => ({
+        id: ad.ad_id,
+        name: ad.ad_name,
+        campaign: ad.campaign_name || "",
+        kind: ad.kind || "ad",
+        spend: Number(ad.spend) || 0,
+        leads: ad.leads || 0,
+      }));
+  }, [data?.ads, listedCampaigns]);
   const configured = Boolean(settingsQuery.data?.configured);
 
   function onSave(e: FormEvent) {
@@ -614,6 +645,7 @@ export function MarketingPage() {
           <MarketingAdvice
             daily={adviceDays}
             campaigns={adviceCampaigns}
+            creatives={adviceCreatives}
             accountSpend={Number(data.spend) || 0}
             accountLeads={data.leads || 0}
             periodEnd={data.period_end}

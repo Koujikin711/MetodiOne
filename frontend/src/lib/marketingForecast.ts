@@ -19,6 +19,31 @@ export type CampaignAction = {
   text: string;
 };
 
+export type CreativeTone = "scale" | "cut" | "pause" | "refresh" | "hold" | "wait";
+
+export type ForecastCreative = {
+  id: string;
+  name: string;
+  campaign: string;
+  kind?: string;
+  spend: number;
+  leads: number;
+};
+
+export type CreativeAction = {
+  id: string;
+  name: string;
+  campaign: string;
+  kind: string;
+  tone: CreativeTone;
+  action: string;
+  spend: number;
+  leads: number;
+  cpl: number | null;
+  text: string;
+  next: string;
+};
+
 export type AdsReading = {
   alert: boolean;
   warningTitle: string;
@@ -29,6 +54,7 @@ export type AdsReading = {
   projectedLeads: number | null;
   projectedCpl: number | null;
   actions: CampaignAction[];
+  creatives: CreativeAction[];
 };
 
 function num(v: number): number {
@@ -154,6 +180,98 @@ function actionFor(
   return { ...base, tone: "hold", text: "Цена около средней." };
 }
 
+function creativeActionFor(
+  item: ForecastCreative,
+  accountCpl: number | null,
+): CreativeAction {
+  const spend = num(item.spend);
+  const leads = num(item.leads);
+  const own = cpl(spend, leads);
+  const kind = item.kind || "ad";
+  const base = {
+    id: item.id,
+    name: item.name,
+    campaign: item.campaign,
+    kind,
+    spend,
+    leads,
+    cpl: own,
+  };
+  if (spend < 1 && leads <= 0) {
+    return {
+      ...base,
+      tone: "wait",
+      action: "Рано",
+      text: "Расхода ещё нет.",
+      next: "Подождать пока Meta наберёт показы.",
+    };
+  }
+  if (leads <= 0 && spend >= 1) {
+    return {
+      ...base,
+      tone: "refresh",
+      action: "Добавить новый ролик",
+      text: "Расход есть, лидов 0. Креатив выгорел или оффер слабый.",
+      next: "Pause этот ad. Залить 1–2 новых видео с другим первым кадром / CTA.",
+    };
+  }
+  if (accountCpl != null && leads >= 8 && own != null && own <= accountCpl * 0.9) {
+    return {
+      ...base,
+      tone: "scale",
+      action: "Увеличить бюджет +20–30%",
+      text:
+        own > 0
+          ? `Лид дешевле среднего примерно в ${timesPhrase(accountCpl / own)}.`
+          : "Лид дешевле среднего по кабинету.",
+      next: "Не трогать креатив. Долить бюджет в эту adset, не в соседние.",
+    };
+  }
+  if (accountCpl != null && own != null && own >= accountCpl * 2.5) {
+    return {
+      ...base,
+      tone: "pause",
+      action: "Остановить показ",
+      text: `Лид дороже среднего в ${timesPhrase(own / accountCpl)}.`,
+      next: "Pause ad. Бюджет сюда не переносить. Новый ролик с другим хуком.",
+    };
+  }
+  if (accountCpl != null && leads >= 5 && own != null && own >= accountCpl * 1.4) {
+    return {
+      ...base,
+      tone: "cut",
+      action: "Уменьшить бюджет −30–40%",
+      text: `Лид дороже среднего в ${timesPhrase(own / accountCpl)}, но лиды ещё есть.`,
+      next: "Срезать budget. Через 3 дня: если CPL снова выше — pause.",
+    };
+  }
+  if (accountCpl != null && leads < 8 && spend >= accountCpl * 3) {
+    return {
+      ...base,
+      tone: "pause",
+      action: "Остановить показ",
+      text: "Расход есть, лидов мало относительно цены кабинета.",
+      next: "Pause. Новый креатив, не долив в этот.",
+    };
+  }
+  if (accountCpl == null && spend >= 1) {
+    return {
+      ...base,
+      tone: "pause",
+      action: "Остановить показ",
+      text: "Лидов Meta по кабинету нет.",
+      next: "Сначала проверить пиксель / цель, потом снова включать.",
+    };
+  }
+  return {
+    ...base,
+    tone: "hold",
+    action: "Как есть",
+    text: "Цена около средней. Темп нормальный.",
+    next: "Раз в неделю смотреть CPL. Если уйдёт сильно выше — резать.",
+  };
+}
+
 const TONE_ORDER: Record<CampaignAction["tone"], number> = {
   stop: 0,
   hold: 1,
@@ -161,9 +279,19 @@ const TONE_ORDER: Record<CampaignAction["tone"], number> = {
   wait: 3,
 };
 
+const CREATIVE_TONE_ORDER: Record<CreativeTone, number> = {
+  pause: 0,
+  refresh: 1,
+  cut: 2,
+  hold: 3,
+  scale: 4,
+  wait: 5,
+};
+
 export function readAds(input: {
   daily: ForecastDay[];
   campaigns: ForecastCampaign[];
+  creatives?: ForecastCreative[];
   accountSpend: number;
   accountLeads: number;
   periodEnd: string;
@@ -178,6 +306,9 @@ export function readAds(input: {
   const shownSpend = shown.reduce((sum, camp) => sum + num(camp.spend), 0);
   const shownLeads = shown.reduce((sum, camp) => sum + num(camp.leads), 0);
   const accountCpl = cpl(shownSpend, shownLeads) ?? cpl(accountSpend, accountLeads);
+  const shownCreatives = (input.creatives ?? []).filter(
+    (row) => num(row.spend) >= 1 || num(row.leads) > 0,
+  );
 
   let paceNote = "Дней мало, сравнение темпа внутри периода не строится.";
   let leadPace: "ниже" | "выше" | "тот же" = "тот же";
@@ -237,6 +368,16 @@ export function readAds(input: {
       return b.spend - a.spend;
     });
 
+  const creatives = shownCreatives
+    .map((row) => creativeActionFor(row, accountCpl))
+    .sort((a, b) => {
+      const byTone = CREATIVE_TONE_ORDER[a.tone] - CREATIVE_TONE_ORDER[b.tone];
+      if (byTone) return byTone;
+      const byPrice = (b.cpl ?? -1) - (a.cpl ?? -1);
+      if (byPrice) return byPrice;
+      return b.spend - a.spend;
+    });
+
   const warningLines: string[] = [];
   if (leadPace === "ниже") {
     warningLines.push("Темп лидов упал к концу периода. Новый бюджет в дорогие кампании не добавлять.");
@@ -252,6 +393,10 @@ export function readAds(input: {
         : "";
     warningLines.push(`«${row.name}»: не увеличивать бюджет.${dear}`);
   }
+  for (const row of creatives) {
+    if (row.tone !== "pause" && row.tone !== "refresh") continue;
+    warningLines.push(`Ролик «${row.name}»: ${row.action.toLowerCase()}.`);
+  }
   const alert = warningLines.length > 0;
 
   return {
@@ -264,5 +409,6 @@ export function readAds(input: {
     projectedLeads,
     projectedCpl,
     actions,
+    creatives,
   };
 }
