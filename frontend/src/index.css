@@ -8325,6 +8325,40 @@ fieldset.extra-services-field {
   color: var(--mo-text);
 }
 
+/* Заработок: ровные графы цифр у всех менеджеров */
+.kpi-earn-table {
+  table-layout: fixed;
+}
+
+.kpi-earn-table col.kpi-earn-col-service {
+  width: 28%;
+}
+.kpi-earn-table col.kpi-earn-col-new {
+  width: 12%;
+}
+.kpi-earn-table col.kpi-earn-col-brought {
+  width: 24%;
+}
+.kpi-earn-table col.kpi-earn-col-pct {
+  width: 10%;
+}
+.kpi-earn-table col.kpi-earn-col-earn {
+  width: 26%;
+}
+
+.kpi-earn-table thead th.kpi-earn-num,
+.kpi-earn-table tbody td.kpi-earn-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  padding-right: 0.75rem;
+}
+
+.kpi-earn-table thead th.kpi-earn-num:last-child,
+.kpi-earn-table tbody td.kpi-earn-num:last-child {
+  padding-right: 0;
+}
+
 .kpi-sales-compact {
   display: flex;
   flex-direction: column;

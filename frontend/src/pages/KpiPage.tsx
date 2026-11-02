@@ -2959,21 +2959,28 @@ function SalesReportSection({
                 </li>
               </ul>
               <div className="hidden lg:block">
-                <table className="kpi-data-table w-full text-sm">
+                <table className="kpi-data-table kpi-earn-table w-full text-sm">
+                  <colgroup>
+                    <col className="kpi-earn-col-service" />
+                    <col className="kpi-earn-col-new" />
+                    <col className="kpi-earn-col-brought" />
+                    <col className="kpi-earn-col-pct" />
+                    <col className="kpi-earn-col-earn" />
+                  </colgroup>
                   <thead>
                     <tr>
                       <th>Услуга</th>
-                      <th>Новых</th>
-                      <th>Привёл</th>
-                      <th>%</th>
-                      <th>Заработок</th>
+                      <th className="kpi-earn-num">Новых</th>
+                      <th className="kpi-earn-num">Привёл</th>
+                      <th className="kpi-earn-num">%</th>
+                      <th className="kpi-earn-num">Заработок</th>
                     </tr>
                   </thead>
                   <tbody>
                     {m.lines.map((line) => (
                       <tr key={line.service_key}>
                         <td>{line.name}</td>
-                        <td className="tabular-nums">
+                        <td className="kpi-earn-num tabular-nums">
                           <button
                             type="button"
                             className="kpi-earn-num-btn"
@@ -2982,7 +2989,7 @@ function SalesReportSection({
                             {line.sales_count}
                           </button>
                         </td>
-                        <td>
+                        <td className="kpi-earn-num">
                           <button
                             type="button"
                             className="kpi-earn-num-btn"
@@ -2991,18 +2998,21 @@ function SalesReportSection({
                             {formatMoney(num(line.brought))}
                           </button>
                         </td>
-                        <td>{num(line.manager_percent)}</td>
-                        <td>{formatMoney(num(line.earning))}</td>
+                        <td className="kpi-earn-num tabular-nums">{num(line.manager_percent)}</td>
+                        <td className="kpi-earn-num tabular-nums">{formatMoney(num(line.earning))}</td>
                       </tr>
                     ))}
                     <tr className="kpi-matrix-row-highlight">
                       <td className="font-semibold">Итого</td>
-                      <td className="font-semibold tabular-nums">{m.total_sales}</td>
-                      <td colSpan={2} />
-                      <td className="font-semibold kpi-actual-value">{formatMoney(num(m.total_earning))}</td>
+                      <td className="kpi-earn-num font-semibold tabular-nums">{m.total_sales}</td>
+                      <td className="kpi-earn-num" />
+                      <td className="kpi-earn-num" />
+                      <td className="kpi-earn-num font-semibold kpi-actual-value tabular-nums">
+                        {formatMoney(num(m.total_earning))}
+                      </td>
                     </tr>
-        </tbody>
-      </table>
+                  </tbody>
+                </table>
               </div>
             </>
           )}
