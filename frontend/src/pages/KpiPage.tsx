@@ -3387,9 +3387,6 @@ function CompanyReportSection({
                 <th className="py-2 pr-3">Не явились</th>
                 <th className="py-2 pr-3">Ещё booked</th>
                 <th className="py-2 pr-3">Оплачено полностью</th>
-                <th className="py-2 pr-3" title="Предоплата при неявке → кредиторка, не выручка">
-                  Оплачено при неявке
-                </th>
                 <th className="py-2 pr-3" title="Выручка по явкам (неявка сюда не входит)">
                   Всего оплат
                 </th>
@@ -3405,14 +3402,13 @@ function CompanyReportSection({
                   <td className="py-2 pr-3">{s.no_show_count}</td>
                   <td className="py-2 pr-3">{s.booked_count ?? 0}</td>
                   <td className="py-2 pr-3">{formatMoney(s.paid_full_amount ?? 0)}</td>
-                  <td className="py-2 pr-3">{formatMoney(s.paid_no_show_amount ?? 0)}</td>
                   <td className="py-2 pr-3">{formatMoney(s.revenue_paid)}</td>
                   <td className="py-2 pr-3">{formatMoney(s.debtor_amount ?? 0)}</td>
             </tr>
           ))}
               {(data.service_stats ?? []).length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-3 mo-muted">
+                  <td colSpan={8} className="py-3 mo-muted">
                     Нет записей за месяц
                   </td>
                 </tr>
@@ -3436,9 +3432,6 @@ function CompanyReportSection({
                 <th className="py-2 pr-3">Явились</th>
                 <th className="py-2 pr-3">Не явились</th>
                 <th className="py-2 pr-3">Оплачено полностью</th>
-                <th className="py-2 pr-3" title="Предоплата при неявке → кредиторка, не выручка">
-                  Оплачено при неявке
-                </th>
                 <th className="py-2 pr-3" title="Выручка по явкам (неявка сюда не входит)">
                   Всего оплат
                 </th>
@@ -3459,7 +3452,6 @@ function CompanyReportSection({
                   <td className="py-2 pr-3">{e.appeared_count}</td>
                   <td className="py-2 pr-3">{e.no_show_count}</td>
                   <td className="py-2 pr-3">{formatMoney(e.paid_full_amount ?? 0)}</td>
-                  <td className="py-2 pr-3">{formatMoney(e.paid_no_show_amount ?? 0)}</td>
                   <td className="py-2 pr-3">{formatMoney(e.revenue_paid)}</td>
                   <td className="py-2 pr-3">{formatMoney(e.debtor_amount)}</td>
                   <td className="py-2 pr-3">{formatMoney(e.creditor_amount)}</td>

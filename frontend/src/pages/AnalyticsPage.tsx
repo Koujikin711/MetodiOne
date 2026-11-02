@@ -465,7 +465,6 @@ export function AnalyticsPage() {
                       "Не явились",
                       "Ещё booked",
                       "Оплачено полностью",
-                      "Оплачено при неявке",
                       "Всего оплат",
                       "Дебиторка",
                     ],
@@ -476,7 +475,6 @@ export function AnalyticsPage() {
                       s.no_show_count,
                       s.booked_count ?? 0,
                       Number(s.paid_full_amount ?? 0),
-                      Number(s.paid_no_show_amount ?? 0),
                       Number(s.revenue_paid),
                       Number(s.debtor_amount ?? 0),
                     ]),
@@ -641,7 +639,6 @@ export function AnalyticsPage() {
                       <th className="py-2 pr-3">Не явились</th>
                       <th className="py-2 pr-3">Ещё booked</th>
                       <th className="py-2 pr-3">Оплачено полностью</th>
-                      <th className="py-2 pr-3">Оплачено при неявке</th>
                       <th className="py-2 pr-3">Всего оплат</th>
                       <th className="py-2 pr-3">Дебиторка</th>
                     </tr>
@@ -649,7 +646,7 @@ export function AnalyticsPage() {
                   <tbody>
                     {serviceRows.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="analytics-empty-cell">
+                        <td colSpan={8} className="analytics-empty-cell">
                           Нет записей за месяц
                         </td>
                       </tr>
@@ -673,9 +670,6 @@ export function AnalyticsPage() {
                           <td className="py-2.5 pr-3 tabular-nums">
                             {moneyFmt.format(Number(s.paid_full_amount ?? 0))}
                           </td>
-                          <td className="py-2.5 pr-3 tabular-nums">
-                            {moneyFmt.format(Number(s.paid_no_show_amount ?? 0))}
-                          </td>
                           <td className="py-2.5 pr-3 tabular-nums">{moneyFmt.format(Number(s.revenue_paid))}</td>
                           <td className="py-2.5 pr-3 tabular-nums">
                             {moneyFmt.format(Number(s.debtor_amount ?? 0))}
@@ -696,7 +690,6 @@ export function AnalyticsPage() {
                       <th className="py-2 pr-3">Явились</th>
                       <th className="py-2 pr-3">Не явились</th>
                       <th className="py-2 pr-3">Оплачено полностью</th>
-                      <th className="py-2 pr-3">Оплачено при неявке</th>
                       <th className="py-2 pr-3">Всего оплат</th>
                       <th className="py-2 pr-3">Дебиторка</th>
                     </tr>
@@ -704,7 +697,7 @@ export function AnalyticsPage() {
                   <tbody>
                     {chartExperts.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="analytics-empty-cell">
+                        <td colSpan={7} className="analytics-empty-cell">
                           Нет данных за месяц
                         </td>
                       </tr>
@@ -722,9 +715,6 @@ export function AnalyticsPage() {
                           <td className="py-2.5 pr-3 tabular-nums">{e.no_show_count}</td>
                           <td className="py-2.5 pr-3 tabular-nums">
                             {moneyFmt.format(Number(e.paid_full_amount ?? 0))}
-                          </td>
-                          <td className="py-2.5 pr-3 tabular-nums">
-                            {moneyFmt.format(Number(e.paid_no_show_amount ?? 0))}
                           </td>
                           <td className="py-2.5 pr-3 tabular-nums">{moneyFmt.format(Number(e.revenue_paid))}</td>
                           <td className="py-2.5 pr-3 tabular-nums">{moneyFmt.format(Number(e.debtor_amount))}</td>
