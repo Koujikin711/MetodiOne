@@ -88,19 +88,13 @@ export function MarketingAdvice({
         </article>
       </div>
 
-      <div className="mkt-advice__panel">
-        <div className="mkt-advice__head">
-          <h3 className="mkt-advice__title">Советы по роликам</h3>
-          {reading.creatives.length > 0 ? (
+      {/* Один блок: ролики (ads). Кампании — только если Meta не отдала объявления. */}
+      {reading.creatives.length > 0 ? (
+        <div className="mkt-advice__panel">
+          <div className="mkt-advice__head">
+            <h3 className="mkt-advice__title">Советы</h3>
             <span className="mkt-advice__count">{reading.creatives.length}</span>
-          ) : null}
-        </div>
-        {reading.creatives.length === 0 ? (
-          <p className="mkt-advice__empty">
-            Объявлений с расходом за период нет. Нажмите «Обновить» — Meta отдаёт ads отдельно от
-            кампаний.
-          </p>
-        ) : (
+          </div>
           <ul className="mkt-advice__creatives">
             {reading.creatives.map((row) => (
               <li key={row.id} className={`mkt-advice__creative is-${row.tone}`}>
@@ -130,45 +124,50 @@ export function MarketingAdvice({
               </li>
             ))}
           </ul>
-        )}
-      </div>
-
-      <div className="mkt-advice__panel">
-        <div className="mkt-advice__head">
-          <h3 className="mkt-advice__title">Советы по кампаниям</h3>
-          {reading.actions.length > 0 ? (
-            <span className="mkt-advice__count">{reading.actions.length}</span>
-          ) : null}
         </div>
-        {reading.actions.length === 0 ? (
-          <p className="mkt-advice__empty">Кампаний с расходом за период нет.</p>
-        ) : (
-          <>
-            <div className="mkt-advice__cols mkt-advice__cols--head">
-              <span>Кампания</span>
-              <span>Расход, {currency}</span>
-              <span>Лиды</span>
-              <span>Цена, {currency}</span>
-            </div>
-            <ul className="mkt-advice__list">
-              {reading.actions.map((row) => (
-                <li key={row.name} className={`mkt-advice__row mkt-advice__cols is-${row.tone}`}>
-                  <div className="mkt-advice__main">
-                    <div className="mkt-advice__top">
-                      <span className="mkt-advice__chip">{CHIP[row.tone]}</span>
-                      <div className="mkt-advice__name">{row.name}</div>
+      ) : (
+        <div className="mkt-advice__panel">
+          <div className="mkt-advice__head">
+            <h3 className="mkt-advice__title">Советы</h3>
+            {reading.actions.length > 0 ? (
+              <span className="mkt-advice__count">{reading.actions.length}</span>
+            ) : null}
+          </div>
+          {reading.actions.length === 0 ? (
+            <p className="mkt-advice__empty">
+              Нет расхода за период. Нажмите «Обновить» — подтянем объявления Meta.
+            </p>
+          ) : (
+            <>
+              <p className="mkt-advice__empty">
+                Объявлений пока нет — ниже кампании. После «Обновить» будут конкретные ролики.
+              </p>
+              <div className="mkt-advice__cols mkt-advice__cols--head">
+                <span>Кампания</span>
+                <span>Расход, {currency}</span>
+                <span>Лиды</span>
+                <span>Цена, {currency}</span>
+              </div>
+              <ul className="mkt-advice__list">
+                {reading.actions.map((row) => (
+                  <li key={row.name} className={`mkt-advice__row mkt-advice__cols is-${row.tone}`}>
+                    <div className="mkt-advice__main">
+                      <div className="mkt-advice__top">
+                        <span className="mkt-advice__chip">{CHIP[row.tone]}</span>
+                        <div className="mkt-advice__name">{row.name}</div>
+                      </div>
+                      <p className="mkt-advice__why">{row.text}</p>
                     </div>
-                    <p className="mkt-advice__why">{row.text}</p>
-                  </div>
-                  <span className="mkt-advice__num">{amount(row.spend)}</span>
-                  <span className="mkt-advice__num">{Math.round(row.leads).toLocaleString("ru-RU")}</span>
-                  <span className="mkt-advice__num">{row.cpl != null ? amount(row.cpl) : "—"}</span>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-      </div>
+                    <span className="mkt-advice__num">{amount(row.spend)}</span>
+                    <span className="mkt-advice__num">{Math.round(row.leads).toLocaleString("ru-RU")}</span>
+                    <span className="mkt-advice__num">{row.cpl != null ? amount(row.cpl) : "—"}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
     </section>
   );
 }
