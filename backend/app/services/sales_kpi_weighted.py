@@ -165,6 +165,24 @@ def paid_at_from_input(raw: date | datetime | None, *, fallback: datetime | None
     return datetime.now(UTC)
 
 
+# Канон денег по статусу записи (дебиторка / KPI / аналитика / отчёт компании).
+# Неявка и отмена — услуга не оказана → остаток цены не долг.
+# Предоплата при неявке / будущей «Запись» → кредиторка, не выручка.
+BOOKING_OPEN_DEBT_STATUSES: frozenset[str] = frozenset({"completed"})
+BOOKING_CREDITOR_PREPAY_STATUSES: frozenset[str] = frozenset({"no_show"})
+BOOKING_EXCLUDED_FROM_KPI_STATUSES: frozenset[str] = frozenset({"cancelled", "no_show"})
+
+
+def booking_status_is_open_debt(status: str | None) -> bool:
+    """Может ли визит попасть в дебиторку (при остатке service − paid − refund)."""
+    return (status or "").strip() in BOOKING_OPEN_DEBT_STATUSES
+
+
+def booking_status_is_creditor_prepay(status: str | None) -> bool:
+    """Предоплата при этом статусе — кредиторка, не выручка менеджера."""
+    return (status or "").strip() in BOOKING_CREDITOR_PREPAY_STATUSES
+
+
 def booking_debt_cutoff(month_end: datetime, *, now: datetime | None = None) -> datetime:
     """Дебиторка записи: только прошедшее время (не будущее внутри выбранного месяца)."""
     n = now or datetime.now(UTC)
@@ -391,7 +409,7 @@ async def load_brought_paid_by_service(
         BookingAppointment.company_id == company_id,
         BookingAppointment.start_at >= start,
         BookingAppointment.start_at < end,
-        BookingAppointment.status.notin_(("cancelled", "no_show")),
+        BookingAppointment.status.notin_(tuple(BOOKING_EXCLUDED_FROM_KPI_STATUSES)),
         BookingAppointment.paid_amount > 0,
         User.role == UserRole.manager,
         or_(
@@ -532,7 +550,7 @@ async def load_brought_paid_detail(
         key = (int(manager_id), int(specialist_id), int(direction_id), price)
         st = (status or "").strip()
         # Неявка: предоплата в кредиторке, не в «Привёл» / «Новых» менеджера.
-        if st == "no_show":
+        if booking_status_is_creditor_prepay(st):
             continue
         # «Новых» только если сумма уже в «Привёл» (неполные Курс 15 / протокол /
         # ниже мин. курса — видно в детализации серым, в счётчик шапки не входят).

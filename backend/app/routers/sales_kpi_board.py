@@ -149,7 +149,11 @@ from app.services.sales_kpi_weighted import (
     load_specialist_facts_full_paid,
     month_bounds,
     paid_at_from_input,
+    BOOKING_EXCLUDED_FROM_KPI_STATUSES,
+    BOOKING_OPEN_DEBT_STATUSES,
     booking_debt_cutoff,
+    booking_status_is_creditor_prepay,
+    booking_status_is_open_debt,
     course_debt_is_due,
     first_course_payment_at,
     parse_year_month,
@@ -1508,7 +1512,7 @@ async def _service_earning_detail(
                 BookingAppointment.start_at >= start,
                 BookingAppointment.start_at < end,
                 BookingAppointment.paid_amount > 0,
-                BookingAppointment.status.notin_(("cancelled", "no_show")),
+                BookingAppointment.status.notin_(tuple(BOOKING_EXCLUDED_FROM_KPI_STATUSES)),
                 or_(
                     BookingAppointment.pipeline_id == pipeline_id,
                     PipelineStage.pipeline_id == pipeline_id,
@@ -3088,7 +3092,7 @@ async def debtors_report(
                     BookingAppointment.company_id == company_id,
                     BookingAppointment.start_at < debt_cutoff,
                     BookingAppointment.service_amount > BookingAppointment.paid_amount,
-                    BookingAppointment.status == "completed",
+                    BookingAppointment.status.in_(tuple(BOOKING_OPEN_DEBT_STATUSES)),
                     or_(
                         BookingAppointment.pipeline_id == pipeline_id,
                         PipelineStage.pipeline_id == pipeline_id,
@@ -3976,8 +3980,8 @@ async def company_report(
                 continue
             if visit_here:
                 bucket["appointments_total"] += 1
-            # Неявка: предоплата → кредиторка (не выручка); остаток цены не долг.
-            if st == "no_show":
+            # Неявка: предоплата → кредиторка; остаток цены не долг (канон BOOKING_*).
+            if booking_status_is_creditor_prepay(st):
                 if visit_here:
                     bucket["no_show_count"] += 1
                 if cash_here and pa > 0:
@@ -3990,8 +3994,8 @@ async def company_report(
                     revenue_booking += pa
                 if not visit_here:
                     continue
-                # Долг по явке; будущая «Запись» с оплатой — кредиторка.
-                if st == "completed":
+                # Долг только по явке; будущая «Запись» с оплатой — кредиторка.
+                if booking_status_is_open_debt(st):
                     if ("booking", int(appt_id_raw)) not in dismissed_debtors:
                         debt = _booking_open_debt(
                             sa,
@@ -4030,7 +4034,7 @@ async def company_report(
                     BookingAppointment.company_id == company_id,
                     BookingAppointment.start_at < debt_cutoff,
                     BookingAppointment.service_amount > BookingAppointment.paid_amount,
-                    BookingAppointment.status == "completed",
+                    BookingAppointment.status.in_(tuple(BOOKING_OPEN_DEBT_STATUSES)),
                     or_(
                         BookingAppointment.pipeline_id == pipeline_id,
                         PipelineStage.pipeline_id == pipeline_id,

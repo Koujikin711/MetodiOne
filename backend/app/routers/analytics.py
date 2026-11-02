@@ -39,7 +39,10 @@ from app.services.analytics_overview_money import (
 )
 from app.services.booking_directions import is_admin_only_booking_direction_name
 from app.services.sales_kpi_weighted import (
+    BOOKING_OPEN_DEBT_STATUSES,
     booking_debt_cutoff,
+    booking_status_is_creditor_prepay,
+    booking_status_is_open_debt,
     course_debt_is_due,
     first_course_payment_at,
 )
@@ -1624,7 +1627,7 @@ async def analytics_services(
             bucket["cancelled_count"] += 1
             continue
         bucket["appointments_total"] += 1
-        if st == "no_show":
+        if booking_status_is_creditor_prepay(st):
             bucket["no_show_count"] += 1
             # Неявка: предоплата → кредиторка; остаток цены не долг.
             if pa > 0:
@@ -1634,7 +1637,7 @@ async def analytics_services(
         else:
             bucket["revenue_paid"] += pa
             revenue_total += pa
-            if st == "completed":
+            if booking_status_is_open_debt(st):
                 debt = max(sa - pa, Decimal("0"))
                 if debt > 0:
                     bucket["debtor_amount"] += debt
@@ -1649,7 +1652,7 @@ async def analytics_services(
                     bucket["creditor_amount"] += pa
                     creditor_total += pa
 
-    # Дебиторка на конец периода: только «Пришёл» с остатком (неявка / отмена — нет).
+    # Дебиторка на конец периода: только «Пришёл» с остатком (канон BOOKING_OPEN_DEBT_STATUSES).
     open_debt_rows = (
         await db.execute(
             select(
@@ -1664,7 +1667,7 @@ async def analytics_services(
                 BookingAppointment.company_id == company_id,
                 BookingAppointment.start_at < end,
                 BookingAppointment.service_amount > BookingAppointment.paid_amount,
-                BookingAppointment.status == "completed",
+                BookingAppointment.status.in_(tuple(BOOKING_OPEN_DEBT_STATUSES)),
                 or_(
                     BookingAppointment.pipeline_id == pipeline_id,
                     PipelineStage.pipeline_id == pipeline_id,
