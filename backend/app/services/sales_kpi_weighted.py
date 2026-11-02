@@ -534,13 +534,18 @@ async def load_brought_paid_detail(
         # Неявка: предоплата в кредиторке, не в «Привёл» / «Новых» менеджера.
         if st == "no_show":
             continue
+        # «Новых» только если сумма уже в «Привёл» (неполные Курс 15 / протокол /
+        # ниже мин. курса — видно в детализации серым, в счётчик шапки не входят).
+        counted_new = False
         if kind == "main_course":
             brought = course_brought_from_gross(price, gross)
             if brought > 0:
                 out[key] = (out.get(key, Decimal("0")) + brought).quantize(Decimal("0.01"))
+                counted_new = True
         elif is_full_payment(service_amount, gross):
             out[key] = (out.get(key, Decimal("0")) + gross).quantize(Decimal("0.01"))
-        if st != "cancelled":
+            counted_new = True
+        if st != "cancelled" and counted_new:
             counts[key] = counts.get(key, 0) + 1
     return out, counts
 
@@ -1353,7 +1358,11 @@ async def load_manual_new_sales_by_label(
     pipeline_id: int,
     ym: date,
 ) -> dict[tuple[int, str], int]:
-    """Курс или протокол, заведённый в этом месяце. «Новых» — только владельцу клиента (лид/ФИО CRM)."""
+    """Курс/протокол, заведённый в этом месяце.
+
+    «Новых» — владельцу клиента. Курс 15 / протокол — только после полной оплаты;
+    основной курс — после мин. 3к/5к (как в «Привёл»).
+    """
     start, end = month_bounds(ym)
     fio_owners = await load_fio_crm_owner_managers(db, company_id=company_id, pipeline_id=pipeline_id)
     rows = (
@@ -1364,6 +1373,8 @@ async def load_manual_new_sales_by_label(
                 Lead.manager_id,
                 SalesKpiManualSale.client_name,
                 SalesKpiPlanItem.name,
+                SalesKpiManualSale.paid_amount,
+                SalesKpiManualSale.service_amount,
             )
             .join(SalesKpiPlanItem, SalesKpiPlanItem.id == SalesKpiManualSale.plan_item_id)
             .join(Lead, Lead.id == SalesKpiManualSale.lead_id, isouter=True)
@@ -1378,7 +1389,7 @@ async def load_manual_new_sales_by_label(
         )
     ).all()
     out: dict[tuple[int, str], int] = {}
-    for opened_mid, sale_mid, lead_mid, client_name, name in rows:
+    for opened_mid, sale_mid, lead_mid, client_name, name, paid_raw, service_raw in rows:
         fk = fio_key(str(client_name or ""))
         manager_id = kpi_client_owner_manager_id(
             opened_manager_id=int(opened_mid) if opened_mid is not None else None,
@@ -1394,6 +1405,14 @@ async def load_manual_new_sales_by_label(
         label = _norm_kpi_label(str(name or ""))
         if not label:
             continue
+        paid = Decimal(str(paid_raw or 0)).quantize(Decimal("0.01"))
+        service = Decimal(str(service_raw or 0)).quantize(Decimal("0.01"))
+        if is_main_course_product(str(name or "")):
+            if course_brought_from_gross(service, paid) <= 0:
+                continue
+        elif protocol_brought_waits_for_full_price(str(name or "")):
+            if not is_full_payment(service, paid):
+                continue
         out[(int(manager_id), label)] = out.get((int(manager_id), label), 0) + 1
     return out
 
