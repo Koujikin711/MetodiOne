@@ -3075,8 +3075,8 @@ async def debtors_report(
             )
         ).scalars().all()
     else:
-        # Дебиторка записи: прошедшие визиты «Пришёл» или «Неявка» с остатком.
-        # Отмена / будущие «Запись» — не долг. Все месяцы пересчитываются по статусу.
+        # Дебиторка записи: прошедшие визиты «Пришёл» с остатком.
+        # Неявка / отмена / будущие «Запись» — не долг (услуга не оказана).
         debt_cutoff = _booking_debt_cutoff(end)
         booking_q = (
             await db.execute(
@@ -3088,7 +3088,7 @@ async def debtors_report(
                     BookingAppointment.company_id == company_id,
                     BookingAppointment.start_at < debt_cutoff,
                     BookingAppointment.service_amount > BookingAppointment.paid_amount,
-                    BookingAppointment.status.in_(("completed", "no_show")),
+                    BookingAppointment.status == "completed",
                     or_(
                         BookingAppointment.pipeline_id == pipeline_id,
                         PipelineStage.pipeline_id == pipeline_id,
@@ -3976,18 +3976,10 @@ async def company_report(
                 continue
             if visit_here:
                 bucket["appointments_total"] += 1
-            # Неявка: предоплата → кредиторка (не выручка); остаток цены → дебиторка.
+            # Неявка: предоплата → кредиторка (не выручка); остаток цены не долг.
             if st == "no_show":
                 if visit_here:
                     bucket["no_show_count"] += 1
-                    if ("booking", int(appt_id_raw)) not in dismissed_debtors:
-                        debt = _booking_open_debt(
-                            sa,
-                            pa,
-                            month_refunds.get(int(appt_id_raw), Decimal("0")),
-                        )
-                        if debt > 0:
-                            bucket["debtor_amount"] += debt
                 if cash_here and pa > 0:
                     bucket["paid_no_show_amount"] += pa
                     bucket["creditor_amount"] += pa
@@ -4038,7 +4030,7 @@ async def company_report(
                     BookingAppointment.company_id == company_id,
                     BookingAppointment.start_at < debt_cutoff,
                     BookingAppointment.service_amount > BookingAppointment.paid_amount,
-                    BookingAppointment.status.in_(("completed", "no_show")),
+                    BookingAppointment.status == "completed",
                     or_(
                         BookingAppointment.pipeline_id == pipeline_id,
                         PipelineStage.pipeline_id == pipeline_id,
