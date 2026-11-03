@@ -29,6 +29,13 @@ class Settings(BaseSettings):
     # Каталог медиа чата (на Amvera: /app/data/chat_media при persistenceMount: /app/data)
     chat_media_dir: str = ""
 
+    # Единая локация клиники для WhatsApp (все менеджеры шлют одно и то же; не GPS телефона).
+    # Источник координат: 2ГИС Metodi clinic, ул. Бободжана Гафурова, 35.
+    clinic_wa_location_name: str = "Metodi Clinic"
+    clinic_wa_location_address: str = "ул. Б. Гафурова, 35, 4 этаж, Душанбе"
+    clinic_wa_location_lat: float = 38.586571
+    clinic_wa_location_lng: float = 68.741985
+
     # Public URL фронтенда (для invite ссылок)
     public_app_url: str = ""
     # Публичный URL API (для автоподключения Green API webhook), напр. https://api.example.com

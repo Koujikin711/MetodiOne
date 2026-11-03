@@ -45,7 +45,8 @@ from app.services.green_incoming_media import (
     prepare_chat_message_media_download,
     repair_thread_media,
 )
-from app.services.green_api_send import send_green_file_upload, send_green_text_async
+from app.services.clinic_whatsapp_location import clinic_whatsapp_location
+from app.services.green_api_send import send_green_file_upload, send_green_location, send_green_text_async
 from app.services.instagram_api_send import parse_meta_thread_recipient, send_meta_dm_text
 from app.services.whatsapp_phone_fallback import resolve_outbound_green_chat_id
 from app.services.patient_phone_visibility import (
@@ -139,6 +140,13 @@ class ChatMessageRead(BaseModel):
 
 class SendMessageBody(BaseModel):
     text: str = Field(..., min_length=1, max_length=4000)
+
+
+class ClinicLocationRead(BaseModel):
+    name_location: str
+    address: str
+    latitude: float
+    longitude: float
 
 
 def _phone_from_external_chat_id(external_chat_id: str | None) -> str | None:
@@ -1639,6 +1647,71 @@ async def repair_thread_chat_media(
     await _assert_thread_access(db, thread, current_user)
     stats = await repair_thread_media(db, thread=thread, limit=limit)
     return RepairMediaResult(**stats)
+
+
+@router.get("/clinic-location", response_model=ClinicLocationRead)
+async def get_clinic_location(
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> ClinicLocationRead:
+    """Единая локация клиники — одинаковая для всех менеджеров."""
+    _ = current_user, company_id
+    loc = clinic_whatsapp_location()
+    return ClinicLocationRead(
+        name_location=str(loc["name_location"]),
+        address=str(loc["address"]),
+        latitude=float(loc["latitude"]),
+        longitude=float(loc["longitude"]),
+    )
+
+
+@router.post("/threads/{thread_id}/messages/location", response_model=ChatMessageRead)
+async def send_message_location(
+    thread_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> ChatMessageRead:
+    """Отправить фиксированную локацию клиники в WhatsApp (пин на карте)."""
+    thread, cfg, dest = await _resolve_green_send(db, thread_id, company_id, current_user)
+    loc = clinic_whatsapp_location()
+    name = str(loc["name_location"])
+    addr = str(loc["address"])
+    lat = float(loc["latitude"])
+    lng = float(loc["longitude"])
+    preview = f"📍 {name}"
+    if addr:
+        preview = f"{preview}\n{addr}"
+    preview = f"{preview}\nhttps://maps.google.com/?q={lat},{lng}"
+
+    ok, err, provider_msg_id = await send_green_location(
+        cfg,
+        dest,
+        latitude=lat,
+        longitude=lng,
+        name_location=name,
+        address=addr,
+    )
+    if not ok:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Не удалось отправить локацию: {err or 'ошибка WhatsApp'}",
+        )
+    msg = ChatMessage(
+        company_id=thread.company_id,
+        thread_id=thread.id,
+        author_user_id=current_user.id,
+        direction="out",
+        text=preview,
+        message_type="text",
+        delivery_status="sent",
+        provider_message_id=provider_msg_id or None,
+        created_at=datetime.now(UTC),
+    )
+    db.add(msg)
+    touch_thread_on_message(thread, "out")
+    await db.flush()
+    return _msg_read(msg)
 
 
 @router.post("/threads/{thread_id}/messages/attachment", response_model=ChatMessageRead)

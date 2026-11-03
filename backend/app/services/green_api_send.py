@@ -83,6 +83,54 @@ async def send_green_text_async(config: dict | None, chat_id: str, text: str) ->
         return _via_qr_text(chat_id, text, str(e))
 
 
+async def send_green_location(
+    config: dict | None,
+    chat_id: str,
+    *,
+    latitude: float,
+    longitude: float,
+    name_location: str = "",
+    address: str = "",
+) -> tuple[bool, str | None, str | None]:
+    """WhatsApp-пин через Green API sendLocation."""
+    cfg = config or {}
+    instance_id = cfg.get("instance_id") or cfg.get("instanceId")
+    api_token = cfg.get("api_token") or cfg.get("apiToken") or cfg.get("apiTokenInstance")
+    if not instance_id or not api_token:
+        # QR-мост локацию не шлёт — уходит ссылка на карты текстом.
+        label = (name_location or address or "Локация").strip() or "Локация"
+        maps = f"https://maps.google.com/?q={latitude},{longitude}"
+        return await send_green_text_async(cfg, chat_id, f"📍 {label}\n{maps}")
+    base = green_api_base_from_config(cfg)
+    url = f"{base}/waInstance{instance_id}/sendLocation/{api_token}"
+    body: dict[str, Any] = {
+        "chatId": chat_id,
+        "latitude": float(latitude),
+        "longitude": float(longitude),
+    }
+    if name_location.strip():
+        body["nameLocation"] = name_location.strip()[:200]
+    if address.strip():
+        body["address"] = address.strip()[:500]
+    try:
+        async with httpx.AsyncClient(timeout=40.0) as client:
+            r = await client.post(url, json=body)
+            if r.status_code >= 400:
+                label = (name_location or address or "Локация").strip() or "Локация"
+                maps = f"https://maps.google.com/?q={latitude},{longitude}"
+                return await send_green_text_async(
+                    cfg,
+                    chat_id,
+                    f"📍 {label}\n{maps}",
+                )
+            data = r.json() if r.text else {}
+            return True, None, str(data.get("idMessage") or "")
+    except Exception:
+        label = (name_location or address or "Локация").strip() or "Локация"
+        maps = f"https://maps.google.com/?q={latitude},{longitude}"
+        return await send_green_text_async(cfg, chat_id, f"📍 {label}\n{maps}")
+
+
 def _upload_mime(filename: str, mime: str | None) -> str | None:
     low = (filename or "").lower()
     if low.endswith(".ogg") or low.endswith(".opus"):

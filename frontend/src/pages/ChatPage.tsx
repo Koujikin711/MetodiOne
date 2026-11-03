@@ -507,6 +507,59 @@ function PaperclipIcon({ className }: { className?: string }) {
   );
 }
 
+function MapPinIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 21s7-4.5 7-11a7 7 0 10-14 0c0 6.5 7 11 7 11z"
+      />
+      <circle cx="12" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.8" />
+    </svg>
+  );
+}
+
+function GalleryIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="8.5" cy="10" r="1.5" fill="currentColor" />
+      <path
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3 16l5-4 4 3 3-2 6 5"
+      />
+    </svg>
+  );
+}
+
+function FileDocIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8l-5-5z"
+      />
+      <path stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" d="M14 3v5h5M8 13h8M8 17h5" />
+    </svg>
+  );
+}
+
+type ClinicWhatsappLocation = {
+  name_location: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+};
+
 const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
 const THREADS_PAGE_SIZE = 20;
 
@@ -855,8 +908,13 @@ export function ChatPage() {
   }, [threadId, text]);
 
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false);
+  const [locOpen, setLocOpen] = useState(false);
+  const [locBusy, setLocBusy] = useState(false);
+  const [locError, setLocError] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [voiceFinishing, setVoiceFinishing] = useState(false);
+  const attachMenuRef = useRef<HTMLDivElement>(null);
   const [voiceDraftFile, setVoiceDraftFile] = useState<File | null>(null);
   const [voiceDraftUrl, setVoiceDraftUrl] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -1049,6 +1107,67 @@ export function ChatPage() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  const clinicLocationQuery = useQuery({
+    queryKey: ["chat-clinic-location"],
+    queryFn: () => apiFetch<ClinicWhatsappLocation>("/api/chat/clinic-location"),
+    staleTime: 60 * 60 * 1000,
+    enabled: locOpen,
+  });
+
+  useEffect(() => {
+    if (!attachMenuOpen) return;
+    function onDocPointerDown(e: MouseEvent | TouchEvent) {
+      const el = attachMenuRef.current;
+      if (!el) return;
+      if (e.target instanceof Node && !el.contains(e.target)) {
+        setAttachMenuOpen(false);
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setAttachMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onDocPointerDown);
+    document.addEventListener("touchstart", onDocPointerDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocPointerDown);
+      document.removeEventListener("touchstart", onDocPointerDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [attachMenuOpen]);
+
+  function openFilePicker(accept: string) {
+    setAttachMenuOpen(false);
+    const input = fileInputRef.current;
+    if (!input) return;
+    input.accept = accept;
+    input.click();
+  }
+
+  async function sendLocation() {
+    if (threadId == null || locBusy) return;
+    setLocBusy(true);
+    setLocError("");
+    try {
+      await apiFetch<ChatMessage>(`/api/chat/threads/${threadId}/messages/location`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+      setLocOpen(false);
+      void qc.invalidateQueries({ queryKey: ["chat-messages", threadId] });
+      void qc.invalidateQueries({ queryKey: ["chat-threads"] });
+      void qc.invalidateQueries({ queryKey: ["chat-thread", threadId] });
+      void qc.invalidateQueries({ queryKey: ["chat-thread-bucket-counts"] });
+      toast.success("Локация клиники отправлена");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Не удалось отправить локацию";
+      setLocError(msg);
+      toast.error(msg);
+    } finally {
+      setLocBusy(false);
+    }
+  }
 
   const statusStagesPipelineId = activeThread?.pipeline_id ?? null;
   const statusStagesQuery = useQuery({
@@ -1843,16 +1962,112 @@ export function ChatPage() {
                     </button>
                   </div>
                 ) : null}
+                {locOpen ? (
+                  <div className="mb-2 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-3">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <p className="text-sm font-medium text-[var(--mo-text)]">Локация клиники</p>
+                      <button
+                        type="button"
+                        className="text-xs mo-muted hover:text-[var(--mo-text)]"
+                        onClick={() => {
+                          setLocOpen(false);
+                          setLocError("");
+                        }}
+                      >
+                        Закрыть
+                      </button>
+                    </div>
+                    {clinicLocationQuery.isLoading ? (
+                      <p className="mt-2 text-sm mo-muted">Загрузка…</p>
+                    ) : clinicLocationQuery.data ? (
+                      <div className="mt-2 space-y-0.5 text-sm text-[var(--mo-text)]">
+                        <div className="font-medium">📍 {clinicLocationQuery.data.name_location}</div>
+                        {clinicLocationQuery.data.address ? (
+                          <div className="mo-muted">{clinicLocationQuery.data.address}</div>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-sm text-[var(--mo-text)]">
+                        📍 Metodi Clinic
+                        <span className="mt-0.5 block mo-muted">ул. Б. Гафурова, 35, 4 этаж, Душанбе</span>
+                      </p>
+                    )}
+                    {locError ? <p className="mt-2 text-xs text-rose-400">{locError}</p> : null}
+                    <div className="mt-3">
+                      <button
+                        type="button"
+                        disabled={locBusy || threadId == null}
+                        onClick={() => void sendLocation()}
+                        className="rounded-xl bg-[var(--mo-accent)] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                      >
+                        {locBusy ? "Отправка…" : "Отправить в WhatsApp"}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
                 <div className="flex items-end gap-2">
+                  <div className="relative shrink-0" ref={attachMenuRef}>
+                    {attachMenuOpen ? (
+                      <div
+                        className="absolute bottom-[calc(100%+0.35rem)] left-0 z-30 min-w-[7.5rem] overflow-hidden rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] py-0.5 shadow-lg"
+                        role="menu"
+                      >
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-xs text-[var(--mo-text)] transition hover:bg-[var(--mo-accent-soft)]"
+                          onClick={() => openFilePicker("image/*")}
+                        >
+                          <GalleryIcon className="h-3.5 w-3.5 shrink-0 opacity-80" />
+                          Фото
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-xs text-[var(--mo-text)] transition hover:bg-[var(--mo-accent-soft)]"
+                          onClick={() => openFilePicker("image/*,video/*,audio/*,.pdf,.doc,.docx,.zip")}
+                        >
+                          <FileDocIcon className="h-3.5 w-3.5 shrink-0 opacity-80" />
+                          Файл
+                        </button>
+                      </div>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => setAttachMenuOpen((v) => !v)}
+                      disabled={isRecording || voiceFinishing || sendMutation.isPending || locBusy}
+                      className={[
+                        "flex h-11 w-11 items-center justify-center rounded-full border shadow-sm transition disabled:opacity-50",
+                        attachMenuOpen
+                          ? "border-[var(--mo-accent)] bg-[var(--mo-accent-soft)] text-[var(--mo-accent)]"
+                          : "border-[var(--mo-border)] bg-[var(--mo-surface)] text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)]",
+                      ].join(" ")}
+                      title="Прикрепить"
+                      aria-label="Прикрепить"
+                      aria-expanded={attachMenuOpen}
+                      aria-haspopup="menu"
+                    >
+                      <PaperclipIcon className="h-5 w-5" />
+                    </button>
+                  </div>
                   <button
                     type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isRecording || voiceFinishing || sendMutation.isPending}
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[var(--mo-border)] bg-[var(--mo-surface)] text-[var(--mo-text)] shadow-sm transition hover:bg-[var(--mo-accent-soft)] disabled:opacity-50"
-                    title="Прикрепить файл"
-                    aria-label="Прикрепить файл"
+                    onClick={() => {
+                      setAttachMenuOpen(false);
+                      setLocOpen((v) => !v);
+                      setLocError("");
+                    }}
+                    disabled={isRecording || voiceFinishing || sendMutation.isPending || locBusy || threadId == null}
+                    className={[
+                      "flex h-11 w-11 shrink-0 items-center justify-center rounded-full border shadow-sm transition disabled:opacity-50",
+                      locOpen
+                        ? "border-[var(--mo-accent)] bg-[var(--mo-accent-soft)] text-[var(--mo-accent)]"
+                        : "border-[var(--mo-border)] bg-[var(--mo-surface)] text-[var(--mo-text)] hover:bg-[var(--mo-accent-soft)]",
+                    ].join(" ")}
+                    title="Локация"
+                    aria-label="Локация"
                   >
-                    <PaperclipIcon className="h-5 w-5" />
+                    <MapPinIcon className="h-5 w-5" />
                   </button>
                   <textarea
                     ref={composerRef}
