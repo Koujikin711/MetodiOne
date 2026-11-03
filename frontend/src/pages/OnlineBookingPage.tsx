@@ -19,6 +19,7 @@ import { PatientPhone } from "@/components/PatientPhone";
 import { BookingSpecialistsFilter } from "@/components/BookingSpecialistsFilter";
 import { SpecialistModal, type SpecialistFormValues } from "@/components/SpecialistModal";
 import { Search, Trash2 } from "@/components/icons";
+import { openLeadCard } from "@/lib/leadReturn";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeDisplayNameFromToken, decodeRoleFromToken, decodeUserIdFromToken } from "@/lib/auth";
 import {
@@ -2624,8 +2625,11 @@ export function OnlineBookingPage() {
                   type="button"
                   className="btn-secondary px-3 py-1.5 text-xs"
                   onClick={() => {
+                    const leadId = apptDetail.lead_id;
+                    const apptId = apptDetail.id;
+                    if (leadId == null) return;
                     setApptDetail(null);
-                    navigate(`/leads/${apptDetail.lead_id}?appointment=${apptDetail.id}`);
+                    openLeadCard(navigate, leadId, { search: `appointment=${apptId}` });
                   }}
                 >
                   Карточка в CRM

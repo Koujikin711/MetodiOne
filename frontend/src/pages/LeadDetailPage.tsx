@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 
+import { leadBackHref } from "@/lib/leadReturn";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { bookedCountInClockHour, MAX_BOOKINGS_PER_SPECIALIST_HOUR } from "@/lib/bookingCapacity";
 import { visitDisplayValue } from "@/lib/bookingVisitDisplay";
@@ -558,13 +559,17 @@ export function LeadDetailPage() {
     return (
       <div className="mx-auto max-w-lg px-4 py-16 text-center lux-caption">
         Некорректный идентификатор лида.
-        <Link to="/booking" className="mt-4 block text-[var(--mo-accent-hover)] hover:underline">
-          ← К онлайн-записи
+        <Link
+          to={leadBackHref("/booking").to}
+          className="mt-4 block text-[var(--mo-accent-hover)] hover:underline"
+        >
+          ← {leadBackHref("/booking").label}
         </Link>
       </div>
     );
   }
 
+  const back = leadBackHref("/booking");
   const stageDisplay =
     query.data?.stage_name === "В обработке" ? "В работе" : (query.data?.stage_name || "").trim();
   const stageChips = query.data ? leadStageChips(query.data) : { primary: "" };
@@ -590,8 +595,8 @@ export function LeadDetailPage() {
   return (
     <div className="relative mx-auto w-full max-w-2xl space-y-3 pb-10 sm:space-y-8">
       <div className="flex flex-wrap items-center gap-3 px-3 text-sm sm:px-0">
-        <Link to="/booking" className="mo-muted hover:text-[var(--mo-text)]">
-          Онлайн запись
+        <Link to={back.to} className="mo-muted hover:text-[var(--mo-text)]">
+          ← {back.label}
         </Link>
       </div>
 

@@ -65,11 +65,53 @@ export function readLeadReturn(): LeadReturnSpot | null {
   }
 }
 
-function scrollRowIntoMain(main: HTMLElement, row: HTMLElement) {
-  const mainRect = main.getBoundingClientRect();
+/** Куда вести «Назад» с карточки лида. */
+export function leadBackHref(fallback = "/crm"): { to: string; label: string } {
+  const spot = readLeadReturn();
+  if (!spot) return { to: fallback, label: "Назад" };
+  const pathOnly = spot.path.split("?")[0] || spot.path;
+  let label = "Назад";
+  if (pathOnly.startsWith("/booking")) label = "Онлайн запись";
+  else if (pathOnly.startsWith("/crm") || pathOnly === "/") label = "CRM";
+  else if (pathOnly.startsWith("/chat")) label = "Чаты";
+  else if (pathOnly.startsWith("/my-leads")) label = "Мои лиды";
+  else if (pathOnly.startsWith("/kpi") || pathOnly.startsWith("/sales")) label = "KPI";
+  else if (pathOnly.includes("curator") || pathOnly.includes("journal")) label = "Журнал";
+  return { to: spot.path, label };
+}
+
+export function sameReturnPlace(spotPath: string, currentFull: string): boolean {
+  const spotOnly = spotPath.split("?")[0] || spotPath;
+  const curOnly = currentFull.split("?")[0] || currentFull;
+  return spotOnly === curOnly;
+}
+
+function scrollableAncestor(from: HTMLElement, stop: HTMLElement): HTMLElement {
+  let el: HTMLElement | null = from;
+  while (el && el !== stop) {
+    const oy = getComputedStyle(el).overflowY;
+    if ((oy === "auto" || oy === "scroll" || oy === "overlay") && el.scrollHeight > el.clientHeight + 1) {
+      return el;
+    }
+    el = el.parentElement;
+  }
+  return stop;
+}
+
+function scrollRowIntoView(main: HTMLElement, row: HTMLElement) {
+  const scroller = scrollableAncestor(row, main);
+  const scrollerRect = scroller.getBoundingClientRect();
   const rowRect = row.getBoundingClientRect();
-  const next = main.scrollTop + (rowRect.top - mainRect.top) - main.clientHeight / 2 + rowRect.height / 2;
-  main.scrollTo({ top: Math.max(0, next), left: 0, behavior: "auto" });
+  const next =
+    scroller.scrollTop + (rowRect.top - scrollerRect.top) - scroller.clientHeight / 2 + rowRect.height / 2;
+  scroller.scrollTo({ top: Math.max(0, next), left: 0, behavior: "auto" });
+  if (scroller !== main && main.scrollHeight > main.clientHeight + 1) {
+    const mainRect = main.getBoundingClientRect();
+    const rowRect2 = row.getBoundingClientRect();
+    const mainNext =
+      main.scrollTop + (rowRect2.top - mainRect.top) - main.clientHeight / 2 + rowRect2.height / 2;
+    main.scrollTo({ top: Math.max(0, mainNext), left: 0, behavior: "auto" });
+  }
 }
 
 /** Вернуть прокрутку списка к строке карточки. Повторяет, пока таблица догружается. */
@@ -79,16 +121,35 @@ export function restoreLeadPlace(main: HTMLElement, spot: LeadReturnSpot) {
   const apply = () => {
     const row = main.querySelector<HTMLElement>(`[data-lead-row="${spot.leadId}"]`);
     if (row) {
-      scrollRowIntoMain(main, row);
+      scrollRowIntoView(main, row);
       return;
     }
     if (spot.scroll > 0) {
       main.scrollTo({ top: spot.scroll, left: 0, behavior: "auto" });
     }
-    if (performance.now() - started < 2000) {
+    if (performance.now() - started < 2500) {
       requestAnimationFrame(apply);
     }
   };
 
   requestAnimationFrame(apply);
+}
+
+type NavigateFn = (to: string, opts?: { replace?: boolean }) => void;
+
+/** Открыть карточку лида, запомнив откуда и скролл (кнопки navigate, не только <a>). */
+export function openLeadCard(
+  navigate: NavigateFn,
+  leadId: number,
+  opts?: { search?: string; main?: HTMLElement | null },
+) {
+  const path = `${window.location.pathname}${window.location.search}`;
+  rememberLeadReturn({
+    path,
+    scroll: opts?.main?.scrollTop ?? document.querySelector<HTMLElement>("main.shell-main")?.scrollTop ?? 0,
+    leadId,
+    journalSection: readJournalSection(),
+  });
+  const q = (opts?.search || "").replace(/^\?/, "");
+  navigate(q ? `/leads/${leadId}?${q}` : `/leads/${leadId}`);
 }

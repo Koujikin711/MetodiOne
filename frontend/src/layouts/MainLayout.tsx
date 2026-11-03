@@ -20,6 +20,7 @@ import {
   readLeadReturn,
   rememberLeadReturn,
   restoreLeadPlace,
+  sameReturnPlace,
 } from "@/lib/leadReturn";
 
 function MetodiBrandMark({ className = "" }: { className?: string }) {
@@ -161,7 +162,12 @@ export function MainLayout() {
     }
 
     const spot = readLeadReturn();
-    if (closedLeadId != null && spot && spot.path === full && spot.leadId === closedLeadId) {
+    if (
+      closedLeadId != null &&
+      spot &&
+      spot.leadId === closedLeadId &&
+      sameReturnPlace(spot.path, full)
+    ) {
       restoreLeadPlace(main, spot);
       return;
     }

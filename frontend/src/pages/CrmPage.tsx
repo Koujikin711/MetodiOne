@@ -25,6 +25,7 @@ import {
 import toast from "react-hot-toast";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
+import { openLeadCard } from "@/lib/leadReturn";
 import { AccessDenied } from "@/components/AccessDenied";
 import { CrmToolbar } from "@/components/crm/CrmToolbar";
 import { MessageCircle, Phone, Trash2 } from "@/components/icons";
@@ -440,6 +441,7 @@ function LeadCard({
     <div
       ref={setNodeRef}
       style={style}
+      data-lead-row={lead.id}
       {...dragListeners}
       {...attributes}
       onPointerDown={(event) => {
@@ -471,7 +473,7 @@ function LeadCard({
         picking={picking}
         selected={selected}
         onToggleSelect={onToggleSelect}
-        onOpen={() => navigate(`/leads/${lead.id}`)}
+        onOpen={() => openLeadCard(navigate, lead.id)}
         onChat={() => navigate(`/chat?lead_id=${lead.id}`)}
       />
 
@@ -2963,7 +2965,7 @@ export function CrmPage() {
                       </tr>
                     ) : (
                       leadsTableQuery.data.items.map((lead) => (
-                        <tr key={lead.id}>
+                        <tr key={lead.id} data-lead-row={lead.id}>
                           <td className="crm-list-id">{lead.id}</td>
                           <td className="crm-list-name">{lead.name}</td>
                           <td>

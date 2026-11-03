@@ -111,6 +111,7 @@ export function MyLeadsPage() {
               <li key={lead.id} className="w-full min-w-0">
                 <Link
                   to={`/leads/${lead.id}`}
+                  data-lead-row={lead.id}
                   className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 px-3 py-2 transition active:bg-[var(--mo-accent-soft)]"
                 >
                   <p className="min-w-0 truncate text-left text-[14px] font-semibold leading-tight text-[var(--mo-text)]">
@@ -155,6 +156,7 @@ export function MyLeadsPage() {
             <Link
               key={lead.id}
               to={`/leads/${lead.id}`}
+              data-lead-row={lead.id}
               className="mo-section flex min-w-0 items-start gap-3 p-3.5 transition hover:border-[var(--mo-border-strong)] hover:bg-[var(--mo-accent-soft)]"
             >
               <span
