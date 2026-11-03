@@ -433,20 +433,37 @@ async def seed_booking_defaults() -> None:
         await session.commit()
 
 
+LEAD_SOURCE_DEFAULTS = (
+    "GREEN API",
+    "WHATSAPP",
+    "INSTAGRAM",
+    "INSTAGRAM_DM",
+    "INSTAGRAM MC",
+    "TIKTOK",
+    "TELEGRAM",
+    "GOOGLE SHEETS",
+)
+
+
 async def seed_lead_sources_defaults() -> None:
     async with AsyncSessionLocal() as session:
-        cid = await _ensure_default_company(session)
-        defaults = ["GREEN API", "WHATSAPP", "INSTAGRAM", "TELEGRAM", "GOOGLE SHEETS"]
-        existing = (
-            await session.execute(
-                select(LeadSource.name).where(LeadSource.company_id == cid, LeadSource.name.in_(defaults)),
-            )
-        ).all()
-        existing_names = {row[0] for row in existing}
-        for name in defaults:
-            if name in existing_names:
-                continue
-            session.add(LeadSource(name=name, is_active=True, company_id=cid))
+        company_ids = list((await session.execute(select(Company.id))).scalars().all())
+        if not company_ids:
+            company_ids = [await _ensure_default_company(session)]
+        for cid in company_ids:
+            existing = (
+                await session.execute(
+                    select(LeadSource.name).where(
+                        LeadSource.company_id == int(cid),
+                        LeadSource.name.in_(list(LEAD_SOURCE_DEFAULTS)),
+                    ),
+                )
+            ).all()
+            existing_names = {row[0] for row in existing}
+            for name in LEAD_SOURCE_DEFAULTS:
+                if name in existing_names:
+                    continue
+                session.add(LeadSource(name=name, is_active=True, company_id=int(cid)))
         await session.commit()
 
 
@@ -532,14 +549,16 @@ async def _seed_sales_crm_space_inner() -> None:
         ).scalars().all():
             stub_spec.is_active = False
 
-        defaults = ["GREEN API", "WHATSAPP", "INSTAGRAM", "TELEGRAM", "GOOGLE SHEETS"]
         existing = (
             await session.execute(
-                select(LeadSource.name).where(LeadSource.company_id == cid, LeadSource.name.in_(defaults)),
+                select(LeadSource.name).where(
+                    LeadSource.company_id == cid,
+                    LeadSource.name.in_(list(LEAD_SOURCE_DEFAULTS)),
+                ),
             )
         ).all()
         existing_names = {row[0] for row in existing}
-        for name in defaults:
+        for name in LEAD_SOURCE_DEFAULTS:
             if name in existing_names:
                 continue
             session.add(LeadSource(name=name, is_active=True, company_id=cid))
