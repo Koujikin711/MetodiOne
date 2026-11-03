@@ -52,3 +52,14 @@ export function clearChatDraft(threadId: number) {
   delete map[key];
   writeAll(map);
 }
+
+export function hasChatDraft(threadId: number): boolean {
+  return Boolean(readChatDraft(threadId).trim());
+}
+
+/** Короткий превью для списка чатов. */
+export function chatDraftPreview(threadId: number, max = 48): string | null {
+  const raw = readChatDraft(threadId).replace(/\s+/g, " ").trim();
+  if (!raw) return null;
+  return raw.length > max ? `${raw.slice(0, max - 1)}…` : raw;
+}

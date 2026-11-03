@@ -11,7 +11,13 @@ import { useChatRealtime } from "@/hooks/useChatRealtime";
 import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import { apiFetch, getActiveCompanyId, getStoredToken, resolveApiUrl, resolveMediaUrl } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
-import { clearChatDraft, readChatDraft, writeChatDraft } from "@/lib/chatDrafts";
+import {
+  chatDraftPreview,
+  clearChatDraft,
+  hasChatDraft,
+  readChatDraft,
+  writeChatDraft,
+} from "@/lib/chatDrafts";
 import { isRefusalStageName } from "@/lib/leadStageChips";
 import { formatMoney, formatCompactCount } from "@/lib/money";
 import type {
@@ -823,11 +829,13 @@ export function ChatPage() {
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
   }, [text]);
 
+  const [draftTick, setDraftTick] = useState(0);
   // Черновик: при смене диалога текст не пропадает — вернёшься, и он на месте.
   useEffect(() => {
     const prev = draftThreadRef.current;
     if (prev != null && prev !== threadId) {
       writeChatDraft(prev, textRef.current);
+      setDraftTick((n) => n + 1);
     }
     draftThreadRef.current = threadId;
     if (threadId == null) {
@@ -839,7 +847,10 @@ export function ChatPage() {
 
   useEffect(() => {
     if (threadId == null) return;
-    const t = window.setTimeout(() => writeChatDraft(threadId, text), 250);
+    const t = window.setTimeout(() => {
+      writeChatDraft(threadId, text);
+      setDraftTick((n) => n + 1);
+    }, 250);
     return () => window.clearTimeout(t);
   }, [threadId, text]);
 
@@ -1428,6 +1439,10 @@ export function ChatPage() {
               const manager = (t.manager_name || "").trim();
               const phoneShown = threadPhoneForDisplay(t) !== "—";
               const saleLine = saleSummaryLine(t);
+              // draftTick — чтобы список обновил превью при наборе / смене чата
+              void draftTick;
+              const draftLine =
+                t.id !== threadId && hasChatDraft(t.id) ? chatDraftPreview(t.id) : null;
               return (
                 <button
                   key={t.id}
@@ -1468,6 +1483,14 @@ export function ChatPage() {
                         {saleLine}
                       </div>
                     ) : null}
+                    {draftLine ? (
+                      <div
+                        className="mt-0.5 truncate text-[11px] font-medium leading-tight text-amber-600 dark:text-amber-400"
+                        title={`Черновик: ${draftLine}`}
+                      >
+                        <span className="opacity-80">Черновик:</span> {draftLine}
+                      </div>
+                    ) : null}
                     {t.is_transferred && chatBucket !== "transferred" ? (
                       <div className="mt-0.5 text-[10px] font-medium leading-tight text-[var(--mo-warning)]">Передан вам</div>
                     ) : null}
@@ -1478,6 +1501,13 @@ export function ChatPage() {
                       title={`Непрочитано: ${unread}`}
                     >
                       {unread > 99 ? "99+" : unread}
+                    </span>
+                  ) : draftLine ? (
+                    <span
+                      className="mt-0.5 shrink-0 rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold leading-tight text-amber-700 dark:text-amber-300"
+                      title="Есть черновик"
+                    >
+                      ✎
                     </span>
                   ) : null}
                 </button>
