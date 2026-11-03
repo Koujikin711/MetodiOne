@@ -8,6 +8,8 @@ export type LeadReturnSpot = {
   scroll: number;
   leadId: number;
   journalSection: JournalSection | null;
+  /** Онлайн-запись: снова открыть это окно приёма после «Назад». */
+  appointmentId?: number | null;
 };
 
 function isJournalSection(value: unknown): value is JournalSection {
@@ -54,15 +56,30 @@ export function readLeadReturn(): LeadReturnSpot | null {
     const parsed = JSON.parse(raw) as Partial<LeadReturnSpot>;
     if (typeof parsed.path !== "string" || !parsed.path.startsWith("/")) return null;
     if (typeof parsed.leadId !== "number" || parsed.leadId <= 0) return null;
+    const appointmentId =
+      typeof parsed.appointmentId === "number" && parsed.appointmentId > 0
+        ? parsed.appointmentId
+        : null;
     return {
       path: parsed.path,
       scroll: typeof parsed.scroll === "number" && parsed.scroll > 0 ? parsed.scroll : 0,
       leadId: parsed.leadId,
       journalSection: isJournalSection(parsed.journalSection) ? parsed.journalSection : null,
+      appointmentId,
     };
   } catch {
     return null;
   }
+}
+
+/** Забрать appointmentId из spot один раз (чтобы не открывать окно снова при F5). */
+export function consumeReturnAppointmentId(expectedLeadId?: number): number | null {
+  const spot = readLeadReturn();
+  if (!spot?.appointmentId) return null;
+  if (expectedLeadId != null && spot.leadId !== expectedLeadId) return null;
+  const id = spot.appointmentId;
+  rememberLeadReturn({ ...spot, appointmentId: null });
+  return id;
 }
 
 /** Куда вести «Назад» с карточки лида. */
@@ -141,15 +158,21 @@ type NavigateFn = (to: string, opts?: { replace?: boolean }) => void;
 export function openLeadCard(
   navigate: NavigateFn,
   leadId: number,
-  opts?: { search?: string; main?: HTMLElement | null },
+  opts?: { search?: string; main?: HTMLElement | null; appointmentId?: number | null },
 ) {
   const path = `${window.location.pathname}${window.location.search}`;
+  const fromSearch = (opts?.search || "").replace(/^\?/, "");
+  let appointmentId = opts?.appointmentId ?? null;
+  if (appointmentId == null && fromSearch) {
+    const appt = Number(new URLSearchParams(fromSearch).get("appointment") || 0);
+    if (Number.isFinite(appt) && appt > 0) appointmentId = appt;
+  }
   rememberLeadReturn({
     path,
     scroll: opts?.main?.scrollTop ?? document.querySelector<HTMLElement>("main.shell-main")?.scrollTop ?? 0,
     leadId,
     journalSection: readJournalSection(),
+    appointmentId,
   });
-  const q = (opts?.search || "").replace(/^\?/, "");
-  navigate(q ? `/leads/${leadId}?${q}` : `/leads/${leadId}`);
+  navigate(fromSearch ? `/leads/${leadId}?${fromSearch}` : `/leads/${leadId}`);
 }

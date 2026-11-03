@@ -19,7 +19,12 @@ import { PatientPhone } from "@/components/PatientPhone";
 import { BookingSpecialistsFilter } from "@/components/BookingSpecialistsFilter";
 import { SpecialistModal, type SpecialistFormValues } from "@/components/SpecialistModal";
 import { Search, Trash2 } from "@/components/icons";
-import { openLeadCard } from "@/lib/leadReturn";
+import {
+  consumeReturnAppointmentId,
+  openLeadCard,
+  readLeadReturn,
+  sameReturnPlace,
+} from "@/lib/leadReturn";
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeDisplayNameFromToken, decodeRoleFromToken, decodeUserIdFromToken } from "@/lib/auth";
 import {
@@ -305,6 +310,35 @@ export function OnlineBookingPage() {
   const [apptDetail, setApptDetail] = useState<BookingAppointment | null>(null);
   const [nameEditOpen, setNameEditOpen] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
+  const resumeApptDone = useRef(false);
+
+  // После «Назад» с карточки лида — снова то же окно записи, где остановились.
+  useEffect(() => {
+    if (resumeApptDone.current) return;
+    const spot = readLeadReturn();
+    if (!spot?.appointmentId) return;
+    const full = `${window.location.pathname}${window.location.search}`;
+    if (!sameReturnPlace(spot.path, full)) return;
+    resumeApptDone.current = true;
+    const apptId = consumeReturnAppointmentId(spot.leadId);
+    if (apptId == null) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const rows = await apiFetch<BookingAppointment[]>(
+          `/api/booking/appointments?lead_id=${spot.leadId}`,
+        );
+        if (cancelled) return;
+        const found = rows.find((a) => a.id === apptId) ?? null;
+        if (found) setApptDetail(found);
+      } catch {
+        /* список ещё загрузится — окно не критично */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const pipelineForKpiPrice = leadId ? null : newLeadPipelineId;
   const startAtIsoForKpi = useMemo(() => {
     if (!startAt) return null;
@@ -2629,7 +2663,10 @@ export function OnlineBookingPage() {
                     const apptId = apptDetail.id;
                     if (leadId == null) return;
                     setApptDetail(null);
-                    openLeadCard(navigate, leadId, { search: `appointment=${apptId}` });
+                    openLeadCard(navigate, leadId, {
+                      search: `appointment=${apptId}`,
+                      appointmentId: apptId,
+                    });
                   }}
                 >
                   Карточка в CRM
