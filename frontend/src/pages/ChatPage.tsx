@@ -1485,10 +1485,11 @@ export function ChatPage() {
                     ) : null}
                     {draftLine ? (
                       <div
-                        className="mt-0.5 truncate text-[11px] font-medium leading-tight text-amber-600 dark:text-amber-400"
+                        className="mt-0.5 truncate text-[11px] leading-tight mo-muted"
                         title={`Черновик: ${draftLine}`}
                       >
-                        <span className="opacity-80">Черновик:</span> {draftLine}
+                        <span className="font-medium text-amber-600 dark:text-amber-400">Черновик:</span>{" "}
+                        <span className="font-normal">{draftLine}</span>
                       </div>
                     ) : null}
                     {t.is_transferred && chatBucket !== "transferred" ? (
