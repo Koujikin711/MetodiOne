@@ -471,31 +471,20 @@ async def _manager_id_for_manual_lead_create(
     current_user: User,
     company_id: int,
 ) -> int | None:
-    if current_user.role == UserRole.admin:
-        return None
-    if not is_manager_like(current_user.role):
-        return None
-
+    """Новый лид из «Создать» — в общую очередь менеджеров (создатель тоже в пуле)."""
     pipeline_id = stage.pipeline_id
     if pipeline_id is None:
-        return current_user.id
+        return current_user.id if current_user.role == UserRole.manager else None
 
     pipe = await db.get(Pipeline, int(pipeline_id))
     if pipe is None or pipe.company_id != company_id:
-        return current_user.id
+        return current_user.id if current_user.role == UserRole.manager else None
 
-    mode = (pipe.lead_assignment_mode or "none").strip().lower()
-    intake_id = pipe.intake_manager_user_id
-    if (
-        current_user.role == UserRole.manager
-        and intake_id is not None
-        and int(intake_id) == int(current_user.id)
-        and mode in ("round_robin", "least_loaded")
-    ):
-        mid = await assign_manager_for_new_lead(db, pipeline_id=int(pipeline_id))
+    # force=True: равная раздача даже при mode=none; intake/создатель не выкидываются.
+    mid = await assign_manager_for_new_lead(db, pipeline_id=int(pipeline_id), force=True)
+    if mid is not None:
         return mid
-
-    return current_user.id
+    return current_user.id if current_user.role == UserRole.manager else None
 
 
 @router.post("", response_model=LeadRead, status_code=status.HTTP_201_CREATED)
@@ -1126,24 +1115,13 @@ async def import_leads_csv(
         if stage.pipeline_id is not None:
             pipe = await db.get(Pipeline, int(stage.pipeline_id))
             if pipe is not None and pipe.company_id == company_id:
-                mode = (pipe.lead_assignment_mode or "none").strip().lower()
-                intake_id = pipe.intake_manager_user_id
-                if import_as_self:
-                    if (
-                        intake_id is not None
-                        and int(intake_id) == int(current_user.id)
-                        and mode in ("round_robin", "least_loaded")
-                    ):
-                        return await assign_manager_for_new_lead(
-                            db, pipeline_id=int(stage.pipeline_id)
-                        )
-                    return current_user.id
-                # owner/admin: только автораздача на менеджеров, иначе без ответственного
-                if mode in ("round_robin", "least_loaded"):
-                    return await assign_manager_for_new_lead(
-                        db, pipeline_id=int(stage.pipeline_id)
-                    )
-                return None
+                # Как «Создать лид»: равная очередь, импортирующий тоже в пуле.
+                mid = await assign_manager_for_new_lead(
+                    db, pipeline_id=int(stage.pipeline_id), force=True,
+                )
+                if mid is not None:
+                    return mid
+                return current_user.id if import_as_self else None
         return current_user.id if import_as_self else None
 
     for idx, row_map in enumerate(rows, start=2):

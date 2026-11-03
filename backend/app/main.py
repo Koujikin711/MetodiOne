@@ -271,6 +271,7 @@ async def ensure_canonical_pipeline_stages() -> None:
             from app.services.manager_daily_lead_quotas import apply_mavluda_daily_archive_quota
             from app.services.manager_mulkiya_leads import apply_mulkiya_receives_new_leads
             from app.services.ganjina_also_expert import apply_ganjina_also_expert
+            from app.services.lead_assignment import ensure_pipelines_equal_lead_assignment
             from app.services.protocol_reassign import reassign_protocols_from_inactive_managers
 
             n = await ensure_all_pipelines_chat_stages(session)
@@ -278,17 +279,20 @@ async def ensure_canonical_pipeline_stages() -> None:
             blocked = await apply_blocked_managers_new_leads_policy(session)
             mavluda = await apply_mavluda_daily_archive_quota(session)
             mulkiya = await apply_mulkiya_receives_new_leads(session)
+            lead_rr = await ensure_pipelines_equal_lead_assignment(session)
             protocols_moved = await reassign_protocols_from_inactive_managers(session)
             ganjina = await apply_ganjina_also_expert(session)
             await session.commit()
             logger.info(
                 "Canonical pipeline stages: %s pipeline(s); backfill archived_from=%s; "
-                "new_leads_block=%s; mavluda_quota=%s; mulkiya_leads=%s; protocols_from_inactive=%s; ganjina_expert=%s",
+                "new_leads_block=%s; mavluda_quota=%s; mulkiya_leads=%s; lead_rr=%s; "
+                "protocols_from_inactive=%s; ganjina_expert=%s",
                 n,
                 backfilled,
                 blocked,
                 mavluda,
                 mulkiya,
+                lead_rr,
                 protocols_moved,
                 ganjina,
             )

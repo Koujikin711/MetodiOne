@@ -2,12 +2,35 @@
 
 from __future__ import annotations
 
+import logging
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.rbac import is_lead_assignee_role
 from app.models import Lead, Pipeline, PipelineStage, User, UserPipelineAssignment, UserRole
 from app.services.manager_daily_lead_quotas import filter_managers_by_new_leads_quota
+
+logger = logging.getLogger(__name__)
+
+
+async def ensure_pipelines_equal_lead_assignment(db: AsyncSession) -> dict[str, int]:
+    """Все воронки с менеджерами — round_robin (если не least_loaded).
+
+    Чтобы Meta / WA / «Создать лид» делились поровну, а не зависели от mode=none.
+    """
+    pipes = (await db.execute(select(Pipeline))).scalars().all()
+    updated = 0
+    for pipe in pipes:
+        mode = (pipe.lead_assignment_mode or "none").strip().lower()
+        if mode in ("round_robin", "least_loaded"):
+            continue
+        pipe.lead_assignment_mode = "round_robin"
+        updated += 1
+    if updated:
+        await db.flush()
+        logger.info("lead_assignment: set round_robin on %s pipeline(s)", updated)
+    return {"updated": updated}
 
 
 async def list_pipeline_manager_ids(
