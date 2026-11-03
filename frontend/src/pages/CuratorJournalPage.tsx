@@ -478,9 +478,16 @@ export function CuratorJournalPage() {
     if (!parent || parent.offsetWidth === 0) return false;
     const el = parent.querySelector<HTMLElement>(`[data-day="${today}"]`);
     if (!el) return false;
+    // Sticky слева: ФИО + «Удалить» — иначе сегодняшний стол прячется под «Удалить».
     const nameW = parent.querySelector<HTMLElement>(".cj-sticky-corner")?.getBoundingClientRect().width ?? 0;
+    const removeW =
+      parent.querySelector<HTMLElement>("thead .cj-remove-col")?.getBoundingClientRect().width ?? 0;
+    const stickyW = nameW + removeW;
     const left =
-      parent.scrollLeft + (el.getBoundingClientRect().left - parent.getBoundingClientRect().left) - nameW;
+      parent.scrollLeft +
+      (el.getBoundingClientRect().left - parent.getBoundingClientRect().left) -
+      stickyW -
+      2;
     parent.scrollLeft = Math.max(0, left);
     return true;
   }
@@ -489,10 +496,21 @@ export function CuratorJournalPage() {
     if (!monthQuery.data || didScrollToday.current) return;
     const today = todayIso();
     if (!monthQuery.data.days.includes(today)) return;
-    if (!scrollJournalToToday()) return;
-    didScrollToday.current = true;
-    setSelectedDay(today);
-    setMobileDay(today);
+    const tryScroll = () => {
+      if (!scrollJournalToToday()) return false;
+      didScrollToday.current = true;
+      setSelectedDay(today);
+      setMobileDay(today);
+      return true;
+    };
+    if (tryScroll()) return;
+    // Таблица ещё не в ширине — повтор после layout.
+    const id = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        tryScroll();
+      });
+    });
+    return () => window.cancelAnimationFrame(id);
   }, [monthQuery.data, year, month, selectedFlowId]);
 
   const upsertMut = useMutation({
