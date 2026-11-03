@@ -11,6 +11,7 @@ import { useChatRealtime } from "@/hooks/useChatRealtime";
 import { useCurrentUserMe } from "@/hooks/useCurrentUserMe";
 import { apiFetch, getActiveCompanyId, getStoredToken, resolveApiUrl, resolveMediaUrl } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
+import { clearChatDraft, readChatDraft, writeChatDraft } from "@/lib/chatDrafts";
 import { isRefusalStageName } from "@/lib/leadStageChips";
 import { formatMoney, formatCompactCount } from "@/lib/money";
 import type {
@@ -812,12 +813,36 @@ export function ChatPage() {
   }
 
   const [text, setText] = useState("");
+  const textRef = useRef(text);
+  textRef.current = text;
+  const draftThreadRef = useRef<number | null>(null);
   useEffect(() => {
     const el = composerRef.current;
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
   }, [text]);
+
+  // Черновик: при смене диалога текст не пропадает — вернёшься, и он на месте.
+  useEffect(() => {
+    const prev = draftThreadRef.current;
+    if (prev != null && prev !== threadId) {
+      writeChatDraft(prev, textRef.current);
+    }
+    draftThreadRef.current = threadId;
+    if (threadId == null) {
+      setText("");
+      return;
+    }
+    setText(readChatDraft(threadId));
+  }, [threadId]);
+
+  useEffect(() => {
+    if (threadId == null) return;
+    const t = window.setTimeout(() => writeChatDraft(threadId, text), 250);
+    return () => window.clearTimeout(t);
+  }, [threadId, text]);
+
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [voiceFinishing, setVoiceFinishing] = useState(false);
@@ -1003,6 +1028,7 @@ export function ChatPage() {
     },
     onSuccess: () => {
       setText("");
+      if (threadId != null) clearChatDraft(threadId);
       setPendingFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       void qc.invalidateQueries({ queryKey: ["chat-messages", threadId] });
