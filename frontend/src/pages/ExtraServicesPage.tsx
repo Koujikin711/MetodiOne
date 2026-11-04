@@ -138,6 +138,30 @@ const fieldClass = "mo-input mt-1.5 w-full min-w-0";
 
 const PAYMENT_PRESETS = ["Касса", "ДС", "Алиф", "Эсхата"] as const;
 
+/** Подпункты УЗИ: фиксированные цены (сомони). */
+export const UZI_SUBTYPES = [
+  { id: "abdomen", label: "Брюшная полость (печень, селезёнка, поджелудочная)", price: 100 },
+  { id: "kidneys", label: "Почки", price: 80 },
+  { id: "thyroid", label: "Щитовидка", price: 70 },
+] as const;
+
+export type UziSubtypeId = (typeof UZI_SUBTYPES)[number]["id"];
+
+export function isUziServiceName(name: string | null | undefined): boolean {
+  const n = (name || "").trim().toLowerCase().replace(/\s+/g, " ");
+  return n === "узи" || n.startsWith("узи ") || n.startsWith("узи/");
+}
+
+export function uziSelectedSum(selected: ReadonlySet<string> | Iterable<string>): number {
+  const set = selected instanceof Set ? selected : new Set(selected);
+  return UZI_SUBTYPES.reduce((acc, row) => (set.has(row.id) ? acc + row.price : acc), 0);
+}
+
+export function uziSelectedLabels(selected: ReadonlySet<string> | Iterable<string>): string[] {
+  const set = selected instanceof Set ? selected : new Set(selected);
+  return UZI_SUBTYPES.filter((row) => set.has(row.id)).map((row) => row.label);
+}
+
 export function ExtraServicesPage() {
   const qc = useQueryClient();
   const role = decodeRoleFromToken(getStoredToken());
@@ -169,11 +193,22 @@ export function ExtraServicesPage() {
   const [paymentPreset, setPaymentPreset] = useState<string>("");
   const [paymentCustom, setPaymentCustom] = useState("");
   const [note, setNote] = useState("");
+  const [uziSelected, setUziSelected] = useState<Set<UziSubtypeId>>(() => new Set());
   const paymentMethod =
     paymentPreset === "other" ? paymentCustom.trim() : paymentPreset.trim();
 
   const selectedType = activeTypes.find((t) => t.id === serviceTypeId) ?? null;
-  const amountNum = Number(String(amount).replace(",", ".")) || 0;
+  const isUzi = isUziServiceName(selectedType?.name);
+  const uziSum = uziSelectedSum(uziSelected);
+  const amountNum = isUzi ? uziSum : Number(String(amount).replace(",", ".")) || 0;
+
+  useEffect(() => {
+    if (!isUzi) {
+      setUziSelected(new Set());
+      return;
+    }
+    setAmount(uziSum > 0 ? String(uziSum) : "");
+  }, [isUzi, uziSum]);
   const previewKeep =
     selectedType && amountNum > 0
       ? Math.round(((amountNum * n(selectedType.keep_percent)) / 100) * 100) / 100
@@ -182,8 +217,10 @@ export function ExtraServicesPage() {
     selectedType && amountNum > 0 ? Math.round((amountNum - previewKeep) * 100) / 100 : 0;
 
   const createSale = useMutation({
-    mutationFn: () =>
-      apiFetch<ExtraServiceSale>("/api/extra-services/sales", {
+    mutationFn: () => {
+      const uziNote = isUzi ? uziSelectedLabels(uziSelected).join("; ") : "";
+      const mergedNote = [uziNote, note.trim()].filter(Boolean).join(" · ") || null;
+      return apiFetch<ExtraServiceSale>("/api/extra-services/sales", {
         method: "POST",
         body: JSON.stringify({
           service_type_id: serviceTypeId,
@@ -192,9 +229,10 @@ export function ExtraServicesPage() {
           amount: amountNum,
           sold_at: soldDate ? `${soldDate}T12:00:00+00:00` : null,
           payment_method: paymentMethod,
-          note: note.trim() || null,
+          note: mergedNote,
         }),
-      }),
+      });
+    },
     onSuccess: () => {
       toast.success("Доп. услуга сохранена");
       setClientName("");
@@ -203,11 +241,21 @@ export function ExtraServicesPage() {
       setPaymentPreset("");
       setPaymentCustom("");
       setNote("");
+      setUziSelected(new Set());
       void qc.invalidateQueries({ queryKey: ["extra-service-sales"] });
       void qc.invalidateQueries({ queryKey: ["extra-service-report"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  function toggleUziSubtype(id: UziSubtypeId) {
+    setUziSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   function onSubmitSale(e: FormEvent) {
     e.preventDefault();
@@ -219,8 +267,12 @@ export function ExtraServicesPage() {
       toast.error("Укажите ФИО");
       return;
     }
+    if (isUzi && uziSelected.size === 0) {
+      toast.error("Выберите хотя бы одно исследование УЗИ");
+      return;
+    }
     if (!(amountNum > 0)) {
-      toast.error("Укажите сумму");
+      toast.error(isUzi ? "Отметьте зоны УЗИ — сумма посчитается сама" : "Укажите сумму");
       return;
     }
     if (!paymentMethod) {
@@ -427,6 +479,41 @@ export function ExtraServicesPage() {
                 )}
               </p>
             ) : null}
+            {isUzi ? (
+              <div className="rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] p-3">
+                <div className="text-sm font-medium text-[var(--mo-text)]">Зоны УЗИ</div>
+                <p className="mt-0.5 text-[11px] mo-muted">Отметьте галочкой — сумма сложится из фиксированных цен.</p>
+                <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
+                  {UZI_SUBTYPES.map((row) => {
+                    const checked = uziSelected.has(row.id);
+                    return (
+                      <li key={row.id} className="min-w-0">
+                        <label className="flex cursor-pointer items-start gap-2 text-sm text-[var(--mo-text)]">
+                          <input
+                            type="checkbox"
+                            className="mt-1 h-4 w-4 shrink-0 accent-[var(--mo-accent)]"
+                            checked={checked}
+                            onChange={() => toggleUziSubtype(row.id)}
+                          />
+                          <span className="min-w-0">
+                            <span className="font-medium">{row.label}</span>
+                            <span className="ml-1.5 text-[11px] mo-muted tabular-nums">
+                              {formatMoney(row.price)}
+                            </span>
+                          </span>
+                        </label>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <div className="mt-3 flex items-baseline justify-between border-t border-[var(--mo-border)] pt-2 text-sm">
+                  <span className="mo-muted">Итого УЗИ</span>
+                  <span className="font-semibold tabular-nums text-[var(--mo-text)]">
+                    {formatMoney(uziSum)}
+                  </span>
+                </div>
+              </div>
+            ) : null}
             <label className="extra-services-field">
               <span className="extra-services-field__label">ФИО клиента</span>
               <input
@@ -449,14 +536,20 @@ export function ExtraServicesPage() {
             </label>
             <div className="extra-services-form__row3">
               <label className="extra-services-field">
-                <span className="extra-services-field__label">Сумма</span>
+                <span className="extra-services-field__label">
+                  Сумма{isUzi ? " (авто)" : ""}
+                </span>
                 <input
                   className={fieldClass}
                   inputMode="decimal"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
+                  value={isUzi ? (uziSum > 0 ? String(uziSum) : "") : amount}
+                  onChange={(e) => {
+                    if (!isUzi) setAmount(e.target.value);
+                  }}
                   placeholder="0"
-                  required
+                  required={!isUzi}
+                  readOnly={isUzi}
+                  title={isUzi ? "Считается из выбранных зон УЗИ" : undefined}
                 />
               </label>
               <label className="extra-services-field">
