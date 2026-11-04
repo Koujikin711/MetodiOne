@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
+import { RopPageIntro } from "@/components/RopPageIntro";
 import { apiFetch } from "@/lib/api";
-import { DateField } from "@/components/DateField";
 import { PrintMasthead, PrintSign, printPeriod } from "@/components/PrintMasthead";
 import { useRopContext } from "@/pages/rop/RopLayout";
 
@@ -24,15 +24,6 @@ type Analytics = {
   revenue_total: number | string;
 };
 
-function todayYmd() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function monthStartYmd() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
-}
-
 function money(v: number | string) {
   return Number(v || 0).toLocaleString("ru-RU", { maximumFractionDigits: 0 });
 }
@@ -47,9 +38,7 @@ function formatMinutes(v: number | null | undefined) {
 }
 
 export function RopAnalyticsPage() {
-  const { pipelineId } = useRopContext();
-  const [from, setFrom] = useState(monthStartYmd);
-  const [to, setTo] = useState(todayYmd);
+  const { pipelineId, from, to } = useRopContext();
   const [openId, setOpenId] = useState<number | null>(null);
 
   const query = useQuery({
@@ -87,23 +76,17 @@ export function RopAnalyticsPage() {
   return (
     <div className="mo-print-doc flex flex-col gap-4">
       <PrintMasthead title="Аналитика отдела продаж" meta={printPeriod(from, to)} />
-      <div className="print-screen-only rop-date-row">
-        <label className="rop-date-field text-sm mo-muted">
-          С
-          <DateField value={from} onChange={setFrom} className="mo-input mt-1" />
-        </label>
-        <label className="rop-date-field text-sm mo-muted">
-          По
-          <DateField value={to} onChange={setTo} className="mo-input mt-1" />
-        </label>
-      </div>
+      <RopPageIntro
+        title="Аналитика"
+        hint="Скорость первого ответа клиенту и выручка по менеджерам за период (с / по в шапке)."
+      />
 
       {query.isLoading ? (
         <p className="text-sm mo-muted">Загрузка…</p>
       ) : (
         <>
           <div className="rounded-xl border border-[var(--mo-border)] p-4">
-            <h3 className="font-medium">Среднее время ответа</h3>
+            <h3 className="font-medium">Среднее время первого ответа</h3>
             <p className="mt-1 text-2xl tabular-nums">
               {formatMinutes(data?.avg_first_response_minutes)}
             </p>
@@ -123,6 +106,17 @@ export function RopAnalyticsPage() {
                       <td className="py-1 text-right tabular-nums">{m.leads_count}</td>
                       <td className="py-1 text-right tabular-nums">
                         {formatMinutes(m.avg_first_response_minutes)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-[var(--mo-border)] p-4">
+            <h3 className="font-medium">Выручка по менеджерам</h3>
+            <p className="mt-1 text-sm mo-muted">Всего оплат: {money(data?.revenue_total ?? 0)}</p>
                       </td>
                     </tr>
                   ))}

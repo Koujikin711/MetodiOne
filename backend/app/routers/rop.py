@@ -64,6 +64,7 @@ from app.services.presence_time import online_seconds_so_far, presence_gap_secon
 from app.services.clinic_roles import can_access_rop
 from app.services.lead_extra_phones import lead_has_contact_phone
 from app.services.lead_sales_stages import ARCHIVE_STAGE_NAME, CLOSED_OUTCOME_STAGE_NAMES
+from app.services.phone_match import phone_search_digit_variants
 from app.services.sales_kpi_weighted import _norm_kpi_label, load_plan_items
 
 # Не «активные» на дашборде: исход или архив.
@@ -1293,11 +1294,53 @@ async def rop_search(
     q: str = Query(..., min_length=2, max_length=120),
     limit: int = Query(20, ge=1, le=50),
 ) -> list[RopSearchPatient]:
+    """Поиск пациента по ФИО / телефону — история визитов из онлайн-записи."""
     _assert_rop(current_user)
     term = q.strip()
     if not term:
         return []
     like = f"%{term}%"
+    digits = "".join(ch for ch in term if ch.isdigit())
+    digit_variants = phone_search_digit_variants(term)
+    match_conds = [
+        BookingAppointment.patient_name.ilike(like),
+        BookingAppointment.patient_phone.ilike(like),
+    ]
+    # Телефон любой страны: +992 / +7 / +1 / 8… — по цифрам без маски.
+    if digit_variants:
+        phone_digits_expr = func.regexp_replace(
+            func.coalesce(BookingAppointment.patient_phone, ""),
+            r"\D",
+            "",
+            "g",
+        )
+        for variant in digit_variants:
+            match_conds.append(phone_digits_expr.like(f"%{variant}%"))
+    if digits and term.isdigit() and len(digits) <= 10:
+        num = int(digits)
+        match_conds.append(BookingAppointment.lead_id == num)
+        match_conds.append(BookingAppointment.id == num)
+
+    # Лид CRM по имени/телефону → его записи тоже в выдачу.
+    lead_match = [
+        Lead.name.ilike(like),
+        Lead.phone.ilike(like),
+    ]
+    if digit_variants:
+        lead_phone_digits = func.regexp_replace(func.coalesce(Lead.phone, ""), r"\D", "", "g")
+        for variant in digit_variants:
+            lead_match.append(lead_phone_digits.like(f"%{variant}%"))
+    lead_ids = (
+        await db.execute(
+            select(Lead.id)
+            .where(Lead.company_id == company_id, or_(*lead_match))
+            .order_by(Lead.id.desc())
+            .limit(40)
+        )
+    ).scalars().all()
+    if lead_ids:
+        match_conds.append(BookingAppointment.lead_id.in_([int(x) for x in lead_ids]))
+
     rows = (
         await db.execute(
             select(
@@ -1313,13 +1356,10 @@ async def rop_search(
                 BookingSpecialist.full_name,
             )
             .select_from(BookingAppointment)
-            .join(BookingSpecialist, BookingAppointment.specialist_id == BookingSpecialist.id)
+            .outerjoin(BookingSpecialist, BookingAppointment.specialist_id == BookingSpecialist.id)
             .where(
                 BookingAppointment.company_id == company_id,
-                or_(
-                    BookingAppointment.patient_name.ilike(like),
-                    BookingAppointment.patient_phone.ilike(like),
-                ),
+                or_(*match_conds),
             )
             .order_by(BookingAppointment.start_at.desc(), BookingAppointment.id.desc())
             .limit(limit * 25)
@@ -1347,7 +1387,7 @@ async def rop_search(
     ) in rows:
         name = (patient_name or "").strip() or "Клиент"
         phone = (patient_phone or "").strip() or "—"
-        key = (name.lower(), phone)
+        key = (name.casefold(), phone)
         item = grouped.get(key)
         if item is None:
             if len(grouped) >= limit:

@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
+import { RopPageIntro } from "@/components/RopPageIntro";
 import { apiFetch } from "@/lib/api";
-import { DateField } from "@/components/DateField";
 import { useRopContext } from "@/pages/rop/RopLayout";
 
 type Stats = {
@@ -16,19 +16,8 @@ type Stats = {
   }[];
 };
 
-function todayYmd() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function monthStartYmd() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
-}
-
 export function RopStatsPage() {
-  const { pipelineId } = useRopContext();
-  const [from, setFrom] = useState(monthStartYmd);
-  const [to, setTo] = useState(todayYmd);
+  const { pipelineId, from, to } = useRopContext();
 
   const query = useQuery({
     queryKey: ["rop-stats", pipelineId, from, to],
@@ -45,17 +34,10 @@ export function RopStatsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="rop-date-row">
-        <label className="rop-date-field text-sm mo-muted">
-          С
-          <DateField value={from} onChange={setFrom} className="mo-input mt-1" />
-        </label>
-        <label className="rop-date-field text-sm mo-muted">
-          По
-          <DateField value={to} onChange={setTo} className="mo-input mt-1" />
-        </label>
-      </div>
-
+      <RopPageIntro
+        title="Статистика"
+        hint="Воронка по каждому менеджеру за период сверху (с / по). Сколько лидов пришло и как они разошлись по стадиям."
+      />
       {query.isLoading ? (
         <p className="text-sm mo-muted">Загрузка…</p>
       ) : (
@@ -65,7 +47,7 @@ export function RopStatsPage() {
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h3 className="font-medium">{m.full_name}</h3>
                 <span className="text-sm mo-muted">
-                  Пришло {m.leads_in} · обработал {m.processed} ({m.conversion_percent}%)
+                  Получил {m.leads_in} · обработал {m.processed} ({m.conversion_percent}%)
                 </span>
               </div>
               {m.stages.length > 0 && (
@@ -74,8 +56,8 @@ export function RopStatsPage() {
                     <thead className="text-xs mo-muted">
                       <tr>
                         <th className="py-1.5 text-left font-normal">Стадия</th>
-                        <th className="w-32 py-1.5 text-right font-normal">Кол-во</th>
-                        <th className="w-28 py-1.5 text-right font-normal">%</th>
+                        <th className="w-32 py-1.5 text-right font-normal">Лидов</th>
+                        <th className="w-28 py-1.5 text-right font-normal">Доля</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -83,7 +65,7 @@ export function RopStatsPage() {
                         <tr key={s.stage_id} className="border-t border-[var(--mo-border)]">
                           <td className="py-1">{s.stage_name}</td>
                           <td className="py-1 text-right tabular-nums">{s.count}</td>
-                          <td className="py-1 text-right tabular-nums">{s.percent}</td>
+                          <td className="py-1 text-right tabular-nums">{s.percent}%</td>
                         </tr>
                       ))}
                     </tbody>

@@ -1,5 +1,5 @@
 from app.services.chat_outbound_policy import outbound_message_allowed
-from app.services.phone_match import phones_equivalent, whatsapp_e164_digits
+from app.services.phone_match import phone_search_digit_variants, phones_equivalent, whatsapp_e164_digits
 from app.models import User, UserRole
 
 
@@ -7,6 +7,22 @@ def test_phones_equivalent_tj_variants():
     assert phones_equivalent("+992901234567", "901234567")
     assert phones_equivalent("992901234567", "+992 90 123 45 67")
     assert not phones_equivalent("+992901234567", "+992907654321")
+
+
+def test_phones_equivalent_ru_and_us():
+    assert phones_equivalent("8 (916) 123-45-67", "+7 916 123 45 67")
+    assert phones_equivalent("+1 415 555 2671", "4155552671")
+    assert phones_equivalent("+14155552671", "1-415-555-2671")
+
+
+def test_phone_search_digit_variants_countries():
+    tj = phone_search_digit_variants("+992 90 123-45-67")
+    assert "992901234567" in tj
+    assert "901234567" in tj
+    ru = phone_search_digit_variants("89161234567")
+    assert "79161234567" in ru and "89161234567" in ru
+    us = phone_search_digit_variants("+1 (415) 555-2671")
+    assert "14155552671" in us and "4155552671" in us
 
 
 def test_whatsapp_e164_digits_adds_tj_cc():

@@ -4,26 +4,38 @@ import { useQuery } from "@tanstack/react-query";
 import { Outlet, useLocation, useNavigate, useOutletContext } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 
+import { DateField } from "@/components/DateField";
 import { PrintButton } from "@/components/PrintButton";
+import { Search } from "@/components/icons";
 import { apiFetch } from "@/lib/api";
 import type { Pipeline } from "@/lib/types";
 
+/** Порядок: Дашборд → Распределение → Статистика → Аналитика → Отчёт; поиск — иконка у печати. */
 const TABS = [
   { to: "/rop", end: true, label: "Дашборд" },
-  { to: "/rop/stats", label: "Статистика" },
   { to: "/rop/distribute", label: "Распределение" },
-  { to: "/rop/search", label: "Поиск" },
-] as const;
-
-const HEADER_LINKS = [
+  { to: "/rop/stats", label: "Статистика" },
   { to: "/rop/analytics", label: "Аналитика" },
   { to: "/rop/report", label: "Отчёт" },
 ] as const;
+
+function todayYmd() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function monthStartYmd() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+}
 
 export type RopOutletContext = {
   pipelineId: number | null;
   setPipelineId: (id: number) => void;
   pipelines: Pipeline[];
+  from: string;
+  to: string;
+  setFrom: (v: string) => void;
+  setTo: (v: string) => void;
 };
 
 export function useRopContext() {
@@ -39,6 +51,14 @@ export function RopLayout() {
   });
   const pipelines = pipelinesQuery.data ?? [];
   const [pipelineId, setPipelineId] = useState<number | null>(null);
+  const [from, setFrom] = useState(monthStartYmd);
+  const [to, setTo] = useState(todayYmd);
+
+  const showPeriod =
+    pathname.startsWith("/rop/stats") ||
+    pathname.startsWith("/rop/analytics") ||
+    pathname.startsWith("/rop/report");
+  const searchActive = pathname.startsWith("/rop/search");
 
   useEffect(() => {
     if (pipelineId != null || pipelines.length === 0) return;
@@ -47,8 +67,8 @@ export function RopLayout() {
   }, [pipelines, pipelineId]);
 
   const ctx = useMemo(
-    () => ({ pipelineId, setPipelineId, pipelines }),
-    [pipelineId, pipelines],
+    () => ({ pipelineId, setPipelineId, pipelines, from, to, setFrom, setTo }),
+    [pipelineId, pipelines, from, to],
   );
 
   return (
@@ -59,29 +79,41 @@ export function RopLayout() {
           <p className="mo-page-sub">Отдел продаж: менеджеры, лиды, выручка</p>
         </div>
         <div className="flex flex-wrap items-end gap-2">
-          {HEADER_LINKS.map((t) => {
-            const active = pathname === t.to || pathname.startsWith(`${t.to}/`);
-            return (
-              <button
-                key={t.to}
-                type="button"
-                onClick={() => navigate(t.to)}
-                className={[
-                  "rounded-lg border px-3 py-2 text-sm transition",
-                  active
-                    ? "border-[var(--mo-accent)] bg-[var(--mo-accent)]/15 font-medium text-[var(--mo-text)]"
-                    : "border-[var(--mo-border)] bg-[var(--mo-surface)] mo-muted hover:text-[var(--mo-text)]",
-                ].join(" ")}
-              >
-                {t.label}
-              </button>
-            );
-          })}
+          {showPeriod ? (
+            <div className="rop-date-row rop-date-row--toolbar" role="group" aria-label="Период">
+              <label className="rop-date-field text-sm mo-muted">
+                с
+                <DateField value={from} onChange={setFrom} className="mt-1" aria-label="Дата с" />
+              </label>
+              <label className="rop-date-field text-sm mo-muted">
+                по
+                <DateField value={to} onChange={setTo} className="mt-1" aria-label="Дата по" />
+              </label>
+            </div>
+          ) : null}
           <PrintButton />
-          <label className="text-sm mo-muted">
-            Воронка
+          <button
+            type="button"
+            className={[
+              "journal-icon-btn print-hide inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] text-[var(--mo-text)]",
+              searchActive ? "border-[var(--mo-accent)] bg-[var(--mo-accent)]/15" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            aria-label="Поиск пациента"
+            title="Поиск пациента"
+            aria-current={searchActive ? "page" : undefined}
+            onClick={() => navigate("/rop/search")}
+          >
+            <Search className="h-5 w-5" />
+            <span className="journal-icon-btn__tip" role="tooltip">
+              Поиск
+            </span>
+          </button>
+          <label className="rop-pipeline-field text-sm mo-muted">
+            <span className="rop-pipeline-field__label">Воронка</span>
             <select
-              className="mo-input mt-1 min-w-[12rem]"
+              className="mo-input rop-pipeline-field__select"
               value={pipelineId ?? ""}
               onChange={(e) => setPipelineId(Number(e.target.value))}
               disabled={!pipelines.length}
@@ -96,7 +128,7 @@ export function RopLayout() {
         </div>
       </div>
 
-      <nav className="print-screen-only flex flex-wrap gap-1 border-b border-[var(--mo-border)] pb-1">
+      <nav className="rop-tabs print-screen-only" aria-label="Разделы кабинета РОП">
         {TABS.map((t) => {
           const exact = "end" in t ? t.end : false;
           const active = exact ? pathname === t.to : pathname === t.to || pathname.startsWith(`${t.to}/`);
@@ -105,12 +137,8 @@ export function RopLayout() {
               key={t.to}
               type="button"
               onClick={() => navigate(t.to)}
-              className={[
-                "cursor-pointer rounded-lg border-0 bg-transparent px-3 py-1.5 font-[inherit] text-sm transition",
-                active
-                  ? "bg-[var(--mo-accent)]/15 font-medium text-[var(--mo-text)]"
-                  : "mo-muted hover:bg-[var(--mo-surface)] hover:text-[var(--mo-text)]",
-              ].join(" ")}
+              className={["rop-tabs__item", active ? "is-active" : ""].filter(Boolean).join(" ")}
+              aria-current={active ? "page" : undefined}
             >
               {t.label}
             </button>

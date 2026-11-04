@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import toast from "react-hot-toast";
 
+import { RopPageIntro } from "@/components/RopPageIntro";
 import { apiFetch } from "@/lib/api";
 import { useRopContext } from "@/pages/rop/RopLayout";
 
@@ -90,16 +91,20 @@ export function RopDashboardPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm mo-muted">
-          В сети: <strong className="text-[var(--mo-text)]">{dashQuery.data?.online_count ?? 0}</strong>
-          {" · "}
-          {formatIsoDate(dashQuery.data?.date)}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <RopPageIntro
+          title="Дашборд"
+          hint="Кто в сети сейчас, сколько лидов в работе и какая выручка за сегодня."
+        />
         <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm mo-muted">
+            В сети: <strong className="text-[var(--mo-text)]">{dashQuery.data?.online_count ?? 0}</strong>
+            {" · "}
+            {formatIsoDate(dashQuery.data?.date)}
+          </p>
           <button
             type="button"
-            className="mo-btn-primary text-sm"
+            className="btn-secondary text-sm"
             disabled={dashQuery.isFetching}
             onClick={() => qc.invalidateQueries({ queryKey: ["rop-dashboard", pipelineId] })}
           >
@@ -107,7 +112,7 @@ export function RopDashboardPage() {
           </button>
           <button
             type="button"
-            className="mo-btn-primary text-sm"
+            className="btn-primary text-sm"
             disabled={dayCloseMutation.isPending}
             onClick={() => dayCloseMutation.mutate()}
           >
@@ -125,11 +130,11 @@ export function RopDashboardPage() {
               <tr>
                 <th className="px-3 py-2">Менеджер</th>
                 <th className="px-3 py-2">Статус</th>
-                <th className="px-3 py-2">Время в сети</th>
-                <th className="px-3 py-2">Активные</th>
-                <th className="px-3 py-2">Новые сегодня</th>
-                <th className="px-3 py-2">Удачно сегодня</th>
-                <th className="px-3 py-2">Принёс сегодня</th>
+                <th className="px-3 py-2">В сети сегодня</th>
+                <th className="px-3 py-2">В работе</th>
+                <th className="px-3 py-2">Новые</th>
+                <th className="px-3 py-2">Удачные</th>
+                <th className="px-3 py-2">Выручка</th>
               </tr>
             </thead>
             <tbody>

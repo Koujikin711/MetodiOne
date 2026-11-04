@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
+import { RopPageIntro } from "@/components/RopPageIntro";
 import { apiFetch } from "@/lib/api";
-import { DateField } from "@/components/DateField";
 import { PrintMasthead, PrintSign, printPeriod } from "@/components/PrintMasthead";
 import { useRopContext } from "@/pages/rop/RopLayout";
 
@@ -25,15 +25,6 @@ type Report = {
   full_paid_total?: number | string;
 };
 
-function todayYmd() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function monthStartYmd() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
-}
-
 function money(v: number | string | undefined) {
   return Number(v || 0).toLocaleString("ru-RU", { maximumFractionDigits: 0 });
 }
@@ -43,9 +34,7 @@ function num(v: number | string | undefined) {
 }
 
 export function RopReportPage() {
-  const { pipelineId } = useRopContext();
-  const [from, setFrom] = useState(monthStartYmd);
-  const [to, setTo] = useState(todayYmd);
+  const { pipelineId, from, to } = useRopContext();
   const [openId, setOpenId] = useState<number | null>(null);
 
   const query = useQuery({
@@ -103,26 +92,30 @@ export function RopReportPage() {
   return (
     <div className="mo-print-doc flex flex-col gap-4">
       <PrintMasthead title="Отчёт отдела продаж" meta={printPeriod(from, to)} />
-      <div className="print-screen-only rop-date-row">
-        <label className="rop-date-field text-sm mo-muted">
-          С
-          <DateField value={from} onChange={setFrom} className="mo-input mt-1" />
-        </label>
-        <label className="rop-date-field text-sm mo-muted">
-          По
-          <DateField value={to} onChange={setTo} className="mo-input mt-1" />
-        </label>
-      </div>
+      <RopPageIntro
+        title="Отчёт"
+        hint="Выручка по услугам KPI за период. Конверсия — доля полностью оплаченных от проданных."
+      />
 
       <div className="rounded-xl border border-[var(--mo-border)] p-4">
-        <h3 className="font-medium">Выручка отдела продаж</h3>
-        <p className="print-screen-only mt-2 text-sm mo-muted">
-          Только услуги из плана KPI за месяцы периода. KPI «Факт» — визиты с оплатой 100%. Здесь
-          суммы: продали (цена услуги) и полностью оплатили. Конверсия = полностью / продано.
-        </p>
-        <div className="mt-3 flex flex-wrap gap-4 text-sm">
-          <span>
-            Продали <strong className="tabular-nums">{money(soldTotal)}</strong>
+        <h3 className="font-medium">Выручка отдела</h3>
+        <div className="rop-metric-strip mt-3">
+          <div className="rop-metric-chip">
+            <span className="rop-metric-chip__label">Продали</span>
+            <span className="rop-metric-chip__value">{money(soldTotal)}</span>
+          </div>
+          <div className="rop-metric-chip">
+            <span className="rop-metric-chip__label">Оплатили</span>
+            <span className="rop-metric-chip__value">{money(paidTotal)}</span>
+          </div>
+          <div className="rop-metric-chip">
+            <span className="rop-metric-chip__label">Полностью</span>
+            <span className="rop-metric-chip__value">{money(fullTotal)}</span>
+          </div>
+          <div className="rop-metric-chip">
+            <span className="rop-metric-chip__label">Конверсия</span>
+            <span className="rop-metric-chip__value">{conv.toFixed(1)}%</span>
+          </div>
           </span>
           <span>
             Оплатили <strong className="tabular-nums">{money(paidTotal)}</strong>

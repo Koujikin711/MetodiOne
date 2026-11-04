@@ -1,6 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import toast from "react-hot-toast";
 
+import { RopPageIntro } from "@/components/RopPageIntro";
+import { Search } from "@/components/icons";
 import { apiFetch } from "@/lib/api";
 
 type Visit = {
@@ -60,25 +63,48 @@ export function RopSearchPage() {
 
   return (
     <div className="flex flex-col gap-4">
+      <RopPageIntro
+        title="Поиск пациента"
+        hint="ФИО или телефон любой страны (+992, +7, +1, 8…). Можно без кода страны — покажем историю визитов."
+      />
       <form
-        className="flex flex-wrap gap-2"
+        className="flex flex-wrap items-center gap-2"
         onSubmit={(e) => {
           e.preventDefault();
-          setSubmitted(q.trim());
+          const next = q.trim();
+          if (next.length < 2) {
+            toast.error("Введите хотя бы 2 символа");
+            return;
+          }
+          setSubmitted(next);
         }}
       >
         <input
-          className="mo-input min-w-[16rem] flex-1"
+          className="mo-input min-h-10 min-w-[16rem] flex-1"
           placeholder="Телефон или ФИО пациента"
           value={q}
           onChange={(e) => setQ(e.target.value)}
+          autoFocus
         />
-        <button type="submit" className="mo-btn-primary text-sm">
-          Найти
+        <button
+          type="submit"
+          className="journal-icon-btn inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[var(--mo-border-strong)] bg-[var(--mo-surface-elevated)] text-[var(--mo-text)] disabled:opacity-50"
+          aria-label={query.isFetching ? "Поиск…" : "Найти"}
+          title="Найти"
+          disabled={query.isFetching}
+        >
+          <Search className="h-5 w-5" />
+          <span className="journal-icon-btn__tip" role="tooltip">
+            Найти
+          </span>
         </button>
       </form>
 
-      {query.isFetching && <p className="text-sm mo-muted">Поиск…</p>}
+      {query.isError ? (
+        <p className="text-sm text-[var(--mo-danger,#ef4444)]">
+          {(query.error as Error)?.message || "Не удалось выполнить поиск"}
+        </p>
+      ) : null}
 
       {(query.data ?? []).map((p) => (
         <div key={`${p.patient_name}-${p.patient_phone}`} className="rounded-xl border border-[var(--mo-border)] p-4">

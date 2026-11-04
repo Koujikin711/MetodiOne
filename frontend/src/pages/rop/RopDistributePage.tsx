@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import toast from "react-hot-toast";
 
+import { RopPageIntro } from "@/components/RopPageIntro";
 import { apiFetch } from "@/lib/api";
 import { useRopContext } from "@/pages/rop/RopLayout";
 
@@ -113,12 +114,16 @@ export function RopDistributePage() {
 
   return (
     <div className="flex flex-col gap-6">
+      <RopPageIntro
+        title="Распределение"
+        hint="Кому идут новые лиды автоматически, и как передать базу от одного менеджера другому."
+      />
       <div className="overflow-x-auto rounded-xl border border-[var(--mo-border)]">
         <table className="w-full min-w-[520px] text-left text-sm">
           <thead className="bg-[var(--mo-surface)] text-xs mo-muted">
             <tr>
               <th className="px-3 py-2">Менеджер</th>
-              <th className="px-3 py-2">Лиды</th>
+              <th className="px-3 py-2">Лидов в работе</th>
               <th className="px-3 py-2">Автораздача</th>
             </tr>
           </thead>
@@ -147,7 +152,7 @@ export function RopDistributePage() {
                       })
                     }
                   >
-                    {m.accepts_new_leads ? "Вкл" : "Выкл"}
+                    {m.accepts_new_leads ? "Включена" : "Выключена"}
                   </button>
                 </td>
               </tr>

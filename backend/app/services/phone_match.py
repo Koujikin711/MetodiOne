@@ -31,8 +31,41 @@ def whatsapp_e164_digits(value: str | None, *, default_cc: str = "992") -> str:
     return digits
 
 
+def phone_search_digit_variants(value: str | None) -> list[str]:
+    """Варианты цифр для поиска: TJ/РФ/США и др. (полный, локальный, 8↔7)."""
+    digits = phone_digits(value)
+    if len(digits) < 7:
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+
+    def add(d: str) -> None:
+        d = phone_digits(d)
+        if len(d) < 7 or d in seen:
+            return
+        seen.add(d)
+        out.append(d)
+
+    add(digits)
+    # Россия: 8XXXXXXXXXX ↔ 7XXXXXXXXXX
+    if len(digits) == 11 and digits[0] == "8":
+        add("7" + digits[1:])
+    if len(digits) == 11 and digits[0] == "7":
+        add("8" + digits[1:])
+    # США/Канада: 1 + 10 цифр — ищем и без ведущей 1
+    if len(digits) == 11 and digits[0] == "1":
+        add(digits[1:])
+    if len(digits) == 10:
+        add("1" + digits)
+    # Хвосты: локальный номер без кода страны (TJ 9, RU/US 10, короткий 7–8)
+    for n in (10, 9, 8, 7):
+        if len(digits) > n:
+            add(digits[-n:])
+    return out
+
+
 def phones_equivalent(a: str, b: str) -> bool:
-    """Считает эквивалентными +992901234567, 992901234567, 901234567 и т.п."""
+    """Считает эквивалентными +992… / 992… / локальный, +7/+8, +1 и т.п."""
     da = phone_digits(a)
     db = phone_digits(b)
     if not da or not db:
@@ -40,9 +73,14 @@ def phones_equivalent(a: str, b: str) -> bool:
     if da == db:
         return True
     short, long = (da, db) if len(da) <= len(db) else (db, da)
-    if len(short) >= 9 and long.endswith(short):
+    if len(short) >= 7 and long.endswith(short):
         return True
-    if len(da) >= 9 and len(db) >= 9 and da[-9:] == db[-9:]:
+    # Общий хвост 7–10 цифр (разные коды стран)
+    for n in (10, 9, 8, 7):
+        if len(da) >= n and len(db) >= n and da[-n:] == db[-n:]:
+            return True
+    # РФ 8↔7
+    if len(da) == 11 and len(db) == 11 and {da[0], db[0]} <= {"7", "8"} and da[1:] == db[1:]:
         return True
     return False
 
