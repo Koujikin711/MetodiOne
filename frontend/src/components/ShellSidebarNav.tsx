@@ -17,7 +17,11 @@ import { useMemo } from "react";
 import { SortableShellNavLink } from "@/components/SortableShellNavLink";
 import { ShellSidebarSettingsMenu } from "@/components/ShellSidebarSettingsMenu";
 import { useShellSidebarOrder } from "@/hooks/useShellSidebarOrder";
-import { buildShellSidebarNavItems, partitionShellSidebarNavItems } from "@/lib/shellSidebarNavItems";
+import {
+  buildShellSidebarNavItems,
+  partitionShellSidebarNavItems,
+  type ShellNavPriorityProfile,
+} from "@/lib/shellSidebarNavItems";
 import { appLexicon } from "@/lib/appLexicon";
 
 type Props = {
@@ -126,7 +130,17 @@ export function ShellSidebarNav({
     ],
   );
 
-  const { main, settings } = useMemo(() => partitionShellSidebarNavItems(allItems), [allItems]);
+  const navProfile = useMemo<ShellNavPriorityProfile>(() => {
+    if (isCurator || isAdministrator) return "clinical";
+    if (isRop) return "rop";
+    if (isManagerNav) return "manager";
+    return "default";
+  }, [isCurator, isAdministrator, isRop, isManagerNav]);
+
+  const { main, settings } = useMemo(
+    () => partitionShellSidebarNavItems(allItems, navProfile),
+    [allItems, navProfile],
+  );
 
   const { orderedItems, order, reorder } = useShellSidebarOrder(scope, main);
 

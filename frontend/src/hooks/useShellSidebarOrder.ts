@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 
 import { mergeShellSidebarOrder, type ShellSidebarNavItem } from "@/lib/shellSidebarNavItems";
 
-const STORAGE_PREFIX = "metodi-shell-nav-order";
+/** v3 — новый дефолтный порядок по дневной важности (сбрасывает старый drag-order). */
+const STORAGE_PREFIX = "metodi-shell-nav-order-v3";
 
 function storageKey(scope: string) {
   return `${STORAGE_PREFIX}:${scope}`;

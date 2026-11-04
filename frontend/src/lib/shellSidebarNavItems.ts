@@ -667,6 +667,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
     return items;
   }
 
+  // Владелец / общий clinic: порядок финально сортирует SHELL_MAIN_PRIORITY.
   const items: ShellSidebarNavItem[] = [];
   if (showNavForFeature("crm")) {
     items.push({
@@ -680,6 +681,37 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       iconKey: "funnel",
     });
   }
+  if (showNavForFeature("chat")) {
+    items.push({
+      id: "chat",
+      to: "/chat",
+      title: "Чаты",
+      labelShort: "Чаты",
+      labelFull: "Чаты",
+      variant: "chat",
+      iconKey: "message-circle",
+    });
+  }
+  if (showKpi && showNavForFeature("kpi")) {
+    items.push({
+      id: "kpi",
+      to: "/kpi",
+      title: navLex.navKpiTitle,
+      labelShort: navLex.navKpi,
+      labelFull: navLex.navKpiTitle,
+      variant: "platform",
+      iconKey: "target",
+    });
+  }
+  items.push({
+    id: "rop-cabinet",
+    to: "/rop",
+    title: "Кабинет РОП",
+    labelShort: "РОП",
+    labelFull: "Кабинет РОП",
+    variant: "platform",
+    iconKey: "layout-dashboard",
+  });
   if (showBooking) {
     items.push({
       id: "booking",
@@ -692,6 +724,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
     });
     if (showExtraServices) items.push(extraServicesNavItem());
   }
+  pushClinicalCareNav(items);
   if (showDeskSales) {
     items.push(
       {
@@ -722,81 +755,6 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         iconKey: "wallet",
       },
     );
-    if (showKpi && showNavForFeature("kpi")) {
-      items.push({
-        id: "kpi",
-        to: "/kpi",
-        title: navLex.navKpiTitle,
-        labelShort: navLex.navKpi,
-        labelFull: navLex.navKpiTitle,
-        variant: "platform",
-        iconKey: "target",
-      });
-    }
-  }
-  if (showNavForFeature("tasks")) {
-    items.push({
-      id: "tasks",
-      to: "/tasks",
-      title: "Задачи",
-      labelShort: "Задачи",
-      labelFull: "Задачи",
-      variant: "tasks",
-      iconKey: "check-square",
-    });
-  }
-  items.push({
-    id: "messenger",
-    to: "/messenger",
-    title: "Мессенджер",
-    labelShort: "Мессендж.",
-    labelFull: "Мессенджер",
-    variant: "teal",
-    iconKey: "users",
-  });
-  if (showKpi && showNavForFeature("kpi") && !showDeskSales) {
-    items.push({
-      id: "kpi",
-      to: "/kpi",
-      title: navLex.navKpiTitle,
-      labelShort: navLex.navKpi,
-      labelFull: navLex.navKpiTitle,
-      variant: "platform",
-      iconKey: "target",
-    });
-  }
-  pushClinicalCareNav(items);
-  if (showNavForFeature("analytics")) {
-    items.push({
-      id: "analytics",
-      to: "/analytics",
-      title: navLex.navAnalyticsTitle,
-      labelShort: navLex.navAnalytics,
-      labelFull: navLex.navAnalyticsTitle,
-      variant: "analytics",
-      iconKey: "bar-chart",
-    });
-  }
-  // Владелец: быстрый вход в кабинет РОП
-  items.push({
-    id: "rop-cabinet",
-    to: "/rop",
-    title: "Кабинет РОП",
-    labelShort: "РОП",
-    labelFull: "Кабинет РОП",
-    variant: "platform",
-    iconKey: "layout-dashboard",
-  });
-  if (showFinance && showNavForFeature("finance")) {
-    items.push({
-      id: "finance",
-      to: "/finance",
-      title: navLex.navFinanceTitle,
-      labelShort: navLex.navFinance,
-      labelFull: navLex.navFinanceTitle,
-      variant: "blue",
-      iconKey: "wallet",
-    });
   }
   if (showExpenses) {
     items.push({
@@ -820,6 +778,48 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       iconKey: "bar-chart",
     });
   }
+  if (showNavForFeature("tasks")) {
+    items.push({
+      id: "tasks",
+      to: "/tasks",
+      title: "Задачи",
+      labelShort: "Задачи",
+      labelFull: "Задачи",
+      variant: "tasks",
+      iconKey: "check-square",
+    });
+  }
+  items.push({
+    id: "messenger",
+    to: "/messenger",
+    title: "Мессенджер",
+    labelShort: "Мессендж.",
+    labelFull: "Мессенджер",
+    variant: "teal",
+    iconKey: "users",
+  });
+  if (showNavForFeature("analytics")) {
+    items.push({
+      id: "analytics",
+      to: "/analytics",
+      title: navLex.navAnalyticsTitle,
+      labelShort: navLex.navAnalytics,
+      labelFull: navLex.navAnalyticsTitle,
+      variant: "analytics",
+      iconKey: "bar-chart",
+    });
+  }
+  if (showFinance && showNavForFeature("finance")) {
+    items.push({
+      id: "finance",
+      to: "/finance",
+      title: navLex.navFinanceTitle,
+      labelShort: navLex.navFinance,
+      labelFull: navLex.navFinanceTitle,
+      variant: "blue",
+      iconKey: "wallet",
+    });
+  }
   if (showNavForFeature("employees")) {
     items.push({
       id: "employees",
@@ -829,17 +829,6 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       labelFull: "Сотрудники",
       variant: "tariff",
       iconKey: "id-card",
-    });
-  }
-  if (showNavForFeature("chat")) {
-    items.push({
-      id: "chat",
-      to: "/chat",
-      title: "Чаты",
-      labelShort: "Чаты",
-      labelFull: "Чаты",
-      variant: "chat",
-      iconKey: "message-circle",
     });
   }
   if (showNavForFeature("audit")) {
@@ -879,7 +868,112 @@ export const SHELL_SETTINGS_ITEM_IDS = new Set([
   "integrations",
 ]);
 
-export function partitionShellSidebarNavItems(items: ShellSidebarNavItem[]): {
+/**
+ * Приоритет главного меню: чем меньше — тем выше.
+ * Ориентир — дневные клики: воронка/чаты → деньги → клиника → реже.
+ */
+export const SHELL_MAIN_PRIORITY: Record<string, number> = {
+  companies: 1,
+  // Продажи / коммуникация
+  app: 10,
+  crm: 10,
+  chat: 20,
+  desk: 25,
+  "my-leads": 30,
+  "sales-control": 32,
+  // Деньги и контроль отдела
+  kpi: 40,
+  "rop-cabinet": 45,
+  "rop-dashboard": 45,
+  "rop-distribute": 46,
+  "rop-search": 47,
+  "rop-stats": 48,
+  "rop-report": 49,
+  "rop-analytics": 50,
+  "rop-outlook": 51,
+  // Клиника (ежедневный поток)
+  booking: 60,
+  "booking-sales": 60,
+  "extra-services": 65,
+  "curator-journal": 70,
+  "medical-card": 75,
+  reports: 78,
+  quote: 80,
+  tracker: 81,
+  "desk-sales": 82,
+  // Реже
+  expenses: 90,
+  marketing: 95,
+};
+
+/** Приоритет блока «Скрыть» / настройки. */
+export const SHELL_SETTINGS_PRIORITY: Record<string, number> = {
+  analytics: 10,
+  finance: 20,
+  employees: 30,
+  tasks: 40,
+  messenger: 50,
+  audit: 60,
+  integrations: 70,
+  services: 80,
+};
+
+/** Куратор / администратор: запись и карты важнее KPI. */
+export const SHELL_CLINICAL_MAIN_PRIORITY: Record<string, number> = {
+  booking: 10,
+  "extra-services": 20,
+  "curator-journal": 30,
+  "medical-card": 40,
+  kpi: 50,
+  chat: 60,
+  crm: 70,
+  expenses: 80,
+  employees: 90,
+};
+
+/** Менеджер: чаты — главный рабочий экран. */
+export const SHELL_MANAGER_MAIN_PRIORITY: Record<string, number> = {
+  chat: 10,
+  desk: 15,
+  crm: 20,
+  "my-leads": 25,
+  "sales-control": 28,
+  kpi: 35,
+  booking: 40,
+  "booking-sales": 40,
+  "extra-services": 45,
+  "curator-journal": 50,
+  "medical-card": 55,
+  quote: 60,
+  tracker: 61,
+  "desk-sales": 62,
+  reports: 65,
+  expenses: 70,
+  marketing: 80,
+  "rop-cabinet": 90,
+};
+
+export type ShellNavPriorityProfile = "default" | "clinical" | "rop" | "manager";
+
+function priorityMapFor(profile: ShellNavPriorityProfile): Record<string, number> {
+  if (profile === "clinical") return SHELL_CLINICAL_MAIN_PRIORITY;
+  if (profile === "manager") return SHELL_MANAGER_MAIN_PRIORITY;
+  return SHELL_MAIN_PRIORITY;
+}
+
+function sortByPriority(items: ShellSidebarNavItem[], priority: Record<string, number>): ShellSidebarNavItem[] {
+  return [...items].sort((a, b) => {
+    const pa = priority[a.id] ?? 500;
+    const pb = priority[b.id] ?? 500;
+    if (pa !== pb) return pa - pb;
+    return 0;
+  });
+}
+
+export function partitionShellSidebarNavItems(
+  items: ShellSidebarNavItem[],
+  profile: ShellNavPriorityProfile = "default",
+): {
   main: ShellSidebarNavItem[];
   settings: ShellSidebarNavItem[];
 } {
@@ -889,7 +983,10 @@ export function partitionShellSidebarNavItems(items: ShellSidebarNavItem[]): {
     if (SHELL_SETTINGS_ITEM_IDS.has(item.id)) settings.push(item);
     else main.push(item);
   }
-  return { main, settings };
+  return {
+    main: sortByPriority(main, priorityMapFor(profile)),
+    settings: sortByPriority(settings, SHELL_SETTINGS_PRIORITY),
+  };
 }
 
 export function mergeShellSidebarOrder(defaultIds: string[], saved: string[] | null): string[] {
