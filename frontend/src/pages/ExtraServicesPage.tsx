@@ -95,20 +95,28 @@ function todayYmd() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-/** Компактно: 07.09.26, 17:00 */
+/** Компактно без года: 07.09, 14:32 */
 function formatDtShort(iso: string): string {
   try {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return iso;
     const dd = String(d.getDate()).padStart(2, "0");
     const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const yy = String(d.getFullYear()).slice(-2);
     const hh = String(d.getHours()).padStart(2, "0");
     const mi = String(d.getMinutes()).padStart(2, "0");
-    return `${dd}.${mm}.${yy}, ${hh}:${mi}`;
+    return `${dd}.${mm}, ${hh}:${mi}`;
   } catch {
     return iso;
   }
+}
+
+/** Дата записи + текущее время (раньше всегда писали 12:00 UTC → у всех 17:00). */
+function soldAtIsoFromDate(ymd: string): string {
+  const now = new Date();
+  const [ys, ms, ds] = ymd.split("-").map(Number);
+  if (!ys || !ms || !ds) return now.toISOString();
+  const local = new Date(ys, ms - 1, ds, now.getHours(), now.getMinutes(), now.getSeconds());
+  return local.toISOString();
 }
 
 function n(v: number | string | null | undefined): number {
@@ -227,7 +235,7 @@ export function ExtraServicesPage() {
           client_name: clientName.trim(),
           client_phone: clientPhone.trim(),
           amount: amountNum,
-          sold_at: soldDate ? `${soldDate}T12:00:00+00:00` : null,
+          sold_at: soldDate ? soldAtIsoFromDate(soldDate) : null,
           payment_method: paymentMethod,
           note: mergedNote,
         }),
@@ -635,6 +643,7 @@ export function ExtraServicesPage() {
                     <div className="extra-services-recent__name">{s.client_name}</div>
                     <div className="extra-services-recent__meta">
                       <span>{formatDtShort(s.sold_at)}</span>
+                      <span>{s.service_name}</span>
                       {s.client_phone ? <span>{s.client_phone}</span> : null}
                       {s.payment_method ? <span>{s.payment_method}</span> : null}
                     </div>
@@ -959,10 +968,11 @@ export function ExtraServicesPage() {
             />
           </div>
           <div className="extra-services-journal__table-wrap">
-            <table className="mo-table min-w-[980px]">
+            <table className="mo-table min-w-[1080px]">
               <thead>
                 <tr>
                   <th>Когда</th>
+                  <th>Услуга</th>
                   <th>Клиент</th>
                   <th>Телефон</th>
                   <th>Оплата</th>
@@ -978,6 +988,7 @@ export function ExtraServicesPage() {
                 {(salesQuery.data ?? []).map((s) => (
                   <tr key={s.id}>
                     <td className="whitespace-nowrap text-xs tabular-nums">{formatDtShort(s.sold_at)}</td>
+                    <td className="extra-services-col-name whitespace-nowrap font-medium">{s.service_name}</td>
                     <td className="extra-services-col-name whitespace-nowrap font-medium">{s.client_name}</td>
                     <td className="extra-services-col-phone whitespace-nowrap">{s.client_phone || "—"}</td>
                     <td className="whitespace-nowrap">{s.payment_method || "—"}</td>

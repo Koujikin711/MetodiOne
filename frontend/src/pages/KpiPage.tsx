@@ -847,7 +847,8 @@ export function KpiPage() {
   const planQuery = useQuery({
     queryKey: ["sales-kpi-weighted-plan", qs],
     queryFn: () => apiFetch<SalesKpiWeightedPlan>(`/api/sales-kpi/weighted-plan?${qs}`),
-    enabled: Boolean(pipelineId && (isOwner || isAdminOrOwner || isManager) && !isCurator),
+    // Бухгалтеру тоже нужен план: продукты в форме/селекте «Тип» и список менеджеров.
+    enabled: Boolean(pipelineId && kpiOps && !isCurator),
   });
 
   const ratesQuery = useQuery({
@@ -1797,9 +1798,13 @@ export function KpiPage() {
 
           {saleFormOpen && manualPlanItems.length === 0 ? (
             <p className="text-sm text-amber-700 dark:text-amber-200">
-              {salesSpace
-                ? "Сначала владелец должен добавить продукты во вкладке «План»."
-                : "Сначала владелец должен добавить продукты с источником «Курс / протокол» во вкладке «План»."}
+              {planQuery.isLoading
+                ? "Загружаем продукты плана…"
+                : isAccountant
+                  ? "В плане на этот месяц нет курсов/протоколов. Попросите владельца добавить их во вкладке «План»."
+                  : salesSpace
+                    ? "Сначала добавьте продукты во вкладке «План»."
+                    : "Сначала добавьте продукты с источником «Курс / протокол» во вкладке «План»."}
             </p>
           ) : saleFormOpen ? (
             <div className="grid max-w-5xl grid-cols-2 gap-x-2 gap-y-1.5 md:grid-cols-4">

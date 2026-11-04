@@ -12,9 +12,12 @@ const TABS = [
   { to: "/rop", end: true, label: "Дашборд" },
   { to: "/rop/stats", label: "Статистика" },
   { to: "/rop/distribute", label: "Распределение" },
+  { to: "/rop/search", label: "Поиск" },
+] as const;
+
+const HEADER_LINKS = [
   { to: "/rop/analytics", label: "Аналитика" },
   { to: "/rop/report", label: "Отчёт" },
-  { to: "/rop/search", label: "Поиск" },
 ] as const;
 
 export type RopOutletContext = {
@@ -55,7 +58,25 @@ export function RopLayout() {
           <h1 className="mo-page-title">Кабинет РОП</h1>
           <p className="mo-page-sub">Отдел продаж: менеджеры, лиды, выручка</p>
         </div>
-        <div className="flex items-end gap-2">
+        <div className="flex flex-wrap items-end gap-2">
+          {HEADER_LINKS.map((t) => {
+            const active = pathname === t.to || pathname.startsWith(`${t.to}/`);
+            return (
+              <button
+                key={t.to}
+                type="button"
+                onClick={() => navigate(t.to)}
+                className={[
+                  "rounded-lg border px-3 py-2 text-sm transition",
+                  active
+                    ? "border-[var(--mo-accent)] bg-[var(--mo-accent)]/15 font-medium text-[var(--mo-text)]"
+                    : "border-[var(--mo-border)] bg-[var(--mo-surface)] mo-muted hover:text-[var(--mo-text)]",
+                ].join(" ")}
+              >
+                {t.label}
+              </button>
+            );
+          })}
           <PrintButton />
           <label className="text-sm mo-muted">
             Воронка
