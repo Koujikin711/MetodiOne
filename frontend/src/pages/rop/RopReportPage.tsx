@@ -90,16 +90,18 @@ export function RopReportPage() {
   const conv = soldTotal > 0 ? (fullTotal / soldTotal) * 100 : 0;
 
   return (
-    <div className="mo-print-doc flex flex-col gap-4">
+    <div className="mo-print-doc rop-dense flex flex-col gap-3">
       <PrintMasthead title="Отчёт отдела продаж" meta={printPeriod(from, to)} />
       <RopPageIntro
         title="Отчёт"
-        hint="Выручка по услугам KPI за период. Конверсия — доля полностью оплаченных от проданных."
+        hint="Выручка KPI за период. Конверсия — полностью оплаченные от проданных."
       />
 
-      <div className="rounded-xl border border-[var(--mo-border)] p-4">
-        <h3 className="font-medium">Выручка отдела</h3>
-        <div className="rop-metric-strip mt-3">
+      <div className="rop-panel">
+        <div className="rop-panel__head">
+          <h3 className="rop-panel__title">Выручка отдела</h3>
+        </div>
+        <div className="rop-metric-strip">
           <div className="rop-metric-chip">
             <span className="rop-metric-chip__label">Продали</span>
             <span className="rop-metric-chip__value">{money(soldTotal)}</span>

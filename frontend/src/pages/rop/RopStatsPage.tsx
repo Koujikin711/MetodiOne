@@ -33,46 +33,45 @@ export function RopStatsPage() {
   if (pipelineId == null) return <p className="text-sm mo-muted">Выберите воронку</p>;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="rop-dense flex flex-col gap-3">
       <RopPageIntro
         title="Статистика"
-        hint="Воронка по каждому менеджеру за период сверху (с / по). Сколько лидов пришло и как они разошлись по стадиям."
+        hint="Воронка менеджера за период (с / по в шапке): пришло и стадии."
       />
       {query.isLoading ? (
         <p className="text-sm mo-muted">Загрузка…</p>
       ) : (
-        <div className="flex flex-col gap-3">
+        <div className="rop-stats-grid">
           {managers.map((m) => (
-            <div key={m.user_id} className="rounded-xl border border-[var(--mo-border)] p-4">
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h3 className="font-medium">{m.full_name}</h3>
-                <span className="text-sm mo-muted">
-                  Получил {m.leads_in} · обработал {m.processed} ({m.conversion_percent}%)
+            <article key={m.user_id} className="rop-panel">
+              <div className="rop-panel__head">
+                <h3 className="rop-panel__title">{m.full_name}</h3>
+                <span className="rop-panel__meta">
+                  {m.leads_in} → {m.processed}
+                  <em>{m.conversion_percent}%</em>
                 </span>
               </div>
-              {m.stages.length > 0 && (
-                <div className="mt-3 overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="text-xs mo-muted">
-                      <tr>
-                        <th className="py-1.5 text-left font-normal">Стадия</th>
-                        <th className="w-32 py-1.5 text-right font-normal">Лидов</th>
-                        <th className="w-28 py-1.5 text-right font-normal">Доля</th>
+              {m.stages.length > 0 ? (
+                <table className="rop-dense-table">
+                  <thead>
+                    <tr>
+                      <th>Стадия</th>
+                      <th className="text-right">Лидов</th>
+                      <th className="text-right">%</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {m.stages.map((s) => (
+                      <tr key={s.stage_id} className={s.count === 0 ? "is-zero" : undefined}>
+                        <td>{s.stage_name}</td>
+                        <td className="text-right tabular-nums">{s.count}</td>
+                        <td className="text-right tabular-nums">{s.percent}%</td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {m.stages.map((s) => (
-                        <tr key={s.stage_id} className="border-t border-[var(--mo-border)]">
-                          <td className="py-1">{s.stage_name}</td>
-                          <td className="py-1 text-right tabular-nums">{s.count}</td>
-                          <td className="py-1 text-right tabular-nums">{s.percent}%</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+                    ))}
+                  </tbody>
+                </table>
+              ) : null}
+            </article>
           ))}
           {!managers.length && <p className="text-sm mo-muted">Нет данных за период</p>}
         </div>

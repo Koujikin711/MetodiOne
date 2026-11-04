@@ -55,6 +55,7 @@ export function RopAnalyticsPage() {
       number,
       { id: number; name: string; total: number; services: Analytics["revenue_shares"] }
     >();
+    const totalAll = Number(query.data?.revenue_total || 0);
     for (const row of query.data?.revenue_shares ?? []) {
       const cur = map.get(row.manager_id) ?? {
         id: row.manager_id,
@@ -66,7 +67,12 @@ export function RopAnalyticsPage() {
       cur.services.push(row);
       map.set(row.manager_id, cur);
     }
-    return [...map.values()].sort((a, b) => b.total - a.total);
+    return [...map.values()]
+      .sort((a, b) => b.total - a.total)
+      .map((g) => ({
+        ...g,
+        share: totalAll > 0 ? (g.total / totalAll) * 100 : 0,
+      }));
   }, [query.data]);
 
   if (pipelineId == null) return <p className="text-sm mo-muted">Выберите воронку</p>;
@@ -74,93 +80,97 @@ export function RopAnalyticsPage() {
   const data = query.data;
 
   return (
-    <div className="mo-print-doc flex flex-col gap-4">
+    <div className="mo-print-doc rop-dense flex flex-col gap-3">
       <PrintMasthead title="Аналитика отдела продаж" meta={printPeriod(from, to)} />
       <RopPageIntro
         title="Аналитика"
-        hint="Скорость первого ответа клиенту и выручка по менеджерам за период (с / по в шапке)."
+        hint="Первый ответ и выручка по менеджерам за период в шапке."
       />
 
       {query.isLoading ? (
         <p className="text-sm mo-muted">Загрузка…</p>
       ) : (
-        <>
-          <div className="rounded-xl border border-[var(--mo-border)] p-4">
-            <h3 className="font-medium">Среднее время первого ответа</h3>
-            <p className="mt-1 text-2xl tabular-nums">
-              {formatMinutes(data?.avg_first_response_minutes)}
-            </p>
-            <div className="mt-3 overflow-x-auto">
-              <table className="w-full text-sm md:w-auto md:min-w-[24rem]">
-                <thead className="text-xs mo-muted">
-                  <tr>
-                    <th className="py-1 pr-8 text-left font-normal">Менеджер</th>
-                    <th className="w-20 py-1 text-right font-normal">Лиды</th>
-                    <th className="w-28 py-1 pl-4 text-right font-normal">Ответ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(data?.managers_sla ?? []).map((m) => (
-                    <tr key={m.user_id} className="border-t border-[var(--mo-border)]">
-                      <td className="py-1">{m.full_name}</td>
-                      <td className="py-1 text-right tabular-nums">{m.leads_count}</td>
-                      <td className="py-1 text-right tabular-nums">
-                        {formatMinutes(m.avg_first_response_minutes)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        <div className="rop-analytics-grid">
+          <section className="rop-panel">
+            <div className="rop-panel__head">
+              <h3 className="rop-panel__title">Первый ответ</h3>
+              <strong className="rop-panel__hero tabular-nums">
+                {formatMinutes(data?.avg_first_response_minutes)}
+              </strong>
             </div>
-          </div>
+            <table className="rop-dense-table">
+              <thead>
+                <tr>
+                  <th>Менеджер</th>
+                  <th className="text-right">Лиды</th>
+                  <th className="text-right">Ответ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(data?.managers_sla ?? []).map((m) => (
+                  <tr key={m.user_id}>
+                    <td>{m.full_name}</td>
+                    <td className="text-right tabular-nums">{m.leads_count}</td>
+                    <td className="text-right tabular-nums">
+                      {formatMinutes(m.avg_first_response_minutes)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
 
-          <div className="rounded-xl border border-[var(--mo-border)] p-4">
-            <h3 className="font-medium">Выручка по менеджерам</h3>
-            <p className="mt-1 text-sm mo-muted">Всего оплат: {money(data?.revenue_total ?? 0)}</p>
-            <div className="mt-3 flex flex-col gap-2">
+          <section className="rop-panel">
+            <div className="rop-panel__head">
+              <h3 className="rop-panel__title">Выручка</h3>
+              <span className="rop-panel__meta">всего {money(data?.revenue_total ?? 0)}</span>
+            </div>
+            <div className="rop-rev-list">
               {groups.map((g) => {
                 const open = openId === g.id;
                 return (
-                  <div key={g.id} className="rounded-lg border border-[var(--mo-border)]">
+                  <div key={g.id} className="rop-rev-row">
                     <button
                       type="button"
-                      className="print-keep flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm"
+                      className="rop-rev-row__btn print-keep"
                       onClick={() => setOpenId(open ? null : g.id)}
                     >
-                      <span className="font-medium">{g.name}</span>
-                      <span className="tabular-nums">{money(g.total)}</span>
+                      <span className="rop-rev-row__name">{g.name}</span>
+                      <span className="rop-rev-row__amt tabular-nums">{money(g.total)}</span>
+                      <span className="rop-rev-row__bar" aria-hidden>
+                        <i style={{ width: `${Math.max(g.share, 3)}%` }} />
+                      </span>
                     </button>
-                    <div className={["flex flex-col gap-2 border-t border-[var(--mo-border)] px-3 py-3", open ? "" : "mo-print-detail"].filter(Boolean).join(" ")}>
-                        {g.services
-                          .slice()
-                          .sort((a, b) => Number(b.amount) - Number(a.amount))
-                          .map((s) => {
-                            const share = g.total > 0 ? (Number(s.amount) / g.total) * 100 : 0;
-                            return (
-                              <div key={s.service_name}>
-                                <div className="mb-1 flex justify-between text-xs">
-                                  <span>{s.service_name}</span>
-                                  <span className="tabular-nums">
-                                    {money(s.amount)} · {share.toFixed(1)}%
-                                  </span>
-                                </div>
-                                <div className="h-2 overflow-hidden rounded-full bg-[var(--mo-surface)]">
-                                  <div
-                                    className="h-full rounded-full bg-[var(--mo-accent)]"
-                                    style={{ width: `${Math.max(share, 2)}%` }}
-                                  />
-                                </div>
-                              </div>
-                            );
-                          })}
+                    <div
+                      className={[
+                        "rop-rev-row__detail",
+                        open ? "is-open" : "mo-print-detail",
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                    >
+                      {g.services
+                        .slice()
+                        .sort((a, b) => Number(b.amount) - Number(a.amount))
+                        .map((s) => {
+                          const share = g.total > 0 ? (Number(s.amount) / g.total) * 100 : 0;
+                          return (
+                            <div key={s.service_name} className="rop-rev-svc">
+                              <span>{s.service_name}</span>
+                              <span className="tabular-nums">
+                                {money(s.amount)} · {share.toFixed(0)}%
+                              </span>
+                            </div>
+                          );
+                        })}
                     </div>
                   </div>
                 );
               })}
               {!groups.length && <p className="text-sm mo-muted">Нет оплат за период</p>}
             </div>
-          </div>
-        </>
+          </section>
+        </div>
       )}
       <PrintSign />
     </div>

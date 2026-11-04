@@ -82,11 +82,11 @@ export function RopOutlookPage() {
   const prev = data?.previous;
 
   return (
-    <div className="mo-print-doc flex flex-col gap-4">
+    <div className="mo-print-doc rop-dense flex flex-col gap-3">
       <PrintMasthead title="Прогноз отдела продаж" meta={data?.as_of ? `на ${data.as_of}` : undefined} />
       <RopPageIntro
         title="Прогноз"
-        hint="Сравнение месяцев, сценарии темпа, сигналы планёрки и план/факт KPI."
+        hint="Месяцы, сценарии темпа, сигналы и план/факт KPI."
       />
 
       {query.isLoading ? <p className="text-sm mo-muted">Загрузка…</p> : null}
@@ -96,8 +96,10 @@ export function RopOutlookPage() {
         <>
           <section className="rop-outlook-compare" aria-label="Сравнение месяцев">
             <article className="rop-outlook-month">
-              <h3 className="rop-outlook-month__label">{cur.label}</h3>
-              <p className="rop-outlook-month__hint">текущий · по сегодня</p>
+              <div className="rop-outlook-month__top">
+                <h3 className="rop-outlook-month__label">{cur.label}</h3>
+                <span className="rop-outlook-month__hint">текущий</span>
+              </div>
               <dl className="rop-outlook-month__metrics">
                 <div>
                   <dt>Лиды</dt>
@@ -114,7 +116,7 @@ export function RopOutlookPage() {
                   </dd>
                 </div>
                 <div>
-                  <dt>Конверсия оплаты</dt>
+                  <dt>Конверсия</dt>
                   <dd>
                     {cur.conversion_percent.toLocaleString("ru-RU", { maximumFractionDigits: 1 })}%
                     <span className={deltaClass(cur.conversion_delta_pp)}>
@@ -125,8 +127,10 @@ export function RopOutlookPage() {
               </dl>
             </article>
             <article className="rop-outlook-month rop-outlook-month--prev">
-              <h3 className="rop-outlook-month__label">{prev.label}</h3>
-              <p className="rop-outlook-month__hint">прошлый · полный месяц</p>
+              <div className="rop-outlook-month__top">
+                <h3 className="rop-outlook-month__label">{prev.label}</h3>
+                <span className="rop-outlook-month__hint">прошлый</span>
+              </div>
               <dl className="rop-outlook-month__metrics">
                 <div>
                   <dt>Лиды</dt>
@@ -137,75 +141,70 @@ export function RopOutlookPage() {
                   <dd>{money(prev.revenue)}</dd>
                 </div>
                 <div>
-                  <dt>Конверсия оплаты</dt>
+                  <dt>Конверсия</dt>
                   <dd>{prev.conversion_percent.toLocaleString("ru-RU", { maximumFractionDigits: 1 })}%</dd>
                 </div>
               </dl>
             </article>
           </section>
 
-          <section className="rop-outlook-block" aria-label="Сценарии">
-            <h3 className="rop-outlook-block__title">Если так пойдёт</h3>
-            <p className="rop-outlook-block__hint">
-              Темп по уже прошедшим дням: худший −15%, средний = текущий, лучший +15%.
-            </p>
+          <section className="rop-panel" aria-label="Сценарии">
+            <div className="rop-panel__head">
+              <h3 className="rop-panel__title">Если так пойдёт</h3>
+              <span className="rop-panel__meta">−15% / текущий / +15%</span>
+            </div>
             <div className="rop-outlook-scenarios">
               {(data?.scenarios ?? []).map((s) => (
                 <div key={s.key} className={`rop-outlook-scenario rop-outlook-scenario--${s.key}`}>
                   <span className="rop-outlook-scenario__label">{s.label}</span>
-                  <strong className="rop-outlook-scenario__rev">{money(s.revenue)} с.</strong>
-                  <span className="rop-outlook-scenario__leads">{s.leads.toLocaleString("ru-RU")} лидов</span>
+                  <strong className="rop-outlook-scenario__rev">{money(s.revenue)}</strong>
+                  <span className="rop-outlook-scenario__leads">{s.leads.toLocaleString("ru-RU")} лид.</span>
                 </div>
               ))}
             </div>
             {data?.next_month ? (
-              <p className="rop-outlook-next text-sm mo-muted mt-3">
-                След. месяц (средний темп):{" "}
-                <strong className="text-[var(--mo-text)]">{money(data.next_month.revenue)} с.</strong>
+              <p className="rop-outlook-next">
+                След. месяц: <strong>{money(data.next_month.revenue)}</strong>
                 {" · "}
-                {data.next_month.leads.toLocaleString("ru-RU")} лидов
+                {data.next_month.leads.toLocaleString("ru-RU")} лид.
               </p>
             ) : null}
           </section>
 
-          <section className="rop-outlook-block" aria-label="Сигналы">
-            <h3 className="rop-outlook-block__title">Сигналы</h3>
-            <p className="rop-outlook-block__hint">
-              Без ответа дольше 4 ч · офлайн при новых лидах · перегруз относительно медианы
-            </p>
-            {(data?.signals ?? []).length === 0 ? (
-              <p className="text-sm mo-muted">Сейчас спокойно — критичных сигналов нет.</p>
-            ) : (
-              <ul className="rop-outlook-signals">
-                {(data?.signals ?? []).map((s, i) => (
-                  <li
-                    key={`${s.kind}-${s.manager_name ?? i}`}
-                    className={`rop-outlook-signal rop-outlook-signal--${s.severity}`}
-                  >
-                    <strong>{s.title}</strong>
-                    <span>{s.detail}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+          <div className="rop-outlook-split">
+            <section className="rop-panel" aria-label="Сигналы">
+              <div className="rop-panel__head">
+                <h3 className="rop-panel__title">Сигналы</h3>
+                <span className="rop-panel__meta">{(data?.signals ?? []).length || "ок"}</span>
+              </div>
+              {(data?.signals ?? []).length === 0 ? (
+                <p className="text-sm mo-muted">Критичных сигналов нет.</p>
+              ) : (
+                <ul className="rop-outlook-signals">
+                  {(data?.signals ?? []).map((s, i) => (
+                    <li
+                      key={`${s.kind}-${s.manager_name ?? i}`}
+                      className={`rop-outlook-signal rop-outlook-signal--${s.severity}`}
+                    >
+                      <strong>{s.title}</strong>
+                      <span>{s.detail}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
 
-          <section className="rop-outlook-block" aria-label="План и факт">
-            <h3 className="rop-outlook-block__title">План / факт месяца</h3>
-            <p className="rop-outlook-block__hint">
-              Сумма: план {money(data?.plan_total)} · факт {money(data?.fact_total)}
-              {Number(data?.plan_total || 0) > 0
-                ? ` · ${(
-                    (Number(data?.fact_total || 0) / Number(data?.plan_total || 1)) *
-                    100
-                  ).toLocaleString("ru-RU", { maximumFractionDigits: 0 })}%`
-                : ""}
-            </p>
-            {(data?.plan_fact ?? []).length === 0 ? (
-              <p className="text-sm mo-muted">Планы KPI на месяц не заданы (или нет оплат).</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="mo-table w-full text-sm">
+            <section className="rop-panel" aria-label="План и факт">
+              <div className="rop-panel__head">
+                <h3 className="rop-panel__title">План / факт</h3>
+                <span className="rop-panel__meta">
+                  {money(data?.plan_total)} → {money(data?.fact_total)}
+                </span>
+              </div>
+              {(data?.plan_fact ?? []).length === 0 ? (
+                <p className="text-sm mo-muted">Планы KPI не заданы.</p>
+              ) : (
+                <table className="rop-dense-table">
                   <thead>
                     <tr>
                       <th>Менеджер</th>
@@ -221,15 +220,15 @@ export function RopOutlookPage() {
                         <td className="text-right tabular-nums">{money(r.plan_amount)}</td>
                         <td className="text-right tabular-nums">{money(r.fact_amount)}</td>
                         <td className="text-right tabular-nums">
-                          {r.progress_percent.toLocaleString("ru-RU", { maximumFractionDigits: 1 })}%
+                          {r.progress_percent.toLocaleString("ru-RU", { maximumFractionDigits: 0 })}%
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </div>
-            )}
-          </section>
+              )}
+            </section>
+          </div>
 
           {data?.summary ? <p className="rop-outlook-summary">{data.summary}</p> : null}
         </>
