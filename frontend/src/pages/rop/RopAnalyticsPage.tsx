@@ -117,17 +117,6 @@ export function RopAnalyticsPage() {
           <div className="rounded-xl border border-[var(--mo-border)] p-4">
             <h3 className="font-medium">Выручка по менеджерам</h3>
             <p className="mt-1 text-sm mo-muted">Всего оплат: {money(data?.revenue_total ?? 0)}</p>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-[var(--mo-border)] p-4">
-            <h3 className="font-medium">Кто сколько принёс</h3>
-            <p className="mt-1 text-sm mo-muted">Итого оплат: {money(data?.revenue_total ?? 0)}</p>
             <div className="mt-3 flex flex-col gap-2">
               {groups.map((g) => {
                 const open = openId === g.id;

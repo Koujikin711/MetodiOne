@@ -116,16 +116,6 @@ export function RopReportPage() {
             <span className="rop-metric-chip__label">Конверсия</span>
             <span className="rop-metric-chip__value">{conv.toFixed(1)}%</span>
           </div>
-          </span>
-          <span>
-            Оплатили <strong className="tabular-nums">{money(paidTotal)}</strong>
-          </span>
-          <span>
-            Полностью <strong className="tabular-nums">{money(fullTotal)}</strong>
-          </span>
-          <span>
-            Конверсия <strong className="tabular-nums">{conv.toFixed(1)}%</strong>
-          </span>
         </div>
         {query.isLoading ? (
           <p className="mt-3 text-sm mo-muted">Загрузка…</p>
