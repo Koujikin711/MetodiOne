@@ -202,7 +202,7 @@ async def select_tariff(
 <p><b>Контакт:</b> {html.escape(c.contact_email or '-')}</p>
 <p>Проверьте оплату и подтвердите включение тарифа в панели супер-владельца.</p>
 </body></html>"""
-        send_email(admin, subj, plain, html_body=html_body)
+        send_email(admin, subj, plain, html_body=html_body)  # (ok, err) — фоновое уведомление
 
     if c is None:
         raise HTTPException(status_code=404, detail="Компания не найдена")

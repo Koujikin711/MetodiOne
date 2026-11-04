@@ -120,7 +120,7 @@ async def _send_due_backups(db: AsyncSession) -> int:
             )
             delivered = 0
             for email in emails:
-                ok = await asyncio.to_thread(
+                ok, _err = await asyncio.to_thread(
                     send_email,
                     email,
                     subject,

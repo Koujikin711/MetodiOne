@@ -143,9 +143,12 @@ async def provision_demo_account(
 <p><b>Логин:</b> {safe_email}<br/><b>Пароль:</b> <code style="background:#1e293b;padding:4px 8px;border-radius:6px;">{safe_pw}</code></p>
 <p><a href="{safe_url}" style="display:inline-block;margin-top:12px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;padding:12px 22px;border-radius:12px;text-decoration:none;font-weight:600;">Войти в CRM</a></p>
 </body></html>"""
-    ok_user = send_email(email_norm, "Ваш демо-доступ MetodiOne", plain_user, html_body=html_user)
+    ok_user, mail_err = send_email(email_norm, "Ваш демо-доступ MetodiOne", plain_user, html_body=html_user)
     if not ok_user:
-        raise RuntimeError("Не удалось отправить письмо с доступом на указанный email. Проверьте SMTP.")
+        raise RuntimeError(
+            "Не удалось отправить письмо с доступом на указанный email. Проверьте SMTP."
+            + (f" {mail_err}" if mail_err else "")
+        )
 
     admin = (settings.demo_request_to_email or "").strip().lower()
     if admin:

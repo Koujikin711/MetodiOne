@@ -432,11 +432,14 @@ async def create_company(
     </td></tr>
   </table>
 </body></html>"""
-    sent = send_email(owner_email, "Доступ владельца в CRM", plain, html_body=html_body)
+    sent, mail_err = send_email(owner_email, "Доступ владельца в CRM", plain, html_body=html_body)
     if not sent:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Не удалось отправить письмо доступа владельцу. Проверьте SMTP настройки.",
+            detail=(
+                "Не удалось отправить письмо доступа владельцу. Проверьте SMTP настройки."
+                + (f" {mail_err}" if mail_err else "")
+            ),
         )
 
     await db.refresh(c)

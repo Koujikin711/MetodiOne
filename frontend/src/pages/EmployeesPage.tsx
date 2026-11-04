@@ -354,13 +354,20 @@ export function EmployeesPage() {
 
   const inviteMutation = useMutation({
     mutationFn: () => {
+      const emailTrim = email.trim();
+      const phoneTrim = phone.trim();
+      if (!emailTrim.includes("@")) {
+        throw new Error("Укажите email — на него уйдёт приглашение");
+      }
+      if (phoneTrim.replace(/\D/g, "").length < 7) {
+        throw new Error("Укажите телефон — на него уйдёт WhatsApp");
+      }
       const payload: Record<string, unknown> = {
         full_name: fullName.trim(),
-        email: email.trim(),
-        phone: phone.trim() || null,
+        email: emailTrim,
+        phone: phoneTrim,
         role,
         pipeline_ids: pipelineIds,
-        send_email_invite: true,
       };
       if (role === "expert") {
         payload.specialization = expertSpecialization.trim();
@@ -389,12 +396,12 @@ export function EmployeesPage() {
       void qc.invalidateQueries({ queryKey: ["employees"] });
       void qc.invalidateQueries({ queryKey: ["booking-specialists"] });
       setInviteResult(r);
-      if (r.temp_password_sent_to_email) {
-        toast.success(r.detail || "Приглашение отправлено на email");
-      } else if (r.whatsapp_sent) {
-        toast.success(r.detail || "Приглашение ушло в WhatsApp");
+      if (r.temp_password_sent_to_email && r.whatsapp_sent) {
+        toast.success(r.detail || "Приглашение ушло на email и в WhatsApp");
+      } else if (r.temp_password_sent_to_email || r.whatsapp_sent) {
+        toast.success(r.detail || "Часть приглашения отправлена");
       } else {
-        toast.error(r.detail || "Письмо не ушло — скопируйте доступ вручную");
+        toast.error(r.detail || "Email и WhatsApp не ушли — скопируйте доступ");
       }
     },
     onError: (e: Error) => toast.error(e.message),
@@ -1274,27 +1281,29 @@ export function EmployeesPage() {
                 <label className="block text-sm font-medium text-[var(--mo-text)]">
                   Email <span className="text-[var(--mo-accent)]">*</span>
                   <span className="mt-0.5 block text-[11px] font-normal mo-muted">
-                    Основной способ входа и приглашения — письмо с логином, паролем и ссылкой уйдёт на этот адрес.
+                    Письмо с логином, паролем и ссылкой уйдёт на этот адрес.
                   </span>
                   <input
                     type="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@company.com"
+                    placeholder="name@gmail.com"
                     className="mo-input mt-2 w-full border-[var(--mo-accent)]/50"
                     autoComplete="email"
                   />
                 </label>
               </div>
-              <label className="text-sm mo-muted">
-                Телефон <span className="font-normal opacity-80">(необязательно)</span>
-                <span className="mt-0.5 block text-[11px]">Номер компании — можно передать новому сотруднику после увольнения. Если указан, дубликат приглашения уйдёт в WhatsApp.</span>
+              <label className="text-sm font-medium text-[var(--mo-text)]">
+                Телефон <span className="text-[var(--mo-accent)]">*</span>
+                <span className="mt-0.5 block text-[11px] font-normal mo-muted">
+                  WhatsApp с доступом. Номер компании можно передать другому сотруднику после увольнения.
+                </span>
                 <input
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="+992 …"
-                  className="mo-input mt-1 w-full"
+                  className="mo-input mt-1.5 w-full"
                   autoComplete="tel"
                 />
               </label>
@@ -1414,12 +1423,16 @@ export function EmployeesPage() {
               <button
                 type="button"
                 onClick={() => {
+                  if (!fullName.trim()) {
+                    toast.error("Укажите ФИО");
+                    return;
+                  }
                   if (!email.trim() || !email.includes("@")) {
                     toast.error("Укажите email — на него уйдёт приглашение");
                     return;
                   }
-                  if (!fullName.trim()) {
-                    toast.error("Укажите ФИО");
+                  if (phone.replace(/\D/g, "").length < 7) {
+                    toast.error("Укажите телефон — на него уйдёт WhatsApp");
                     return;
                   }
                   inviteMutation.mutate();
@@ -1427,7 +1440,7 @@ export function EmployeesPage() {
                 disabled={inviteMutation.isPending}
                 className="btn-primary mt-2 w-full disabled:opacity-60"
               >
-                {inviteMutation.isPending ? "Отправка…" : "Пригласить на email"}
+                {inviteMutation.isPending ? "Отправка…" : "Пригласить (email + WhatsApp)"}
               </button>
             </div>
           </div>

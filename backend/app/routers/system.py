@@ -58,7 +58,7 @@ async def smtp_config(current_user: CurrentUser) -> SmtpConfigRead:
 async def smtp_test(body: SmtpTestBody, current_user: CurrentUser) -> dict:
     if current_user.role != UserRole.owner:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
-    ok = send_email(
+    ok, mail_err = send_email(
         body.to_email.strip(),
         "CRM SMTP test",
         "Тестовое письмо CRM: SMTP настроен корректно.",
@@ -66,7 +66,8 @@ async def smtp_test(body: SmtpTestBody, current_user: CurrentUser) -> dict:
     if not ok:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="SMTP test failed. Check SMTP_HOST/PORT/USER/PASSWORD/FROM and server network access.",
+            detail=mail_err
+            or "SMTP test failed. Check SMTP_HOST/PORT/USER/PASSWORD/FROM and server network access.",
         )
     return {"ok": True}
 

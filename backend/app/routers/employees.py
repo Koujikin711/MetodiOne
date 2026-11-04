@@ -1,3 +1,4 @@
+import asyncio
 import html
 import logging
 import secrets
@@ -75,13 +76,11 @@ class EmployeeRead(BaseModel):
 
 class InviteEmployeeBody(BaseModel):
     email: str = Field(..., min_length=3, max_length=320)
-    """Телефон компании — необязателен; основной канал приглашения — email."""
-    phone: str | None = Field(default=None, max_length=32)
+    """Телефон для WhatsApp-приглашения (номер компании можно переиспользовать после увольнения)."""
+    phone: str = Field(..., min_length=7, max_length=32)
     full_name: str = Field(..., min_length=2, max_length=255)
     role: UserRole = UserRole.manager
     pipeline_ids: list[int] = Field(default_factory=list)
-    """Всегда шлём письмо с доступом на email (основной канал)."""
-    send_email_invite: bool = True
     """Для эксперта: подпись в календаре под ФИО (например Невролог)."""
     specialization: str | None = Field(default=None, max_length=255)
     """Для эксперта: направление онлайн-записи (тип слота / колонка календаря)."""
@@ -382,7 +381,7 @@ def _send_employee_credentials_email(
     intro: str,
     subject: str = "Доступ к CRM",
     heading: str = "Доступ к CRM",
-) -> bool:
+) -> tuple[bool, str | None]:
     invite_url = _build_invite_url(invite_token)
     plain, html_body = _credentials_email_bodies(
         email=to_email,
@@ -415,8 +414,24 @@ async def _active_green_integration_for_company(
     *,
     prefer_pipeline_ids: list[int] | None = None,
 ) -> Integration | None:
+    """Как в чате: сначала Integration.company_id, иначе через воронку компании."""
     prefer = [int(x) for x in (prefer_pipeline_ids or []) if x]
     if prefer:
+        row = (
+            await db.execute(
+                select(Integration)
+                .where(
+                    Integration.company_id == company_id,
+                    Integration.pipeline_id.in_(prefer),
+                    Integration.provider == IntegrationProvider.green_api,
+                    Integration.is_active.is_(True),
+                )
+                .order_by(Integration.id.desc())
+                .limit(1),
+            )
+        ).scalars().first()
+        if row is not None:
+            return row
         row = (
             await db.execute(
                 select(Integration)
@@ -433,6 +448,20 @@ async def _active_green_integration_for_company(
         ).scalars().first()
         if row is not None:
             return row
+    row = (
+        await db.execute(
+            select(Integration)
+            .where(
+                Integration.company_id == company_id,
+                Integration.provider == IntegrationProvider.green_api,
+                Integration.is_active.is_(True),
+            )
+            .order_by(Integration.id.desc())
+            .limit(1),
+        )
+    ).scalars().first()
+    if row is not None:
+        return row
     return (
         await db.execute(
             select(Integration)
@@ -660,10 +689,12 @@ async def invite_employee(
     email = body.email.strip().lower()
     if "@" not in email or "." not in email.split("@")[-1]:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Укажите корректный email")
-    phone_raw = (body.phone or "").strip()
-    phone = _norm_phone(phone_raw) if phone_raw else ""
-    if phone_raw and len(phone) < 7:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Проверьте телефон")
+    phone = _norm_phone(body.phone or "")
+    if len(phone) < 7:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Укажите телефон — на него уйдёт WhatsApp с доступом",
+        )
 
     # validate pipelines
     if body.pipeline_ids:
@@ -686,13 +717,12 @@ async def invite_employee(
     u = existing_by_email if rehire else None
 
     # Номера компании переходят: у уволенного освобождаем телефон, конфликт только с активным.
-    if phone:
-        other_phone = await _user_with_phone_except(db, phone, company_id, except_user_id=u.id if u else None)
-        if other_phone is not None:
-            if other_phone.is_active:
-                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Phone already registered")
-            other_phone.phone = None
-            await db.flush()
+    other_phone = await _user_with_phone_except(db, phone, company_id, except_user_id=u.id if u else None)
+    if other_phone is not None:
+        if other_phone.is_active:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Phone already registered")
+        other_phone.phone = None
+        await db.flush()
 
     if not rehire:
         mx = await effective_tariff_max_active_users(db, company_id)
@@ -708,8 +738,7 @@ async def invite_employee(
     invite_token = secrets.token_urlsafe(32)
 
     if rehire and u is not None:
-        if phone:
-            u.phone = phone
+        u.phone = phone
         u.full_name = body.full_name.strip()
         u.role = body.role
         u.hashed_password = hash_password(temp_password)
@@ -721,7 +750,7 @@ async def invite_employee(
         u = User(
             company_id=company_id,
             email=email,
-            phone=phone or None,
+            phone=phone,
             full_name=body.full_name.strip(),
             role=body.role,
             hashed_password=hash_password(temp_password),
@@ -766,20 +795,19 @@ async def invite_employee(
 
     invite_url = _build_invite_url(invite_token)
     intro = "Вам восстановили доступ к CRM." if rehire else "Вас пригласили в CRM MetodiOne."
-    email_sent = False
-    if body.send_email_invite:
-        email_sent = _send_employee_credentials_email(
+    emp = await _employee_read(db, u)
+    # Оба канала параллельно: письмо (SMTP) + WhatsApp (Green API).
+    (email_sent, email_err), (wa_sent, wa_err) = await asyncio.gather(
+        asyncio.to_thread(
+            _send_employee_credentials_email,
             email,
             temp_password,
             invite_token,
             intro=intro,
             subject="Приглашение в CRM MetodiOne",
             heading="Приглашение в CRM",
-        )
-    emp = await _employee_read(db, u)
-    wa_sent, wa_err = False, None
-    if phone:
-        wa_sent, wa_err = await _send_employee_credentials_whatsapp(
+        ),
+        _send_employee_credentials_whatsapp(
             db,
             company_id=company_id,
             phone=phone,
@@ -787,7 +815,8 @@ async def invite_employee(
             temp_password=temp_password,
             invite_token=invite_token,
             prefer_pipeline_ids=emp.pipeline_ids,
-        )
+        ),
+    )
     await write_audit_event(
         db,
         entity_type="user",
@@ -797,23 +826,21 @@ async def invite_employee(
         details=f"email_sent={email_sent}, whatsapp_sent={wa_sent}, role={u.role.value}",
     )
 
-    mail_hint = smtp_misconfig_hint()
+    mail_hint = email_err or smtp_misconfig_hint()
     if email_sent and wa_sent:
-        detail = f"Сотрудник создан. Письмо с доступом отправлено на {email}; дубликат ушёл в WhatsApp."
+        detail = f"Сотрудник создан. Письмо на {email} и WhatsApp на +{whatsapp_e164_digits(phone)} отправлены."
     elif email_sent:
-        detail = f"Сотрудник создан. Письмо с доступом отправлено на {email}."
-        if phone and wa_err:
-            detail += f" WhatsApp: {wa_err}"
+        detail = f"Сотрудник создан. Письмо отправлено на {email}."
+        if wa_err:
+            detail += f" WhatsApp не ушёл: {wa_err}"
     elif wa_sent:
-        detail = "Сотрудник создан. Приглашение ушло в WhatsApp."
-        detail += f" Письмо на {email} не ушло ({mail_hint or 'проверьте SMTP / пароль приложения Gmail'})."
+        detail = f"Сотрудник создан. WhatsApp отправлен. Письмо на {email} не ушло"
+        detail += f" ({mail_hint or 'проверьте SMTP'})."
     else:
-        detail = f"Сотрудник создан. Письмо на {email} не ушло — скопируйте ссылку и пароль с экрана."
+        detail = "Сотрудник создан. Email и WhatsApp не ушли — скопируйте ссылку и пароль с экрана."
         if mail_hint:
             detail += f" Почта: {mail_hint}."
-        elif body.send_email_invite:
-            detail += " SMTP отклонил отправку (часто просрочен пароль приложения Gmail)."
-        if phone and wa_err:
+        if wa_err:
             detail += f" WhatsApp: {wa_err}."
 
     return InviteEmployeeResult(
@@ -1049,7 +1076,7 @@ async def patch_employee_contact(
             temp_password = _rand_password()
             invite_token = secrets.token_urlsafe(32)
             intro = "Для вашего аккаунта в CRM изменён email. Используйте новые данные для входа."
-            credentials_sent = _send_employee_credentials_email(
+            credentials_sent, mail_err = _send_employee_credentials_email(
                 normalized,
                 temp_password,
                 invite_token,
@@ -1060,7 +1087,10 @@ async def patch_employee_contact(
             if not credentials_sent:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Не удалось отправить письмо на новый email. Старый логин и пароль остаются.",
+                    detail=(
+                        "Не удалось отправить письмо на новый email. Старый логин и пароль остаются."
+                        + (f" {mail_err}" if mail_err else "")
+                    ),
                 )
             target.email = normalized
             target.hashed_password = hash_password(temp_password)
@@ -1317,7 +1347,7 @@ async def resend_employee_credentials(
     await db.flush()
 
     intro = "Вам повторно выслан доступ к CRM. Используйте новые данные для входа."
-    email_sent = _send_employee_credentials_email(
+    email_sent, email_err = _send_employee_credentials_email(
         target.email,
         temp_password,
         invite_token,
@@ -1358,11 +1388,13 @@ async def resend_employee_credentials(
         if email_sent and not wa_sent and wa_err:
             detail += f" WhatsApp: {wa_err}"
         elif wa_sent and not email_sent:
-            detail += " Письмо не ушло."
+            detail += f" Письмо не ушло{f': {email_err}' if email_err else ''}."
     else:
         detail = "Пароль записан. Письмо и WhatsApp не ушли — скопируйте пароль с этого экрана."
+        if email_err:
+            detail += f" Почта: {email_err}."
         if wa_err:
-            detail += f" {wa_err}"
+            detail += f" WhatsApp: {wa_err}."
 
     return ResendCredentialsResult(
         employee_id=int(target.id),
