@@ -26,7 +26,10 @@ from app.models import (
     PipelineStage,
     SalesKpiManualSale,
     SalesKpiManualSalePayment,
+    SalesKpiPlan,
     SalesKpiPlanItem,
+    SalesKpiServicePlan,
+    SalesKpiServicePrice,
     Task,
     TaskStatus,
     User,
@@ -51,8 +54,10 @@ from app.schemas.rop import (
     RopManagersList,
     RopOutlookMonth,
     RopOutlookPace,
+    RopOutlookPlanFact,
     RopOutlookReport,
     RopOutlookScenario,
+    RopOutlookSignal,
     RopReportCell,
     RopRevenueReport,
     RopRevenueShare,
@@ -77,6 +82,12 @@ from app.services.rop_outlook import (
     next_month_mid,
     pct_delta,
     project_scenarios,
+)
+from app.services.rop_signals import (
+    UNREPLIED_HOURS_DEFAULT,
+    ManagerSignalInput,
+    collect_signals,
+    waiting_unreplied,
 )
 from app.services.sales_kpi_weighted import _norm_kpi_label, load_plan_items
 
@@ -1329,6 +1340,173 @@ def _month_last_day(month_start: date) -> date:
     return _next_month_start(month_start) - timedelta(days=1)
 
 
+_HOT_STAGES = frozenset({"Новый лид", "В обработке"})
+
+
+async def _outlook_plan_by_manager(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    pipeline_id: int,
+    ym: date,
+    manager_ids: list[int],
+) -> dict[int, Decimal]:
+    """План KPI на месяц: qty×цена из матрицы услуг, иначе legacy SalesKpiPlan."""
+    if not manager_ids:
+        return {}
+    prices = {
+        int(did): Decimal(str(price or 0))
+        for did, price in (
+            await db.execute(
+                select(SalesKpiServicePrice.direction_id, SalesKpiServicePrice.unit_price).where(
+                    SalesKpiServicePrice.company_id == company_id,
+                    SalesKpiServicePrice.pipeline_id == pipeline_id,
+                    SalesKpiServicePrice.year_month == ym,
+                )
+            )
+        ).all()
+    }
+    plan_map: dict[int, Decimal] = defaultdict(lambda: Decimal("0"))
+    if prices:
+        for mid, did, qty in (
+            await db.execute(
+                select(
+                    SalesKpiServicePlan.manager_user_id,
+                    SalesKpiServicePlan.direction_id,
+                    SalesKpiServicePlan.plan_qty,
+                ).where(
+                    SalesKpiServicePlan.company_id == company_id,
+                    SalesKpiServicePlan.pipeline_id == pipeline_id,
+                    SalesKpiServicePlan.year_month == ym,
+                    SalesKpiServicePlan.manager_user_id.in_(manager_ids),
+                )
+            )
+        ).all():
+            if mid is None or did is None:
+                continue
+            unit = prices.get(int(did), Decimal("0"))
+            plan_map[int(mid)] += (Decimal(int(qty or 0)) * unit).quantize(Decimal("0.01"))
+    if any(v > 0 for v in plan_map.values()):
+        return dict(plan_map)
+
+    legacy = (
+        await db.execute(
+            select(SalesKpiPlan.manager_user_id, func.coalesce(func.sum(SalesKpiPlan.plan_amount), 0)).where(
+                SalesKpiPlan.company_id == company_id,
+                SalesKpiPlan.pipeline_id == pipeline_id,
+                SalesKpiPlan.year_month == ym,
+                SalesKpiPlan.manager_user_id.in_(manager_ids),
+            ).group_by(SalesKpiPlan.manager_user_id)
+        )
+    ).all()
+    return {int(mid): Decimal(str(amt or 0)) for mid, amt in legacy if mid is not None}
+
+
+async def _outlook_signals(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    pipeline_id: int,
+    manager_ids: list[int],
+    by_id: dict[int, User],
+) -> list[RopOutlookSignal]:
+    if not manager_ids:
+        return []
+    now = datetime.now(UTC)
+    threshold_h = float(UNREPLIED_HOURS_DEFAULT)
+
+    active_rows = (
+        await db.execute(
+            select(Lead.manager_id, PipelineStage.name, func.count())
+            .join(PipelineStage, PipelineStage.id == Lead.status_id)
+            .where(
+                Lead.company_id == company_id,
+                PipelineStage.pipeline_id == pipeline_id,
+                Lead.manager_id.in_(manager_ids),
+                PipelineStage.name.notin_(tuple(_DASH_DONE_STAGES)),
+                lead_has_contact_phone(),
+            )
+            .group_by(Lead.manager_id, PipelineStage.name)
+        )
+    ).all()
+    active_map: dict[int, int] = defaultdict(int)
+    hot_map: dict[int, int] = defaultdict(int)
+    for mid, sname, cnt in active_rows:
+        if mid is None:
+            continue
+        mid_i, n = int(mid), int(cnt)
+        active_map[mid_i] += n
+        if str(sname) in _HOT_STAGES:
+            hot_map[mid_i] += n
+
+    open_leads = (
+        await db.execute(
+            select(Lead.id, Lead.manager_id, Lead.created_at)
+            .join(PipelineStage, PipelineStage.id == Lead.status_id)
+            .where(
+                Lead.company_id == company_id,
+                PipelineStage.pipeline_id == pipeline_id,
+                Lead.manager_id.in_(manager_ids),
+                PipelineStage.name.notin_(tuple(_DASH_DONE_STAGES)),
+                lead_has_contact_phone(),
+            )
+        )
+    ).all()
+    lead_meta = {int(lid): (int(mid), created) for lid, mid, created in open_leads if mid is not None}
+    lead_ids = list(lead_meta.keys())
+    msgs_by_lead: dict[int, list[tuple[str, datetime]]] = defaultdict(list)
+    if lead_ids:
+        for lid, direction, ts in (
+            await db.execute(
+                select(ChatThread.lead_id, ChatMessage.direction, ChatMessage.created_at)
+                .join(ChatMessage, ChatMessage.thread_id == ChatThread.id)
+                .where(ChatThread.lead_id.in_(lead_ids))
+                .order_by(ChatMessage.created_at.asc(), ChatMessage.id.asc())
+            )
+        ).all():
+            if lid is None or ts is None:
+                continue
+            msgs_by_lead[int(lid)].append((str(direction or ""), ts))
+
+    unreplied_map: dict[int, int] = defaultdict(int)
+    for lid, (mid, created) in lead_meta.items():
+        if waiting_unreplied(
+            messages=msgs_by_lead.get(lid, []),
+            now=now,
+            threshold_hours=threshold_h,
+            lead_created_at=created,
+        ):
+            unreplied_map[mid] += 1
+
+    inputs: list[ManagerSignalInput] = []
+    for mid in manager_ids:
+        u = by_id.get(mid)
+        if u is None:
+            continue
+        inputs.append(
+            ManagerSignalInput(
+                manager_id=mid,
+                manager_name=_display_name(u),
+                is_online=_is_online(u.last_seen_at, now=now),
+                active_leads=active_map.get(mid, 0),
+                hot_leads=hot_map.get(mid, 0),
+                unreplied_count=unreplied_map.get(mid, 0),
+            )
+        )
+    return [
+        RopOutlookSignal(
+            kind=s.kind,
+            severity=s.severity,
+            title=s.title,
+            detail=s.detail,
+            count=s.count,
+            manager_id=s.manager_id,
+            manager_name=s.manager_name,
+        )
+        for s in collect_signals(inputs, unreplied_hours=UNREPLIED_HOURS_DEFAULT)
+    ]
+
+
 @router.get("/outlook", response_model=RopOutlookReport)
 async def rop_outlook(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -1418,6 +1596,52 @@ async def rop_outlook(
         mid_revenue=scen["mid"].revenue,
         current_revenue=current.revenue,
     )
+
+    manager_ids = await _pipeline_manager_ids(db, company_id=company_id, pipeline_id=pipeline_id)
+    managers = (
+        await db.execute(select(User).where(User.id.in_(manager_ids or [0])))
+    ).scalars().all() if manager_ids else []
+    by_id = {int(u.id): u for u in managers}
+
+    fact_map: dict[int, Decimal] = defaultdict(lambda: Decimal("0"))
+    for share in cur_analytics.revenue_shares:
+        fact_map[int(share.manager_id)] += Decimal(str(share.amount or 0))
+
+    plan_map = await _outlook_plan_by_manager(
+        db,
+        company_id=company_id,
+        pipeline_id=pipeline_id,
+        ym=month_start,
+        manager_ids=manager_ids,
+    )
+    plan_fact_ids = sorted(set(plan_map.keys()) | set(fact_map.keys()), key=lambda mid: _display_name(by_id[mid]).lower() if mid in by_id else str(mid))
+    plan_fact: list[RopOutlookPlanFact] = []
+    for mid in plan_fact_ids:
+        plan_amt = plan_map.get(mid, Decimal("0"))
+        fact_amt = fact_map.get(mid, Decimal("0"))
+        if plan_amt <= 0 and fact_amt <= 0:
+            continue
+        progress = round(float(fact_amt) * 100.0 / float(plan_amt), 1) if plan_amt > 0 else 0.0
+        plan_fact.append(
+            RopOutlookPlanFact(
+                manager_id=mid,
+                manager_name=_display_name(by_id[mid]) if mid in by_id else f"#{mid}",
+                plan_amount=plan_amt,
+                fact_amount=fact_amt,
+                progress_percent=progress,
+            )
+        )
+    plan_total = sum((r.plan_amount for r in plan_fact), Decimal("0"))
+    fact_total = sum((r.fact_amount for r in plan_fact), Decimal("0"))
+
+    signals = await _outlook_signals(
+        db,
+        company_id=company_id,
+        pipeline_id=pipeline_id,
+        manager_ids=manager_ids,
+        by_id=by_id,
+    )
+
     return RopOutlookReport(
         as_of=today,
         pipeline_id=int(pipe.id),
@@ -1428,6 +1652,10 @@ async def rop_outlook(
         scenarios=scenarios,
         next_month=next_scenario,
         summary=summary,
+        signals=signals,
+        plan_fact=plan_fact,
+        plan_total=plan_total,
+        fact_total=fact_total,
     )
 
 

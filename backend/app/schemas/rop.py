@@ -228,6 +228,24 @@ class RopOutlookPace(BaseModel):
     remaining_days: int = 0
 
 
+class RopOutlookSignal(BaseModel):
+    kind: str
+    severity: str
+    title: str
+    detail: str
+    count: int = 0
+    manager_id: int | None = None
+    manager_name: str | None = None
+
+
+class RopOutlookPlanFact(BaseModel):
+    manager_id: int
+    manager_name: str
+    plan_amount: Decimal = Decimal("0")
+    fact_amount: Decimal = Decimal("0")
+    progress_percent: float = 0.0
+
+
 class RopOutlookReport(BaseModel):
     as_of: date
     pipeline_id: int
@@ -238,3 +256,7 @@ class RopOutlookReport(BaseModel):
     scenarios: list[RopOutlookScenario] = Field(default_factory=list)
     next_month: RopOutlookScenario | None = None
     summary: str = ""
+    signals: list[RopOutlookSignal] = Field(default_factory=list)
+    plan_fact: list[RopOutlookPlanFact] = Field(default_factory=list)
+    plan_total: Decimal = Decimal("0")
+    fact_total: Decimal = Decimal("0")

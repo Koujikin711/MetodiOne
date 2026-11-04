@@ -20,6 +20,23 @@ type Month = {
 
 type Scenario = { key: string; label: string; leads: number; revenue: number | string };
 
+type Signal = {
+  kind: string;
+  severity: string;
+  title: string;
+  detail: string;
+  count: number;
+  manager_name?: string | null;
+};
+
+type PlanFact = {
+  manager_id: number;
+  manager_name: string;
+  plan_amount: number | string;
+  fact_amount: number | string;
+  progress_percent: number;
+};
+
 type Outlook = {
   as_of: string;
   current: Month;
@@ -27,6 +44,10 @@ type Outlook = {
   scenarios: Scenario[];
   next_month?: Scenario | null;
   summary?: string;
+  signals?: Signal[];
+  plan_fact?: PlanFact[];
+  plan_total?: number | string;
+  fact_total?: number | string;
 };
 
 function money(v: number | string | undefined) {
@@ -65,7 +86,7 @@ export function RopOutlookPage() {
       <PrintMasthead title="Прогноз отдела продаж" meta={data?.as_of ? `на ${data.as_of}` : undefined} />
       <RopPageIntro
         title="Прогноз"
-        hint="Сравнение с прошлым месяцем и ориентир до конца месяца: худший / средний / лучший темп."
+        hint="Сравнение месяцев, сценарии темпа, сигналы планёрки и план/факт KPI."
       />
 
       {query.isLoading ? <p className="text-sm mo-muted">Загрузка…</p> : null}
@@ -145,6 +166,69 @@ export function RopOutlookPage() {
                 {data.next_month.leads.toLocaleString("ru-RU")} лидов
               </p>
             ) : null}
+          </section>
+
+          <section className="rop-outlook-block" aria-label="Сигналы">
+            <h3 className="rop-outlook-block__title">Сигналы</h3>
+            <p className="rop-outlook-block__hint">
+              Без ответа дольше 4 ч · офлайн при новых лидах · перегруз относительно медианы
+            </p>
+            {(data?.signals ?? []).length === 0 ? (
+              <p className="text-sm mo-muted">Сейчас спокойно — критичных сигналов нет.</p>
+            ) : (
+              <ul className="rop-outlook-signals">
+                {(data?.signals ?? []).map((s, i) => (
+                  <li
+                    key={`${s.kind}-${s.manager_name ?? i}`}
+                    className={`rop-outlook-signal rop-outlook-signal--${s.severity}`}
+                  >
+                    <strong>{s.title}</strong>
+                    <span>{s.detail}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section className="rop-outlook-block" aria-label="План и факт">
+            <h3 className="rop-outlook-block__title">План / факт месяца</h3>
+            <p className="rop-outlook-block__hint">
+              Сумма: план {money(data?.plan_total)} · факт {money(data?.fact_total)}
+              {Number(data?.plan_total || 0) > 0
+                ? ` · ${(
+                    (Number(data?.fact_total || 0) / Number(data?.plan_total || 1)) *
+                    100
+                  ).toLocaleString("ru-RU", { maximumFractionDigits: 0 })}%`
+                : ""}
+            </p>
+            {(data?.plan_fact ?? []).length === 0 ? (
+              <p className="text-sm mo-muted">Планы KPI на месяц не заданы (или нет оплат).</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="mo-table w-full text-sm">
+                  <thead>
+                    <tr>
+                      <th>Менеджер</th>
+                      <th className="text-right">План</th>
+                      <th className="text-right">Факт</th>
+                      <th className="text-right">%</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(data?.plan_fact ?? []).map((r) => (
+                      <tr key={r.manager_id}>
+                        <td>{r.manager_name}</td>
+                        <td className="text-right tabular-nums">{money(r.plan_amount)}</td>
+                        <td className="text-right tabular-nums">{money(r.fact_amount)}</td>
+                        <td className="text-right tabular-nums">
+                          {r.progress_percent.toLocaleString("ru-RU", { maximumFractionDigits: 1 })}%
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </section>
 
           {data?.summary ? <p className="rop-outlook-summary">{data.summary}</p> : null}
