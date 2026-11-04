@@ -53,6 +53,8 @@ import { DevKpiCoursePatientCardPreview } from "@/pages/DevKpiCoursePatientCardP
 import { DevKpiDuplicateNamePreview } from "@/pages/DevKpiDuplicateNamePreview";
 import { DevKpiEarningsClickPreview } from "@/pages/DevKpiEarningsClickPreview";
 import { DevKpiEarningsLogicPreview } from "@/pages/DevKpiEarningsLogicPreview";
+import DevEmrChartPreview from "@/pages/DevEmrChartPreview";
+import MedicalCardPage from "@/pages/MedicalCardPage";
 import { SalesControlPage } from "@/pages/SalesControlPage";
 import { RopLayout } from "@/pages/rop/RopLayout";
 import { RopDashboardPage } from "@/pages/rop/RopDashboardPage";
@@ -78,6 +80,7 @@ export default function App() {
             <Route path="/dev/ui/kpi-course-patient" element={<DevKpiCoursePatientCardPreview />} />
             <Route path="/dev/ui/kpi-same-name" element={<DevKpiDuplicateNamePreview />} />
             <Route path="/dev/ui/booking-rename" element={<DevBookingRenamePreview />} />
+            <Route path="/dev/ui/emr-chart" element={<DevEmrChartPreview />} />
           </>
         ) : null}
         <Route path="/landing" element={<LandingPage />} />
@@ -97,6 +100,7 @@ export default function App() {
             <Route path="/booking" element={<BookingOrSalesEntry />} />
             <Route path="/extra-services" element={<ExtraServicesPage />} />
             <Route path="/curator-journal" element={<CuratorJournalPage />} />
+            <Route path="/medical-card" element={<MedicalCardPage />} />
             <Route path="/sales-control" element={<SalesControlPage />} />
             <Route path="/sales" element={<ManagerSalesPage />} />
             <Route path="/quote" element={<SalesQuoteCalculatorPage />} />

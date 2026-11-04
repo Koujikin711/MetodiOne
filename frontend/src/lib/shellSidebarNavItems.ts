@@ -106,6 +106,23 @@ function curatorJournalNavItem(): ShellSidebarNavItem {
   };
 }
 
+function medicalCardNavItem(): ShellSidebarNavItem {
+  return {
+    id: "medical-card",
+    to: "/medical-card",
+    title: "Электронная мед. карта",
+    labelShort: "Мед.",
+    labelFull: "Мед. карта",
+    variant: "teal",
+    iconKey: "id-card",
+  };
+}
+
+function pushClinicalCareNav(items: ShellSidebarNavItem[]) {
+  items.push(curatorJournalNavItem());
+  items.push(medicalCardNavItem());
+}
+
 export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavItem[] {
   const {
     isSuperOwner,
@@ -250,7 +267,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       });
       if (showExtraServices) items.push(extraServicesNavItem());
     }
-    items.push(curatorJournalNavItem());
+    pushClinicalCareNav(items);
     if (showKpi && showNavForFeature("kpi")) {
       items.push({
         id: "kpi",
@@ -280,7 +297,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       });
       if (showExtraServices) items.push(extraServicesNavItem());
     }
-    items.push(curatorJournalNavItem());
+    pushClinicalCareNav(items);
     return items;
   }
 
@@ -343,7 +360,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         iconKey: "target",
       });
     }
-    items.push(curatorJournalNavItem());
+    pushClinicalCareNav(items);
     if (showNavForFeature("employees")) {
       items.push({
         id: "employees",
@@ -580,7 +597,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         iconKey: "plug",
       });
     }
-    if (showCuratorJournal) items.push(curatorJournalNavItem());
+    if (showCuratorJournal) pushClinicalCareNav(items);
     return items;
   }
 
@@ -645,7 +662,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       iconKey: "users",
     });
     if (alsoCurator) {
-      items.push(curatorJournalNavItem());
+      pushClinicalCareNav(items);
     }
     return items;
   }
@@ -748,7 +765,7 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
       iconKey: "target",
     });
   }
-  items.push(curatorJournalNavItem());
+  pushClinicalCareNav(items);
   if (showNavForFeature("analytics")) {
     items.push({
       id: "analytics",
