@@ -713,6 +713,31 @@ async def save_payroll_adjustment(
     )
 
 
+@router.get("/expenses/pending-confirm", response_model=list[FinanceOsvRowRead])
+async def list_pending_expense_confirms(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    limit: int = Query(default=50, ge=1, le=200),
+) -> list[FinanceOsvRowRead]:
+    """Расходы >500 сомони, ждущие подтверждения владельца (все месяцы)."""
+    if not _owner_confirms_expenses(current_user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Только владелец")
+    _assert_expenses_access(current_user)
+    rows = (
+        await db.execute(
+            select(FinanceOsvRow)
+            .where(
+                FinanceOsvRow.company_id == company_id,
+                FinanceOsvRow.expense_confirm == "pending",
+            )
+            .order_by(FinanceOsvRow.txn_date.desc(), FinanceOsvRow.id.desc())
+            .limit(limit)
+        )
+    ).scalars().all()
+    return [FinanceOsvRowRead.model_validate(r) for r in rows]
+
+
 @router.post("/expenses", response_model=FinanceOsvRowRead, status_code=status.HTTP_201_CREATED)
 async def create_expense(
     body: FinanceExpenseCreate,

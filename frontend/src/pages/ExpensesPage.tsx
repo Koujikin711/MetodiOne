@@ -16,8 +16,9 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FormEvent, Fragment, useMemo, useRef, useState } from "react";
+import { FormEvent, Fragment, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
+import { useSearchParams } from "react-router-dom";
 
 import { Check, GripVertical, Pencil } from "@/components/icons";
 import { apiFetch, getStoredToken } from "@/lib/api";
@@ -609,9 +610,13 @@ function ExpenseEditForm({
 
 export function ExpensesPage() {
   const qc = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const role = decodeRoleFromToken(getStoredToken());
   const isOwner = role === "owner" || role === "super_owner";
-  const [yearMonth, setYearMonth] = useState(defaultYearMonth);
+  const [yearMonth, setYearMonth] = useState(() => {
+    const ym = searchParams.get("ym") || "";
+    return /^\d{4}-\d{2}$/.test(ym) ? ym : defaultYearMonth();
+  });
   const [search, setSearch] = useState("");
   const [view, setView] = useState<"journal" | "payroll">("journal");
   const [employeeId, setEmployeeId] = useState("");
@@ -620,6 +625,12 @@ export function ExpensesPage() {
   const [payrollRole, setPayrollRole] = useState("manager");
   const [payrollSpec, setPayrollSpec] = useState("Невролог");
   const [payrollPhone, setPayrollPhone] = useState("");
+  const [pendingOpen, setPendingOpen] = useState(false);
+  const [focusId, setFocusId] = useState<number | null>(() => {
+    const raw = searchParams.get("focus");
+    const n = raw ? Number(raw) : NaN;
+    return Number.isFinite(n) && n > 0 ? n : null;
+  });
   const year = Number(yearMonth.slice(0, 4));
   const month = Number(yearMonth.slice(5, 7));
 
@@ -631,6 +642,56 @@ export function ExpensesPage() {
       }),
     retry: 1,
   });
+
+  const pendingQuery = useQuery({
+    queryKey: ["finance-expenses-pending"],
+    queryFn: () => apiFetch<ExpenseRow[]>("/api/finance/expenses/pending-confirm"),
+    enabled: isOwner,
+    refetchInterval: 30_000,
+  });
+  const pendingRows = pendingQuery.data ?? [];
+  const pendingCount = pendingRows.length;
+  const pendingTotal = useMemo(
+    () => pendingRows.reduce((sum, row) => sum + Math.abs(Number(row.expense || 0)), 0),
+    [pendingRows],
+  );
+
+  useEffect(() => {
+    if (pendingCount === 0) setPendingOpen(false);
+  }, [pendingCount]);
+
+  useEffect(() => {
+    const ym = searchParams.get("ym") || "";
+    if (/^\d{4}-\d{2}$/.test(ym) && ym !== yearMonth) setYearMonth(ym);
+    const raw = searchParams.get("focus");
+    const n = raw ? Number(raw) : NaN;
+    if (Number.isFinite(n) && n > 0) {
+      setFocusId(n);
+      setView("journal");
+      setPendingOpen(true);
+    }
+    if (ym || raw) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("ym");
+      next.delete("focus");
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot from URL
+  }, []);
+
+  useEffect(() => {
+    if (!focusId || listQuery.isLoading) return;
+    const nodes = document.querySelectorAll(`[data-expense-focus="${focusId}"]`);
+    let target: Element | null = null;
+    nodes.forEach((el) => {
+      if (!target && el.getClientRects().length > 0) target = el;
+    });
+    if (target) {
+      target.scrollIntoView({ block: "center", behavior: "smooth" });
+      const t = window.setTimeout(() => setFocusId(null), 4000);
+      return () => window.clearTimeout(t);
+    }
+  }, [focusId, listQuery.isLoading, listQuery.data]);
 
   const [txnDate, setTxnDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [expense, setExpense] = useState("");
@@ -798,6 +859,7 @@ export function ExpensesPage() {
       setEmployeeId("");
       setPhone("");
       void qc.invalidateQueries({ queryKey: ["finance-expenses"] });
+      void qc.invalidateQueries({ queryKey: ["finance-expenses-pending"] });
       void qc.invalidateQueries({ queryKey: ["finance-payroll"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -810,6 +872,7 @@ export function ExpensesPage() {
     onSuccess: (row) => {
       toast.success(row.expense_confirm === "confirmed" ? "Расход подтверждён" : "Расход отклонён");
       void qc.invalidateQueries({ queryKey: ["finance-expenses"] });
+      void qc.invalidateQueries({ queryKey: ["finance-expenses-pending"] });
       void qc.invalidateQueries({ queryKey: ["finance-payroll"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -841,6 +904,7 @@ export function ExpensesPage() {
       setEditId(null);
       setEditDraft(null);
       void qc.invalidateQueries({ queryKey: ["finance-expenses"] });
+      void qc.invalidateQueries({ queryKey: ["finance-expenses-pending"] });
       void qc.invalidateQueries({ queryKey: ["finance-payroll"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -922,6 +986,67 @@ export function ExpensesPage() {
           <p className="mo-page-sub hidden sm:block">
             Банк, статья, товар. «Кому» — получатель (ЗП), «Через кого» — кто передал; это разные роли.
           </p>
+          {isOwner && pendingCount > 0 ? (
+            <>
+              <button
+                type="button"
+                className={["kpi-confirm-notice is-urgent is-button", pendingOpen ? "is-open" : ""]
+                  .filter(Boolean)
+                  .join(" ")}
+                aria-expanded={pendingOpen}
+                onClick={() => setPendingOpen((v) => !v)}
+              >
+                Ждёт подтверждения: {pendingCount} · {money(pendingTotal)} {APP_CURRENCY}
+              </button>
+              {pendingOpen ? (
+                <ul className="kpi-confirm-queue">
+                  {pendingRows.map((row) => {
+                    const ym = (row.txn_date || "").slice(0, 7);
+                    return (
+                      <li key={row.id} className="kpi-confirm-queue__row">
+                        <button
+                          type="button"
+                          className="min-w-0 flex-1 text-left"
+                          onClick={() => {
+                            if (ym && ym !== yearMonth) setYearMonth(ym);
+                            setView("journal");
+                            setFocusId(row.id);
+                          }}
+                        >
+                          <p className="truncate text-sm font-medium text-[var(--mo-text)]">
+                            {row.counterparty || row.basis || "Расход"}
+                          </p>
+                          <p className="text-[11px] tabular-nums mo-muted">
+                            {money(row.expense)} {APP_CURRENCY}
+                            {row.txn_date ? ` · ${formatDateShort(row.txn_date)}` : ""}
+                            {row.bank ? ` · ${row.bank}` : ""}
+                          </p>
+                        </button>
+                        <span className="flex shrink-0 flex-nowrap gap-1">
+                          <button
+                            type="button"
+                            className="btn-primary px-2.5 py-1 text-[11px]"
+                            disabled={confirmMutation.isPending}
+                            onClick={() => confirmMutation.mutate({ id: row.id, confirmed: true })}
+                          >
+                            Подтвердить
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-secondary px-2.5 py-1 text-[11px]"
+                            disabled={confirmMutation.isPending}
+                            onClick={() => confirmMutation.mutate({ id: row.id, confirmed: false })}
+                          >
+                            Отклонить
+                          </button>
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
+            </>
+          ) : null}
         </div>
         <div className="expenses-page__tools">
           <button
@@ -1278,7 +1403,16 @@ export function ExpensesPage() {
             <>
               <ul className="expenses-month__cards md:hidden">
                 {filtered.map((r) => (
-                  <li key={r.id} className="expenses-month__card">
+                  <li
+                    key={r.id}
+                    data-expense-focus={r.id}
+                    className={[
+                      "expenses-month__card",
+                      focusId === r.id ? "ring-2 ring-amber-400/70" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                  >
                     <div className="expenses-month__card-top">
                       <div className="min-w-0">
                         <div className="expenses-month__card-title">
@@ -1379,7 +1513,10 @@ export function ExpensesPage() {
                   <tbody>
                     {filtered.map((r) => (
                       <Fragment key={r.id}>
-                      <tr>
+                      <tr
+                        data-expense-focus={r.id}
+                        className={focusId === r.id ? "bg-amber-500/10" : undefined}
+                      >
                         <td className="tabular-nums whitespace-nowrap">{formatDateShort(r.txn_date)}</td>
                         <td className="tabular-nums whitespace-nowrap font-semibold">{money(r.expense)}</td>
                         <td>{r.bank || "—"}</td>

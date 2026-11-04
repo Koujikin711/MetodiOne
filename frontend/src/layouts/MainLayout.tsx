@@ -1,5 +1,6 @@
 import { LogOut } from "@/components/icons";
 import { AppBanners } from "@/components/AppBanners";
+import { OwnerExpenseConfirmBanner } from "@/components/OwnerExpenseConfirmBanner";
 import { TaskDueBanner } from "@/components/TaskDueBanner";
 import { ShellSidebarNav } from "@/components/ShellSidebarNav";
 import { TariffFeatureOutletGate } from "@/components/TariffFeatureOutletGate";
@@ -287,6 +288,7 @@ export function MainLayout() {
           ].join(" ")}
         >
           <div className="shell-tools relative z-40 flex shrink-0 items-center justify-end gap-2 print:hidden">
+            <OwnerExpenseConfirmBanner />
             <TaskDueBanner />
           </div>
           <AppBanners />
