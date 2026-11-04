@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import toast from "react-hot-toast";
-import { Navigate } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 
 import { apiFetch, getStoredToken } from "@/lib/api";
 import { decodeRoleFromToken } from "@/lib/auth";
@@ -890,6 +890,16 @@ export function CuratorJournalPage() {
                         >
                           {p.display_name}
                         </button>
+                        {p.lead_id ? (
+                          <Link
+                            to={`/medical-card/${p.lead_id}`}
+                            className="cj-emr-link"
+                            title="Мед. карта"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            ЭМК
+                          </Link>
+                        ) : null}
                       </div>
                     </th>
                     {canRemoveFromList ? (

@@ -1,9 +1,13 @@
 /**
- * Электронная мед. карта (UI-макет). Без API / БД / финансов / миграций.
- * Маршрут: /medical-card
+ * Электронная мед. карта — live по lead_id.
+ * Маршруты: /medical-card , /medical-card/:leadId
  */
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+
+import { apiFetch } from "@/lib/api";
 
 type TabId = "overview" | "history" | "dynamics" | "diagnostics" | "treatment" | "documents";
 
@@ -16,121 +20,273 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "documents", label: "Документы" },
 ];
 
-const SERVICE_CHIPS = [
-  { label: "Консультации", count: 4 },
-  { label: "ЭЭГ / Q-ЭЭГ", count: 2 },
-  { label: "Массаж", count: 5 },
-  { label: "ТМС", count: 3 },
-  { label: "Остеопатия", count: 2 },
-  { label: "Другие", count: 1 },
-];
+type EmrSearchItem = {
+  lead_id: number;
+  name: string;
+  phone: string | null;
+  birth_date: string | null;
+  manager_name: string | null;
+};
 
-const HISTORY = [
-  {
-    at: "04.11.2026 10:30",
-    title: "Повторный приём невролога",
-    specialist: "д-р Каримова",
-    status: "Выполнено",
-    note: "Разбор ЭЭГ, уточнение тактики",
-    kind: "visit",
-  },
-  {
-    at: "02.11.2026 15:00",
-    title: "ЭЭГ",
-    specialist: "лаб. Диагностика",
-    status: "Выполнено",
-    note: "Результат прикреплён",
-    kind: "diag",
-  },
-  {
-    at: "01.11.2026 09:00",
-    title: "Массаж · сеанс 5/5",
-    specialist: "Рахимов А.",
-    status: "Выполнено",
-    note: "Параллельно Курсу 15, отдельное назначение",
-    kind: "proc",
-  },
-  {
-    at: "28.10.2026",
-    title: "Курс 15 · день 8",
-    specialist: "куратор Дилшод",
-    status: "Наблюдение",
-    note: "Сон стабильнее, речь — без изменений",
-    kind: "course",
-  },
-  {
-    at: "20.10.2026 11:00",
-    title: "Первичный приём",
-    specialist: "д-р Каримова",
-    status: "Выполнено",
-    note: "Жалобы, анамнез, направления",
-    kind: "visit",
-  },
-];
+type EmrVisit = {
+  appointment_id: number;
+  start_at: string;
+  status: string;
+  status_code: string;
+  service_title: string;
+  direction_name: string | null;
+  specialist_name: string | null;
+  comment: string | null;
+  kind: string;
+};
 
-const DYNAMICS = [
-  { name: "Речь (экспрессивная)", scale: "0–5", was: "1", now: "2", delta: "+1", source: "врач" },
-  { name: "Понимание речи", scale: "0–5", was: "2", now: "3", delta: "+1", source: "врач" },
-  { name: "Сон (качество)", scale: "0–5", was: "2", now: "3", delta: "+1", source: "куратор" },
-  { name: "Внимание", scale: "0–5", was: "2", now: "2", delta: "0", source: "врач" },
-];
+type EmrChart = {
+  lead_id: number;
+  name: string;
+  phone: string | null;
+  birth_date: string | null;
+  age_label: string | null;
+  stage_name: string | null;
+  manager_name: string | null;
+  first_visit_at: string | null;
+  attending_doctor: string | null;
+  diagnosis: string | null;
+  warning: string | null;
+  service_chips: { key: string; label: string; count: number }[];
+  visits: EmrVisit[];
+  journey: {
+    course_15_status: string;
+    course_15_started_at: string | null;
+    course_15_completed_at: string | null;
+    branch: string;
+    membership_flow: string | null;
+    membership_joined_on: string | null;
+  };
+  dynamics: { at: string; category: string; label: string; value: string | null }[];
+  todos: { text: string; at: string | null }[];
+  stages: string[];
+  current_stage: string | null;
+};
+
+function fmtDt(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function fmtDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso.length <= 10 ? `${iso}T00:00:00` : iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("ru-RU");
+}
 
 export default function MedicalCardPage() {
+  const { leadId: leadIdParam } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const leadIdRaw = leadIdParam || searchParams.get("leadId") || "";
+  const leadId = Number(leadIdRaw) || null;
+
   const [tab, setTab] = useState<TabId>("overview");
+  const [q, setQ] = useState("");
+  const [debounced, setDebounced] = useState("");
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebounced(q.trim()), 280);
+    return () => window.clearTimeout(t);
+  }, [q]);
+
+  const searchQuery = useQuery({
+    queryKey: ["emr-search", debounced],
+    enabled: debounced.length >= 2 && !leadId,
+    queryFn: () => apiFetch<EmrSearchItem[]>(`/api/emr/search?q=${encodeURIComponent(debounced)}`),
+  });
+
+  const chartQuery = useQuery({
+    queryKey: ["emr-chart", leadId],
+    enabled: leadId != null && leadId > 0,
+    queryFn: () => apiFetch<EmrChart>(`/api/emr/${leadId}`),
+  });
+
+  function openLead(id: number) {
+    navigate(`/medical-card/${id}`);
+    setQ("");
+  }
+
+  function clearLead() {
+    navigate("/medical-card");
+    setSearchParams({});
+    setTab("overview");
+  }
 
   return (
     <div className="emr2">
       <div className="emr2__shell">
-        <p className="emr2__dev">
-          Макет ЭМК · ключ пациента <strong>lead_id</strong>. API и оплаты пока не подключены.
-        </p>
-
-        <header className="emr2-head">
-          <div className="emr2-head__main">
-            <div>
-              <h1 className="emr2-head__name">Рахимова Зарина</h1>
-              <p className="emr2-head__meta">
-                Карта <strong>МК-1842</strong>
-                <span>·</span>
-                12.03.2021 · 5 лет 7 мес
-                <span>·</span>
-                первое обращение 20.10.2026
-              </p>
-            </div>
-            <span className="emr2-badge">Наблюдение</span>
+        <div className="emr2-search">
+          <label className="emr2-search__label" htmlFor="emr-q">
+            Поиск пациента
+          </label>
+          <div className="emr2-search__row">
+            <input
+              id="emr-q"
+              type="search"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="ФИО или телефон"
+              autoComplete="off"
+            />
+            {leadId ? (
+              <button type="button" className="emr2-search__clear" onClick={clearLead}>
+                Сменить
+              </button>
+            ) : null}
           </div>
-          <div className="emr2-head__grid">
-            <Info label="Основной диагноз" value="F80.1 (предварительный)" />
-            <Info label="Лечащий врач" value="д-р Каримова Н." />
-            <Info label="Текущая программа" value="Курс 15 · день 8/15" />
-            <Info label="Предупреждения" value="Эпилепсия в семейном анамнезе" warn />
-          </div>
-          <div className="emr2-chips" aria-label="Фактически полученные услуги">
-            {SERVICE_CHIPS.map((c) => (
-              <div key={c.label} className="emr2-chip">
-                <span>{c.label}</span>
-                <strong>{c.count}</strong>
-              </div>
-            ))}
-          </div>
-        </header>
+          {!leadId && debounced.length >= 2 ? (
+            <ul className="emr2-search__list" role="listbox">
+              {searchQuery.isLoading ? <li className="emr2-muted">Ищем…</li> : null}
+              {searchQuery.data?.length === 0 ? <li className="emr2-muted">Никого не нашли</li> : null}
+              {searchQuery.data?.map((item) => (
+                <li key={item.lead_id}>
+                  <button type="button" onClick={() => openLead(item.lead_id)}>
+                    <strong>{item.name}</strong>
+                    <span>
+                      {item.phone || "—"}
+                      {item.birth_date ? ` · ${fmtDate(item.birth_date)}` : ""}
+                      {item.manager_name ? ` · ${item.manager_name}` : ""}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
 
-        <nav className="emr2-tabs" aria-label="Разделы карты">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              className={["emr2-tab", tab === t.id ? "is-active" : ""].filter(Boolean).join(" ")}
-              onClick={() => setTab(t.id)}
-            >
-              {t.label}
-            </button>
-          ))}
-        </nav>
+        {!leadId ? (
+          <p className="emr2__dev">
+            Найдите пациента по ФИО или телефону. Ключ карты — <strong>lead_id</strong>. Оплаты в ЭМК не
+            показываем.
+          </p>
+        ) : null}
 
-        <main className="emr2-body">{renderTab(tab)}</main>
+        {leadId && chartQuery.isLoading ? <p className="emr2-muted">Загружаем карту…</p> : null}
+        {leadId && chartQuery.isError ? (
+          <p className="emr2-muted">Не удалось открыть карту. Проверьте доступ и lead_id.</p>
+        ) : null}
+
+        {chartQuery.data ? <ChartView data={chartQuery.data} tab={tab} setTab={setTab} /> : null}
       </div>
     </div>
+  );
+}
+
+function ChartView({
+  data,
+  tab,
+  setTab,
+}: {
+  data: EmrChart;
+  tab: TabId;
+  setTab: (t: TabId) => void;
+}) {
+  const badge =
+    data.journey.course_15_status === "active"
+      ? "Курс 15"
+      : data.journey.course_15_status === "completed"
+        ? "Курс завершён"
+        : data.stage_name || "Карта";
+
+  return (
+    <>
+      <header className="emr2-head">
+        <div className="emr2-head__main">
+          <div>
+            <h1 className="emr2-head__name">{data.name}</h1>
+            <p className="emr2-head__meta">
+              Карта <strong>#{data.lead_id}</strong>
+              {data.birth_date ? (
+                <>
+                  <span>·</span>
+                  {fmtDate(data.birth_date)}
+                  {data.age_label ? ` · ${data.age_label}` : ""}
+                </>
+              ) : null}
+              {data.first_visit_at ? (
+                <>
+                  <span>·</span>
+                  первое обращение {fmtDate(data.first_visit_at)}
+                </>
+              ) : null}
+              {data.phone ? (
+                <>
+                  <span>·</span>
+                  {data.phone}
+                </>
+              ) : null}
+            </p>
+          </div>
+          <span className="emr2-badge">{badge}</span>
+        </div>
+        <div className="emr2-head__grid">
+          <Info label="Основной диагноз" value={data.diagnosis || "не указан в CRM"} />
+          <Info label="Лечащий врач" value={data.attending_doctor || "—"} />
+          <Info
+            label="Текущая программа"
+            value={
+              data.journey.membership_flow ||
+              (data.journey.course_15_status === "active"
+                ? "Курс 15 · активен"
+                : data.journey.course_15_status === "completed"
+                  ? "Курс 15 · завершён"
+                  : data.journey.branch !== "none"
+                    ? data.journey.branch
+                    : "нет активной программы")
+            }
+          />
+          <Info
+            label="Предупреждения"
+            value={data.warning || "нет отметок"}
+            warn={Boolean(data.warning)}
+          />
+        </div>
+        <div className="emr2-chips" aria-label="Фактически полученные услуги">
+          {data.service_chips.map((c) => (
+            <div key={c.key} className="emr2-chip">
+              <span>{c.label}</span>
+              <strong>{c.count}</strong>
+            </div>
+          ))}
+        </div>
+        <p className="emr2-note" style={{ marginTop: "0.55rem" }}>
+          Счётчики — только визиты со статусом «Пришёл».{" "}
+          <Link to={`/leads/${data.lead_id}`}>Карточка лида</Link>
+          {" · "}
+          <Link to={`/booking?lead_id=${data.lead_id}`}>Запись</Link>
+        </p>
+      </header>
+
+      <nav className="emr2-tabs" aria-label="Разделы карты">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            className={["emr2-tab", tab === t.id ? "is-active" : ""].filter(Boolean).join(" ")}
+            onClick={() => setTab(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
+
+      <main className="emr2-body">{renderTab(tab, data)}</main>
+    </>
   );
 }
 
@@ -155,185 +311,166 @@ function Card({ title, children, action }: { title: string; children: ReactNode;
   );
 }
 
-function renderTab(tab: TabId) {
+function renderTab(tab: TabId, data: EmrChart) {
+  const completed = data.visits.filter((v) => v.status_code === "completed");
+  const diagVisits = data.visits.filter((v) => v.kind === "diag");
+
   switch (tab) {
     case "overview":
       return (
         <div className="emr2-grid">
           <Card title="Текущий этап">
             <ol className="emr2-stages">
-              <li className="is-done">1-й приём</li>
-              <li className="is-done">Обследования</li>
-              <li className="is-done">2-й приём</li>
-              <li className="is-now">Курс 15</li>
-              <li>Заключение</li>
+              {data.stages.map((s) => {
+                const curIdx = data.current_stage ? data.stages.indexOf(data.current_stage) : -1;
+                const idx = data.stages.indexOf(s);
+                const cls = idx < curIdx ? "is-done" : idx === curIdx ? "is-now" : "";
+                return (
+                  <li key={s} className={cls}>
+                    {s}
+                  </li>
+                );
+              })}
             </ol>
-            <p className="emr2-note">
-              Параллельно: массаж 5/5 выполнен · ТМС 3/3 в плане (отдельные назначения, не в составе Курса
-              15).
-            </p>
+            {data.journey.membership_flow ? (
+              <p className="emr2-note">Поток: {data.journey.membership_flow}</p>
+            ) : (
+              <p className="emr2-note">Нет активного потока в журнале куратора.</p>
+            )}
           </Card>
           <Card title="Последние события">
-            <ul className="emr2-feed">
-              {HISTORY.slice(0, 3).map((e) => (
-                <li key={e.at + e.title}>
-                  <time>{e.at}</time>
-                  <strong>{e.title}</strong>
-                  <span>
-                    {e.specialist} · {e.status}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            {completed.length === 0 ? (
+              <p className="emr2-muted">Пока нет выполненных визитов.</p>
+            ) : (
+              <ul className="emr2-feed">
+                {completed.slice(0, 5).map((e) => (
+                  <li key={e.appointment_id}>
+                    <time>{fmtDt(e.start_at)}</time>
+                    <strong>{e.service_title}</strong>
+                    <span>
+                      {[e.specialist_name, e.status].filter(Boolean).join(" · ")}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </Card>
           <Card title="Краткая динамика">
-            <div className="emr2-dyn-mini">
-              {DYNAMICS.slice(0, 3).map((d) => (
-                <div key={d.name}>
-                  <span>{d.name}</span>
-                  <em>
-                    {d.was} → {d.now} <b className={d.delta.startsWith("+") ? "up" : ""}>{d.delta}</b>
-                  </em>
-                </div>
-              ))}
-            </div>
+            {data.dynamics.length === 0 ? (
+              <p className="emr2-muted">Жалоб куратора по этому lead пока нет.</p>
+            ) : (
+              <div className="emr2-dyn-mini">
+                {data.dynamics.slice(0, 6).map((d, i) => (
+                  <div key={`${d.at}-${d.category}-${i}`}>
+                    <span>
+                      {d.label} · {fmtDate(d.at)}
+                    </span>
+                    <em>{d.value || "отметка"}</em>
+                  </div>
+                ))}
+              </div>
+            )}
           </Card>
           <Card title="Ближайшие действия">
-            <ul className="emr2-todo">
-              <li>06.11 · Q-ЭЭГ · ожидает результат</li>
-              <li>08.11 · промежуточная оценка врача (Курс 15)</li>
-              <li>Контроль сна куратором ежедневно</li>
-            </ul>
+            {data.todos.length === 0 ? (
+              <p className="emr2-muted">Нет запланированных визитов.</p>
+            ) : (
+              <ul className="emr2-todo">
+                {data.todos.map((t, i) => (
+                  <li key={`${t.text}-${i}`}>
+                    {t.at ? `${fmtDate(t.at)} · ` : ""}
+                    {t.text}
+                  </li>
+                ))}
+              </ul>
+            )}
           </Card>
         </div>
       );
     case "history":
       return (
-        <Card
-          title="Хронология"
-          action={
-            <div className="emr2-filters">
-              <select defaultValue="all" aria-label="Вид">
-                <option value="all">Все события</option>
-                <option value="visit">Приёмы</option>
-                <option value="diag">Диагностика</option>
-                <option value="proc">Процедуры</option>
-                <option value="course">Курс</option>
-              </select>
-            </div>
-          }
-        >
-          <ul className="emr2-timeline">
-            {HISTORY.map((e) => (
-              <li key={e.at + e.title} data-kind={e.kind}>
-                <time>{e.at}</time>
-                <div>
-                  <strong>{e.title}</strong>
-                  <p>
-                    {e.specialist} · {e.status}
-                  </p>
-                  {e.note ? <p className="emr2-muted">{e.note}</p> : null}
-                </div>
-              </li>
-            ))}
-          </ul>
+        <Card title="Хронология">
+          {data.visits.length === 0 ? (
+            <p className="emr2-muted">Визитов по записи нет.</p>
+          ) : (
+            <ul className="emr2-timeline">
+              {data.visits.map((e) => (
+                <li key={e.appointment_id} data-kind={e.kind}>
+                  <time>{fmtDt(e.start_at)}</time>
+                  <div>
+                    <strong>{e.service_title}</strong>
+                    <p>
+                      {[e.specialist_name, e.status].filter(Boolean).join(" · ")}
+                    </p>
+                    {e.comment ? <p className="emr2-muted">{e.comment}</p> : null}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
       );
     case "dynamics":
       return (
-        <div className="emr2-grid emr2-grid--1">
-          <Card title="Показатели (было / стало)">
-            <p className="emr2-muted emr2-lead">
-              Шкалы задаёт врач. Куратор фиксирует наблюдения; клиническую оценку подтверждает врач. Без
-              автовыводов об эффективности процедур.
-            </p>
+        <Card title="Наблюдения куратора">
+          <p className="emr2-muted emr2-lead">
+            Шкалы врача пока не ведутся в CRM. Здесь — жалобы из журнала куратора по этому lead_id.
+          </p>
+          {data.dynamics.length === 0 ? (
+            <p className="emr2-muted">Нет данных.</p>
+          ) : (
             <table className="emr2-table">
               <thead>
                 <tr>
-                  <th>Показатель</th>
-                  <th>Шкала</th>
-                  <th>Было</th>
-                  <th>Стало</th>
-                  <th>Δ</th>
-                  <th>Источник</th>
+                  <th>Дата</th>
+                  <th>Категория</th>
+                  <th>Значение</th>
                 </tr>
               </thead>
               <tbody>
-                {DYNAMICS.map((d) => (
-                  <tr key={d.name}>
-                    <td>{d.name}</td>
-                    <td>{d.scale}</td>
-                    <td>{d.was}</td>
-                    <td>{d.now}</td>
-                    <td className={d.delta.startsWith("+") ? "up" : d.delta === "0" ? "" : "down"}>
-                      {d.delta}
-                    </td>
-                    <td>{d.source}</td>
+                {data.dynamics.map((d, i) => (
+                  <tr key={`${d.at}-${d.category}-${i}`}>
+                    <td>{fmtDate(d.at)}</td>
+                    <td>{d.label}</td>
+                    <td>{d.value || "—"}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <div className="emr2-chart-mock" aria-hidden>
-              <span>Речь</span>
-              <span>Понимание</span>
-              <span>Сон</span>
-              <div className="emr2-bars">
-                <i style={{ height: "28%" }} title="было" />
-                <i className="now" style={{ height: "48%" }} title="стало" />
-                <i style={{ height: "40%" }} />
-                <i className="now" style={{ height: "60%" }} />
-                <i style={{ height: "40%" }} />
-                <i className="now" style={{ height: "58%" }} />
-              </div>
-              <p>Макет графика контрольных точек: первичный → Курс 15 → далее</p>
-            </div>
-          </Card>
-        </div>
+          )}
+        </Card>
       );
     case "diagnostics":
       return (
-        <Card title="Исследования">
-          <table className="emr2-table">
-            <thead>
-              <tr>
-                <th>Исследование</th>
-                <th>Назначено</th>
-                <th>Проведено</th>
-                <th>Статус</th>
-                <th>Врач видел</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>ЭЭГ</td>
-                <td>20.10.2026</td>
-                <td>02.11.2026</td>
-                <td>
-                  <em className="emr2-st emr2-st--ok">Готово</em>
-                </td>
-                <td>Да</td>
-              </tr>
-              <tr>
-                <td>УЗИ</td>
-                <td>20.10.2026</td>
-                <td>—</td>
-                <td>
-                  <em className="emr2-st">В работе</em>
-                </td>
-                <td>—</td>
-              </tr>
-              <tr>
-                <td>Q-ЭЭГ</td>
-                <td>04.11.2026</td>
-                <td>—</td>
-                <td>
-                  <em className="emr2-st">Ожидает</em>
-                </td>
-                <td>—</td>
-              </tr>
-            </tbody>
-          </table>
-          <p className="emr2-muted">Файлы PDF/изображений — после интеграции хранилища.</p>
+        <Card title="Исследования (из записи)">
+          {diagVisits.length === 0 ? (
+            <p className="emr2-muted">Визитов с типом диагностики (ЭЭГ и т.п.) нет.</p>
+          ) : (
+            <table className="emr2-table">
+              <thead>
+                <tr>
+                  <th>Исследование</th>
+                  <th>Дата</th>
+                  <th>Статус</th>
+                  <th>Специалист</th>
+                </tr>
+              </thead>
+              <tbody>
+                {diagVisits.map((v) => (
+                  <tr key={v.appointment_id}>
+                    <td>{v.service_title}</td>
+                    <td>{fmtDt(v.start_at)}</td>
+                    <td>
+                      <em className={v.status_code === "completed" ? "emr2-st emr2-st--ok" : "emr2-st"}>
+                        {v.status}
+                      </em>
+                    </td>
+                    <td>{v.specialist_name || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </Card>
       );
     case "treatment":
@@ -342,84 +479,53 @@ function renderTab(tab: TabId) {
           <Card title="А. Курсы">
             <div className="emr2-course">
               <strong>Курс 15</strong>
-              <span>20.10–04.11.2026 · день 8/15 · куратор Дилшод</span>
-              <div className="emr2-progress">
-                <i style={{ width: "53%" }} />
-              </div>
+              <span>
+                статус: {data.journey.course_15_status}
+                {data.journey.course_15_started_at
+                  ? ` · с ${fmtDate(data.journey.course_15_started_at)}`
+                  : ""}
+              </span>
             </div>
-            <p className="emr2-muted">Курс 90 — не начат. Выбор только по показаниям врача.</p>
+            {data.journey.membership_flow ? (
+              <p className="emr2-muted">Журнал: {data.journey.membership_flow}</p>
+            ) : (
+              <p className="emr2-muted">Участник потока не найден.</p>
+            )}
           </Card>
-          <Card title="Б. Назначения врача">
-            <ul className="emr2-todo">
-              <li>Режим сна · контроль куратором</li>
-              <li>Повторный осмотр по завершении Курса 15</li>
-              <li>Без автоназначения препаратов в макете</li>
-            </ul>
-          </Card>
-          <Card title="В. Самостоятельные процедуры">
-            <p className="emr2-muted emr2-lead">Не входят в стоимость / состав Курса 15.</p>
+          <Card title="Б. Процедуры (факт)">
             <table className="emr2-table">
               <thead>
                 <tr>
-                  <th>Процедура</th>
-                  <th>План</th>
-                  <th>Факт</th>
-                  <th>Исполнитель</th>
+                  <th>Услуга</th>
+                  <th>Дата</th>
+                  <th>Статус</th>
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td>Массаж</td>
-                  <td>5</td>
-                  <td>5</td>
-                  <td>Рахимов А.</td>
-                </tr>
-                <tr>
-                  <td>ТМС</td>
-                  <td>3</td>
-                  <td>0</td>
-                  <td>—</td>
-                </tr>
-                <tr>
-                  <td>Остеопатия</td>
-                  <td>2</td>
-                  <td>2</td>
-                  <td>Исматов Ш.</td>
-                </tr>
+                {data.visits
+                  .filter((v) => v.kind === "proc")
+                  .slice(0, 20)
+                  .map((v) => (
+                    <tr key={v.appointment_id}>
+                      <td>{v.service_title}</td>
+                      <td>{fmtDate(v.start_at)}</td>
+                      <td>{v.status}</td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
+            {data.visits.filter((v) => v.kind === "proc").length === 0 ? (
+              <p className="emr2-muted">Процедур в записи нет.</p>
+            ) : null}
           </Card>
         </div>
       );
     case "documents":
       return (
-        <Card
-          title="Документы"
-          action={
-            <button type="button" className="emr2-btn" disabled title="После интеграции">
-              PDF карты
-            </button>
-          }
-        >
-          <ul className="emr2-docs">
-            <li>
-              <strong>Первичный осмотр</strong>
-              <span>20.10.2026 · д-р Каримова</span>
-            </li>
-            <li>
-              <strong>ЭЭГ · результат</strong>
-              <span>02.11.2026 · файл.pdf</span>
-            </li>
-            <li>
-              <strong>Информированное согласие (ТМС)</strong>
-              <span>ожидает подписи</span>
-            </li>
-            <li>
-              <strong>Итог Курса 15</strong>
-              <span>ещё не сформирован</span>
-            </li>
-          </ul>
-          <p className="emr2-muted">В PDF — дата формирования и источники записей (без финансов).</p>
+        <Card title="Документы">
+          <p className="emr2-muted">
+            Хранилище медфайлов ещё не подключено. PDF ЭЭГ и согласия появятся после отдельного шага.
+          </p>
         </Card>
       );
   }

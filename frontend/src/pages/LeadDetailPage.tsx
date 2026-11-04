@@ -657,6 +657,13 @@ export function LeadDetailPage() {
 
             <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
               <Link
+                to={`/medical-card/${query.data.id}`}
+                className="inline-flex items-center justify-center rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-3 text-sm font-semibold text-[var(--mo-text)] transition hover:bg-[var(--mo-accent-soft)]"
+                title="Электронная мед. карта"
+              >
+                Мед. карта
+              </Link>
+              <Link
                 to={`/chat?lead_id=${query.data.id}`}
                 className="inline-flex items-center justify-center rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-3 text-sm font-semibold text-[var(--mo-text)] transition hover:bg-[var(--mo-accent-soft)]"
                 title="Открыть чат с клиентом"

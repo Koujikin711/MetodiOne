@@ -2655,22 +2655,36 @@ export function OnlineBookingPage() {
             </div>
             <footer className="booking-appt-detail-modal__foot">
               {apptDetail.lead_id != null ? (
-                <button
-                  type="button"
-                  className="btn-secondary px-3 py-1.5 text-xs"
-                  onClick={() => {
-                    const leadId = apptDetail.lead_id;
-                    const apptId = apptDetail.id;
-                    if (leadId == null) return;
-                    setApptDetail(null);
-                    openLeadCard(navigate, leadId, {
-                      search: `appointment=${apptId}`,
-                      appointmentId: apptId,
-                    });
-                  }}
-                >
-                  Карточка в CRM
-                </button>
+                <>
+                  <button
+                    type="button"
+                    className="btn-secondary px-3 py-1.5 text-xs"
+                    onClick={() => {
+                      const leadId = apptDetail.lead_id;
+                      if (leadId == null) return;
+                      setApptDetail(null);
+                      navigate(`/medical-card/${leadId}`);
+                    }}
+                  >
+                    Мед. карта
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary px-3 py-1.5 text-xs"
+                    onClick={() => {
+                      const leadId = apptDetail.lead_id;
+                      const apptId = apptDetail.id;
+                      if (leadId == null) return;
+                      setApptDetail(null);
+                      openLeadCard(navigate, leadId, {
+                        search: `appointment=${apptId}`,
+                        appointmentId: apptId,
+                      });
+                    }}
+                  >
+                    Карточка в CRM
+                  </button>
+                </>
               ) : null}
               {canRefundBooking && Number(apptDetail.paid_amount ?? 0) > 0 ? (
                 <button

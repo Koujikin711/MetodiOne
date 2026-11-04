@@ -110,6 +110,7 @@ from app.routers import (
     waiting_callbacks,
     extra_services,
     curator_journal,
+    emr,
 )
 from app.services.background_events import record_background_event
 from app.services.google_sheets_finance_sync import run_finance_sheets_sync_tick
@@ -1105,6 +1106,7 @@ app.include_router(team_chat.router, prefix="/api")
 app.include_router(waiting_callbacks.router, prefix="/api")
 app.include_router(extra_services.router, prefix="/api")
 app.include_router(curator_journal.router, prefix="/api")
+app.include_router(emr.router, prefix="/api")
 
 
 @app.get("/health")

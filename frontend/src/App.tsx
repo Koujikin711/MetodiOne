@@ -101,6 +101,7 @@ export default function App() {
             <Route path="/extra-services" element={<ExtraServicesPage />} />
             <Route path="/curator-journal" element={<CuratorJournalPage />} />
             <Route path="/medical-card" element={<MedicalCardPage />} />
+            <Route path="/medical-card/:leadId" element={<MedicalCardPage />} />
             <Route path="/sales-control" element={<SalesControlPage />} />
             <Route path="/sales" element={<ManagerSalesPage />} />
             <Route path="/quote" element={<SalesQuoteCalculatorPage />} />
