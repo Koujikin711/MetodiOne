@@ -355,11 +355,12 @@ export function EmployeesPage() {
   const inviteMutation = useMutation({
     mutationFn: () => {
       const payload: Record<string, unknown> = {
-        full_name: fullName,
-        email,
-        phone,
+        full_name: fullName.trim(),
+        email: email.trim(),
+        phone: phone.trim() || null,
         role,
         pipeline_ids: pipelineIds,
+        send_email_invite: true,
       };
       if (role === "expert") {
         payload.specialization = expertSpecialization.trim();
@@ -388,10 +389,12 @@ export function EmployeesPage() {
       void qc.invalidateQueries({ queryKey: ["employees"] });
       void qc.invalidateQueries({ queryKey: ["booking-specialists"] });
       setInviteResult(r);
-      if (r.temp_password_sent_to_email || r.whatsapp_sent) {
-        toast.success(r.detail || "Сотрудник приглашён");
+      if (r.temp_password_sent_to_email) {
+        toast.success(r.detail || "Приглашение отправлено на email");
+      } else if (r.whatsapp_sent) {
+        toast.success(r.detail || "Приглашение ушло в WhatsApp");
       } else {
-        toast.success("Сотрудник добавлен — отправьте ссылку вручную");
+        toast.error(r.detail || "Письмо не ушло — скопируйте доступ вручную");
       }
     },
     onError: (e: Error) => toast.error(e.message),
@@ -1264,22 +1267,35 @@ export function EmployeesPage() {
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   className="mo-input mt-1 w-full"
+                  autoComplete="name"
                 />
               </label>
+              <div className="rounded-xl border border-[var(--mo-accent)]/40 bg-[var(--mo-accent-soft)]/40 p-3">
+                <label className="block text-sm font-medium text-[var(--mo-text)]">
+                  Email <span className="text-[var(--mo-accent)]">*</span>
+                  <span className="mt-0.5 block text-[11px] font-normal mo-muted">
+                    Основной способ входа и приглашения — письмо с логином, паролем и ссылкой уйдёт на этот адрес.
+                  </span>
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="name@company.com"
+                    className="mo-input mt-2 w-full border-[var(--mo-accent)]/50"
+                    autoComplete="email"
+                  />
+                </label>
+              </div>
               <label className="text-sm mo-muted">
-                Email
-                <input
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="mo-input mt-1 w-full"
-                />
-              </label>
-              <label className="text-sm mo-muted">
-                Телефон
+                Телефон <span className="font-normal opacity-80">(необязательно)</span>
+                <span className="mt-0.5 block text-[11px]">Номер компании — можно передать новому сотруднику после увольнения. Если указан, дубликат приглашения уйдёт в WhatsApp.</span>
                 <input
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+992 …"
                   className="mo-input mt-1 w-full"
+                  autoComplete="tel"
                 />
               </label>
 
@@ -1397,11 +1413,21 @@ export function EmployeesPage() {
 
               <button
                 type="button"
-                onClick={() => inviteMutation.mutate()}
+                onClick={() => {
+                  if (!email.trim() || !email.includes("@")) {
+                    toast.error("Укажите email — на него уйдёт приглашение");
+                    return;
+                  }
+                  if (!fullName.trim()) {
+                    toast.error("Укажите ФИО");
+                    return;
+                  }
+                  inviteMutation.mutate();
+                }}
                 disabled={inviteMutation.isPending}
                 className="btn-primary mt-2 w-full disabled:opacity-60"
               >
-                {inviteMutation.isPending ? "Добавление…" : "Добавить"}
+                {inviteMutation.isPending ? "Отправка…" : "Пригласить на email"}
               </button>
             </div>
           </div>
@@ -1412,25 +1438,39 @@ export function EmployeesPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="w-full max-w-lg rounded-2xl crm-modal-panel border p-6 shadow-2xl">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="lux-subheading">Сотрудник добавлен</h2>
+              <h2 className="lux-subheading">Приглашение</h2>
               <button type="button" className="mo-modal-close" onClick={() => setInviteResult(null)}>
                 Закрыть
               </button>
             </div>
-            <p className="mt-3 text-sm text-[var(--mo-text)]">
-              {inviteResult.detail ||
-                (inviteResult.temp_password_sent_to_email
-                  ? "Приглашение отправлено."
-                  : "Скопируйте ссылку и пароль и отправьте сотруднику.")}
-            </p>
+            <div
+              className={[
+                "mt-3 rounded-xl border px-3 py-2.5 text-sm",
+                inviteResult.temp_password_sent_to_email
+                  ? "border-emerald-500/40 bg-emerald-500/10 text-[var(--mo-text)]"
+                  : "border-amber-500/40 bg-amber-500/10 text-[var(--mo-text)]",
+              ].join(" ")}
+            >
+              {inviteResult.temp_password_sent_to_email ? (
+                <p>
+                  Письмо отправлено на{" "}
+                  <span className="font-semibold">{inviteResult.employee.email}</span>
+                </p>
+              ) : (
+                <p>Письмо не ушло — скопируйте доступ и отправьте сотруднику вручную.</p>
+              )}
+              {inviteResult.detail ? (
+                <p className="mt-1 text-[11px] mo-muted">{inviteResult.detail}</p>
+              ) : null}
+            </div>
             <div className="mt-4 space-y-2 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-3 text-sm">
               <p>
                 <span className="mo-muted">ФИО:</span>{" "}
                 <span className="font-medium">{inviteResult.employee.full_name || "—"}</span>
               </p>
               <p>
-                <span className="mo-muted">Логин:</span>{" "}
-                <span className="font-medium">{inviteResult.employee.email}</span>
+                <span className="mo-muted">Email (логин):</span>{" "}
+                <span className="font-medium text-[var(--mo-accent)]">{inviteResult.employee.email}</span>
               </p>
               {inviteResult.temp_password ? (
                 <p className="break-all">
@@ -1450,9 +1490,9 @@ export function EmployeesPage() {
                 </a>
               </p>
               <p className="text-[11px] mo-muted">
-                Email: {inviteResult.temp_password_sent_to_email ? "отправлено" : "не ушло"}
+                Email: {inviteResult.temp_password_sent_to_email ? "✓ отправлено" : "не ушло"}
                 {" · "}
-                WhatsApp: {inviteResult.whatsapp_sent ? "отправлено" : "не ушло"}
+                WhatsApp: {inviteResult.whatsapp_sent ? "✓ отправлено" : "—"}
               </p>
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
