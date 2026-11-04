@@ -5255,6 +5255,165 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   margin: 0;
 }
 
+.rop-outlook-compare {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 720px) {
+  .rop-outlook-compare {
+    grid-template-columns: 1.15fr 1fr;
+  }
+}
+
+.rop-outlook-month {
+  padding: 0.85rem 1rem;
+  border-radius: 0.85rem;
+  border: 1px solid var(--mo-border);
+  background: var(--mo-surface-elevated);
+}
+
+.rop-outlook-month--prev {
+  background: color-mix(in srgb, var(--mo-surface) 88%, var(--mo-border));
+}
+
+.rop-outlook-month__label {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  text-transform: capitalize;
+  color: var(--mo-text);
+}
+
+.rop-outlook-month__hint {
+  margin: 0.2rem 0 0.75rem;
+  font-size: 0.75rem;
+  color: var(--mo-text-muted);
+}
+
+.rop-outlook-month__metrics {
+  margin: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.rop-outlook-month__metrics dt {
+  font-size: 0.7rem;
+  font-weight: 550;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--mo-text-muted);
+}
+
+.rop-outlook-month__metrics dd {
+  margin: 0.15rem 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.55rem;
+  font-size: 1.15rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--mo-text);
+}
+
+.rop-delta--up {
+  font-size: 0.8rem;
+  font-weight: 550;
+  color: #15803d;
+}
+
+.rop-delta--down {
+  font-size: 0.8rem;
+  font-weight: 550;
+  color: #b91c1c;
+}
+
+.rop-outlook-block {
+  padding: 0.85rem 1rem;
+  border-radius: 0.85rem;
+  border: 1px solid var(--mo-border);
+  background: var(--mo-surface-elevated);
+}
+
+.rop-outlook-block__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--mo-text);
+}
+
+.rop-outlook-block__hint {
+  margin: 0.3rem 0 0.75rem;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--mo-text-muted);
+}
+
+.rop-outlook-scenarios {
+  display: grid;
+  gap: 0.55rem;
+}
+
+@media (min-width: 640px) {
+  .rop-outlook-scenarios {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.rop-outlook-scenario {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 0.7rem;
+  border: 1px solid var(--mo-border);
+  background: var(--mo-surface);
+}
+
+.rop-outlook-scenario--worst {
+  border-color: color-mix(in srgb, #b91c1c 35%, var(--mo-border));
+}
+
+.rop-outlook-scenario--mid {
+  border-color: color-mix(in srgb, var(--mo-accent) 40%, var(--mo-border));
+}
+
+.rop-outlook-scenario--best {
+  border-color: color-mix(in srgb, #15803d 35%, var(--mo-border));
+}
+
+.rop-outlook-scenario__label {
+  font-size: 0.72rem;
+  font-weight: 550;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--mo-text-muted);
+}
+
+.rop-outlook-scenario__rev {
+  font-size: 1.05rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--mo-text);
+}
+
+.rop-outlook-scenario__leads {
+  font-size: 0.8rem;
+  color: var(--mo-text-muted);
+}
+
+.rop-outlook-summary {
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--mo-border);
+  background: color-mix(in srgb, var(--mo-accent) 8%, var(--mo-surface-elevated));
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--mo-text);
+}
+
 .kpi-report-metric {
   display: flex;
   min-width: 0;

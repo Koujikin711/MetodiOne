@@ -60,6 +60,7 @@ import { RopStatsPage } from "@/pages/rop/RopStatsPage";
 import { RopDistributePage } from "@/pages/rop/RopDistributePage";
 import { RopAnalyticsPage } from "@/pages/rop/RopAnalyticsPage";
 import { RopReportPage } from "@/pages/rop/RopReportPage";
+import { RopOutlookPage } from "@/pages/rop/RopOutlookPage";
 import { RopSearchPage } from "@/pages/rop/RopSearchPage";
 
 export default function App() {
@@ -125,6 +126,7 @@ export default function App() {
               <Route path="distribute" element={<RopDistributePage />} />
               <Route path="analytics" element={<RopAnalyticsPage />} />
               <Route path="report" element={<RopReportPage />} />
+              <Route path="outlook" element={<RopOutlookPage />} />
               <Route path="search" element={<RopSearchPage />} />
             </Route>
             <Route

@@ -10,13 +10,14 @@ import { Search } from "@/components/icons";
 import { apiFetch } from "@/lib/api";
 import type { Pipeline } from "@/lib/types";
 
-/** Порядок: Дашборд → Распределение → Статистика → Аналитика → Отчёт; поиск — иконка у печати. */
+/** Порядок: Дашборд → Распределение → Статистика → Аналитика → Отчёт → Прогноз; поиск — иконка у печати. */
 const TABS = [
   { to: "/rop", end: true, label: "Дашборд" },
   { to: "/rop/distribute", label: "Распределение" },
   { to: "/rop/stats", label: "Статистика" },
   { to: "/rop/analytics", label: "Аналитика" },
   { to: "/rop/report", label: "Отчёт" },
+  { to: "/rop/outlook", label: "Прогноз" },
 ] as const;
 
 function todayYmd() {

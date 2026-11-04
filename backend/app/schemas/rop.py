@@ -199,3 +199,42 @@ class RopSearchPatient(BaseModel):
     first_visit_at: datetime | None = None
     last_visit_at: datetime | None = None
     visits: list[RopSearchVisit] = Field(default_factory=list)
+
+
+class RopOutlookMonth(BaseModel):
+    year_month: str
+    label: str
+    leads: int = 0
+    revenue: Decimal = Decimal("0")
+    sold_count: int = 0
+    full_paid_count: int = 0
+    conversion_percent: float = 0.0
+    leads_delta_pct: float | None = None
+    revenue_delta_pct: float | None = None
+    conversion_delta_pp: float | None = None
+
+
+class RopOutlookScenario(BaseModel):
+    key: str
+    label: str
+    leads: int = 0
+    revenue: Decimal = Decimal("0")
+
+
+class RopOutlookPace(BaseModel):
+    leads_per_day: float = 0.0
+    revenue_per_day: Decimal = Decimal("0")
+    elapsed_days: int = 0
+    remaining_days: int = 0
+
+
+class RopOutlookReport(BaseModel):
+    as_of: date
+    pipeline_id: int
+    pipeline_name: str
+    current: RopOutlookMonth
+    previous: RopOutlookMonth
+    pace: RopOutlookPace
+    scenarios: list[RopOutlookScenario] = Field(default_factory=list)
+    next_month: RopOutlookScenario | None = None
+    summary: str = ""

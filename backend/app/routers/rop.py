@@ -49,6 +49,10 @@ from app.schemas.rop import (
     RopManagerPresence,
     RopManagerRow,
     RopManagersList,
+    RopOutlookMonth,
+    RopOutlookPace,
+    RopOutlookReport,
+    RopOutlookScenario,
     RopReportCell,
     RopRevenueReport,
     RopRevenueShare,
@@ -65,6 +69,15 @@ from app.services.clinic_roles import can_access_rop
 from app.services.lead_extra_phones import lead_has_contact_phone
 from app.services.lead_sales_stages import ARCHIVE_STAGE_NAME, CLOSED_OUTCOME_STAGE_NAMES
 from app.services.phone_match import phone_search_digit_variants
+from app.services.rop_outlook import (
+    build_summary,
+    days_elapsed_in_month,
+    days_remaining_in_month,
+    month_label_ru,
+    next_month_mid,
+    pct_delta,
+    project_scenarios,
+)
 from app.services.sales_kpi_weighted import _norm_kpi_label, load_plan_items
 
 # Не «активные» на дашборде: исход или архив.
@@ -1283,6 +1296,138 @@ async def rop_report(
         total=analytics.revenue_total,
         sold_total=sum((r.sold_amount for r in rows), Decimal("0")),
         full_paid_total=sum((r.full_paid_amount for r in rows), Decimal("0")),
+    )
+
+
+def _parse_year_month(value: str | None, *, today: date) -> date:
+    if not value:
+        return date(today.year, today.month, 1)
+    raw = value.strip()
+    try:
+        y_s, m_s = raw.split("-", 1)
+        y, m = int(y_s), int(m_s)
+        if m < 1 or m > 12:
+            raise ValueError
+        return date(y, m, 1)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="year_month: ожидается YYYY-MM") from exc
+
+
+def _prev_month_start(month_start: date) -> date:
+    if month_start.month == 1:
+        return date(month_start.year - 1, 12, 1)
+    return date(month_start.year, month_start.month - 1, 1)
+
+
+def _next_month_start(month_start: date) -> date:
+    if month_start.month == 12:
+        return date(month_start.year + 1, 1, 1)
+    return date(month_start.year, month_start.month + 1, 1)
+
+
+def _month_last_day(month_start: date) -> date:
+    return _next_month_start(month_start) - timedelta(days=1)
+
+
+@router.get("/outlook", response_model=RopOutlookReport)
+async def rop_outlook(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+    pipeline_id: int = Query(..., ge=1),
+    year_month: str | None = Query(None, description="YYYY-MM, по умолчанию текущий месяц"),
+) -> RopOutlookReport:
+    """Сравнение с прошлым месяцем и сценарии до конца месяца (темп × дни)."""
+    _assert_rop(current_user)
+    today = _today_local()
+    month_start = _parse_year_month(year_month, today=today)
+    if month_start > date(today.year, today.month, 1):
+        raise HTTPException(status_code=400, detail="Нельзя строить прогноз на будущий месяц")
+
+    pipe = await _load_pipeline(db, company_id, pipeline_id)
+    prev_start = _prev_month_start(month_start)
+    cur_end = min(today, _month_last_day(month_start)) if month_start.year == today.year and month_start.month == today.month else _month_last_day(month_start)
+    prev_end = _month_last_day(prev_start)
+
+    cur_analytics = await rop_analytics(db, current_user, company_id, pipeline_id, month_start, cur_end)
+    prev_analytics = await rop_analytics(db, current_user, company_id, pipeline_id, prev_start, prev_end)
+
+    def _month_from_analytics(analytics: RopAnalyticsReport, *, start: date, end: date) -> RopOutlookMonth:
+        sold = sum(int(s.sold_count or 0) for s in analytics.revenue_shares)
+        full = sum(int(s.full_paid_count or 0) for s in analytics.revenue_shares)
+        leads = sum(int(m.leads_count or 0) for m in analytics.managers_sla)
+        conv = round(100.0 * full / sold, 1) if sold else 0.0
+        return RopOutlookMonth(
+            year_month=f"{start.year:04d}-{start.month:02d}",
+            label=month_label_ru(start),
+            leads=leads,
+            revenue=analytics.revenue_total,
+            sold_count=sold,
+            full_paid_count=full,
+            conversion_percent=conv,
+        )
+
+    current = _month_from_analytics(cur_analytics, start=month_start, end=cur_end)
+    previous = _month_from_analytics(prev_analytics, start=prev_start, end=prev_end)
+    current.leads_delta_pct = pct_delta(current.leads, previous.leads)
+    current.revenue_delta_pct = pct_delta(current.revenue, previous.revenue)
+    current.conversion_delta_pp = (
+        round(current.conversion_percent - previous.conversion_percent, 1)
+        if previous.sold_count or current.sold_count
+        else None
+    )
+
+    elapsed = days_elapsed_in_month(today if cur_end >= today else cur_end, month_start)
+    remaining = days_remaining_in_month(today if cur_end >= today else cur_end, month_start)
+    # Закрытый месяц: темп по полным дням, remaining = 0 → сценарии = факт.
+    if remaining == 0 and elapsed == 0:
+        elapsed = max(1, (_month_last_day(month_start) - month_start).days + 1)
+
+    scen = project_scenarios(
+        leads_so_far=current.leads,
+        revenue_so_far=current.revenue,
+        elapsed_days=elapsed,
+        remaining_days=remaining,
+        prev_leads=previous.leads,
+        prev_revenue=previous.revenue,
+    )
+    scenarios = [
+        RopOutlookScenario(key=key, label=scen[key].label, leads=scen[key].leads, revenue=scen[key].revenue)
+        for key in ("worst", "mid", "best")
+    ]
+
+    nxt_start = _next_month_start(month_start)
+    nxt_days = (_month_last_day(nxt_start) - nxt_start).days + 1
+    nxt = next_month_mid(
+        revenue_so_far=current.revenue,
+        leads_so_far=current.leads,
+        elapsed_days=elapsed,
+        next_month_days=nxt_days,
+    )
+    next_scenario = RopOutlookScenario(key="next_mid", label=nxt.label, leads=nxt.leads, revenue=nxt.revenue)
+
+    pace_days = max(1, elapsed)
+    pace = RopOutlookPace(
+        leads_per_day=round(current.leads / pace_days, 2),
+        revenue_per_day=Decimal(str(round(float(current.revenue) / pace_days, 2))),
+        elapsed_days=elapsed,
+        remaining_days=remaining,
+    )
+    summary = build_summary(
+        revenue_delta_pct=current.revenue_delta_pct,
+        mid_revenue=scen["mid"].revenue,
+        current_revenue=current.revenue,
+    )
+    return RopOutlookReport(
+        as_of=today,
+        pipeline_id=int(pipe.id),
+        pipeline_name=pipe.name,
+        current=current,
+        previous=previous,
+        pace=pace,
+        scenarios=scenarios,
+        next_month=next_scenario,
+        summary=summary,
     )
 
 

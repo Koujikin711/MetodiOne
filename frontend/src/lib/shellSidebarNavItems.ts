@@ -206,6 +206,15 @@ export function buildShellSidebarNavItems(params: BuildParams): ShellSidebarNavI
         iconKey: "wallet",
       },
       {
+        id: "rop-outlook",
+        to: "/rop/outlook",
+        title: "Прогноз отдела продаж",
+        labelShort: "Прогноз",
+        labelFull: "Прогноз",
+        variant: "trainer",
+        iconKey: "target",
+      },
+      {
         id: "rop-search",
         to: "/rop/search",
         title: "Поиск пациента",
