@@ -2005,7 +2005,7 @@ export function ChatPage() {
                     </div>
                   </div>
                 ) : null}
-                <div className="flex items-end gap-2">
+                <div className="chat-composer__row flex items-end gap-2">
                   <div className="relative shrink-0" ref={attachMenuRef}>
                     {attachMenuOpen ? (
                       <div

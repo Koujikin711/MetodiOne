@@ -7958,6 +7958,23 @@ fieldset.extra-services-field {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* Телефон: поле на всю ширину, кнопки снизу — текст не рвётся столбиком */
+@media (max-width: 1023px) {
+  .chat-composer__row {
+    flex-wrap: wrap;
+  }
+
+  .chat-composer__input {
+    order: -1;
+    flex: 1 1 100%;
+    width: 100%;
+    min-height: 6.5rem;
+    max-height: 38vh;
+    font-size: 16px;
+    line-height: 1.4;
+  }
+}
 .chat-msg-text {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
