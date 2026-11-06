@@ -342,7 +342,7 @@ async def import_phone_messages_for_thread(
     pipe = getattr(thread, "pipeline_id", None)
     integ = next((row for row in rows if pipe is not None and int(row.pipeline_id) == int(pipe)), rows[0])
     cfg = integ.config if isinstance(integ.config, dict) else {}
-    history, err = await fetch_chat_history(cfg, chat_id=chat_id, count=40)
+    history, err = await fetch_chat_history(cfg, chat_id=chat_id, count=200)
     if err:
         logger.info("phone journal thread=%s chat=%s: %s", tid, chat_id, err)
         return 0

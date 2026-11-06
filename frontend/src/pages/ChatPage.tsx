@@ -1045,6 +1045,19 @@ export function ChatPage() {
     refetchOnWindowFocus: false,
     refetchOnReconnect: true,
   });
+  const [olderMessages, setOlderMessages] = useState<ChatMessage[]>([]);
+  const [olderOffset, setOlderOffset] = useState(50);
+  const [hasOlder, setHasOlder] = useState(true);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const stickToBottomRef = useRef(true);
+  const loadingOlderRef = useRef(false);
+
+  useEffect(() => {
+    setOlderMessages([]);
+    setOlderOffset(50);
+    setHasOlder(true);
+    stickToBottomRef.current = true;
+  }, [threadId]);
 
   useEffect(() => {
     if (!threadsQuery.hasNextPage || threadsQuery.isFetchingNextPage) return;
@@ -1064,14 +1077,65 @@ export function ChatPage() {
     return () => observer.disconnect();
   }, [threadsQuery.hasNextPage, threadsQuery.isFetchingNextPage, threadsQuery.fetchNextPage, displayThreads.length]);
 
-  const lastMsgId = messagesQuery.data?.at(-1)?.id;
-  const msgCount = messagesQuery.data?.length ?? 0;
+  const shownMessages = useMemo(() => {
+    const byId = new Map<number, ChatMessage>();
+    for (const m of [...olderMessages, ...(messagesQuery.data ?? [])]) byId.set(m.id, m);
+    const seen = new Set<string>();
+    const out: ChatMessage[] = [];
+    for (const m of byId.values()) {
+      const text = (m.text || "").trim();
+      const sec = Math.floor(new Date(m.created_at).getTime() / 1000);
+      const key = text.length >= 40 ? `${m.direction}|${text}|${sec}` : `id:${m.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(m);
+    }
+    out.sort((a, b) => {
+      const ta = new Date(a.created_at).getTime();
+      const tb = new Date(b.created_at).getTime();
+      if (ta !== tb) return ta - tb;
+      return a.id - b.id;
+    });
+    return out;
+  }, [olderMessages, messagesQuery.data]);
+
+  const lastMsgId = shownMessages.at(-1)?.id;
+  const msgCount = shownMessages.length;
   useEffect(() => {
-    if (msgCount === 0) return;
+    if (msgCount === 0 || !stickToBottomRef.current) return;
     const box = messagesScrollRef.current;
     if (!box) return;
     box.scrollTo({ top: box.scrollHeight, behavior: "auto" });
   }, [threadId, lastMsgId, msgCount]);
+
+  const loadOlderMessages = async () => {
+    if (threadId == null || !hasOlder || loadingOlderRef.current) return;
+    loadingOlderRef.current = true;
+    setLoadingOlder(true);
+    const box = messagesScrollRef.current;
+    const prevHeight = box?.scrollHeight ?? 0;
+    stickToBottomRef.current = false;
+    try {
+      const page = await apiFetch<ChatMessage[]>(
+        `/api/chat/threads/${threadId}/messages?limit=50&offset=${olderOffset}`,
+        { timeoutMs: 25_000 },
+      );
+      if (page.length < 50) setHasOlder(false);
+      if (page.length > 0) {
+        setOlderMessages((prev) => [...page, ...prev]);
+        setOlderOffset((n) => n + page.length);
+      }
+      requestAnimationFrame(() => {
+        if (!box) return;
+        box.scrollTop += box.scrollHeight - prevHeight;
+      });
+    } catch {
+      /* следующая попытка при прокрутке вверх */
+    } finally {
+      loadingOlderRef.current = false;
+      setLoadingOlder(false);
+    }
+  };
 
   const sendMutation = useMutation({
     mutationFn: async (voiceOrOverrideFile?: File) => {
@@ -1844,7 +1908,17 @@ export function ChatPage() {
               ) : null}
 
               <div className="flex min-h-0 flex-1 flex-col">
-              <div ref={messagesScrollRef} className="chat-thread min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-1 py-3 sm:px-2">
+              <div
+                ref={messagesScrollRef}
+                className="chat-thread min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-1 py-3 sm:px-2"
+                onScroll={() => {
+                  const box = messagesScrollRef.current;
+                  if (!box) return;
+                  const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+                  stickToBottomRef.current = nearBottom;
+                  if (box.scrollTop < 70) void loadOlderMessages();
+                }}
+              >
                 {messagesQuery.isLoading && !messagesQuery.data && (
                   <p className="text-sm lux-caption">Загрузка сообщений…</p>
                 )}
@@ -1862,15 +1936,8 @@ export function ChatPage() {
                     </button>
                   </div>
                 )}
-                {(messagesQuery.data ?? [])
-                  .slice()
-                  .sort((a, b) => {
-                    const ta = new Date(a.created_at).getTime();
-                    const tb = new Date(b.created_at).getTime();
-                    if (ta !== tb) return ta - tb;
-                    return a.id - b.id;
-                  })
-                  .map((m, idx, arr) => {
+                {loadingOlder ? <p className="text-center text-xs mo-muted">Ранние сообщения…</p> : null}
+                {shownMessages.map((m, idx, arr) => {
                   const isOut = m.direction === "out";
                   const time = formatChatTime(m.created_at);
                   const meta = isOut ? deliveryMeta(m.delivery_status) : null;
@@ -1916,7 +1983,7 @@ export function ChatPage() {
                     </Fragment>
                   );
                 })}
-                {!messagesQuery.isLoading && (messagesQuery.data ?? []).length === 0 && (
+                {!messagesQuery.isLoading && shownMessages.length === 0 && (
                   <p className="text-sm mo-muted">Нет сообщений.</p>
                 )}
                 <div ref={messagesEndRef} aria-hidden />

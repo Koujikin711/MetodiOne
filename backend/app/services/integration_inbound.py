@@ -438,6 +438,41 @@ async def incoming_text_already_stored(
     return any(normalize_incoming_text(existing) == norm for existing in rows)
 
 
+async def message_exists_same_text(
+    db: AsyncSession,
+    company_id: int,
+    thread_id: int,
+    direction: str,
+    text: str,
+    created_at: datetime | None,
+) -> bool:
+    """Тот же текст в ту же секунду уже лежит в диалоге.
+
+    Журнал WhatsApp иногда отдаёт сообщение без стабильного id, и каждый
+    заход в чат записывал его ещё раз с исходным временем.
+    """
+    if created_at is None:
+        return False
+    body = (text or "").strip()
+    if not body:
+        return False
+    start = created_at - timedelta(seconds=2)
+    end = created_at + timedelta(seconds=2)
+    q = (
+        select(ChatMessage.id)
+        .where(
+            ChatMessage.company_id == company_id,
+            ChatMessage.thread_id == thread_id,
+            ChatMessage.direction == direction,
+            ChatMessage.text == body,
+            ChatMessage.created_at >= start,
+            ChatMessage.created_at <= end,
+        )
+        .limit(1)
+    )
+    return (await db.execute(q)).scalar() is not None
+
+
 async def message_exists_by_provider_id(db: AsyncSession, company_id: int, provider_message_id: str | None) -> bool:
     pid = (provider_message_id or "").strip()
     if not pid:
@@ -488,6 +523,10 @@ async def add_incoming_message(
     if await message_exists_by_provider_id(db, company_id, provider_message_id):
         return None
     body = (text or "").strip()
+    if message_type == "text" and await message_exists_same_text(
+        db, company_id, thread_id, "in", body, created_at
+    ):
+        return None
     if not body and not media_url:
         return None
     if not body:
@@ -528,6 +567,8 @@ async def add_outgoing_message(
     if await message_exists_by_provider_id(db, company_id, provider_message_id):
         return False
     body = (text or "").strip() or " "
+    if await message_exists_same_text(db, company_id, thread_id, "out", body, created_at):
+        return False
     db.add(
         ChatMessage(
             company_id=company_id,
