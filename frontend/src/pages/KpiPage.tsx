@@ -1640,10 +1640,6 @@ export function KpiPage() {
         <section className="mo-section space-y-3 p-3 sm:space-y-4 sm:p-4">
           <div>
             <h2 className="text-base font-semibold text-[var(--mo-text)] sm:text-lg">Курсы и проданные протоколы</h2>
-            <p className="mt-1 text-[11px] leading-snug text-[var(--mo-text-muted)] sm:text-sm">
-              Здесь оплаты: курс и уже купленный протокол в одном списке. Нажмите на пациента — полная история
-              оплат. Срок 30 дней — отдельный блок ниже.
-            </p>
             {isManager ? (
               <p className="kpi-confirm-notice" role="status">
                 Доплата после OK — на подтверждение бухгалтеру.
@@ -2273,9 +2269,6 @@ export function KpiPage() {
             {manualQuery.isLoading ? <p className="text-sm lux-caption">Загрузка…</p> : null}
           </ul>
 
-          <p className="hidden text-sm text-[var(--mo-text-muted)] sm:block">
-            Смена менеджера здесь же меняет карточку CRM (если продажа привязана).
-          </p>
           <div className="mo-table-scroll mo-table-scroll--page hidden rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface)] sm:block">
             <table className="sold-course-sheet w-full min-w-[72rem] text-left">
               <thead>
