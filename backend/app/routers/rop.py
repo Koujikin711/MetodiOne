@@ -58,6 +58,9 @@ from app.schemas.rop import (
     RopOutlookReport,
     RopOutlookScenario,
     RopOutlookSignal,
+    RopWeekPace,
+    RopWeekPaceMetric,
+    RopWeekPaceStep,
     RopReportCell,
     RopRevenueReport,
     RopRevenueShare,
@@ -80,8 +83,11 @@ from app.services.rop_outlook import (
     days_remaining_in_month,
     month_label_ru,
     next_month_mid,
+    pace_percent,
     pct_delta,
     project_scenarios,
+    week_pace_bounds,
+    week_span_label,
 )
 from app.services.rop_signals import (
     UNREPLIED_HOURS_DEFAULT,
@@ -1507,6 +1513,181 @@ async def _outlook_signals(
     ]
 
 
+async def _build_week_pace(
+    db: AsyncSession,
+    current_user: User,
+    company_id: int,
+    pipeline_id: int,
+    today: date,
+) -> RopWeekPace:
+    """Кольца темпа: факт с понедельника против тех же дней прошлой недели."""
+    cur_from, cur_to, prev_from, prev_to = week_pace_bounds(today)
+    cur_start, _ = _day_bounds(cur_from)
+    _, cur_end = _day_bounds(cur_to)
+    prev_start, _ = _day_bounds(prev_from)
+    _, prev_end = _day_bounds(prev_to)
+
+    cur_rev = (
+        await rop_analytics(db, current_user, company_id, pipeline_id, cur_from, cur_to)
+    ).revenue_total
+    prev_rev = (
+        await rop_analytics(db, current_user, company_id, pipeline_id, prev_from, prev_to)
+    ).revenue_total
+
+    async def _new_leads(start: datetime, end: datetime) -> int:
+        value = await db.scalar(
+            select(func.count(Lead.id))
+            .join(PipelineStage, PipelineStage.id == Lead.status_id)
+            .where(
+                Lead.company_id == company_id,
+                PipelineStage.pipeline_id == pipeline_id,
+                PipelineStage.name != ARCHIVE_STAGE_NAME,
+                Lead.created_at >= start,
+                Lead.created_at < end,
+            )
+        )
+        return int(value or 0)
+
+    async def _won(start: datetime, end: datetime) -> int:
+        value = await db.scalar(
+            select(func.count(func.distinct(Lead.id)))
+            .join(LeadAuditEvent, LeadAuditEvent.lead_id == Lead.id)
+            .join(PipelineStage, PipelineStage.id == Lead.status_id)
+            .where(
+                Lead.company_id == company_id,
+                PipelineStage.pipeline_id == pipeline_id,
+                LeadAuditEvent.action == "status_changed",
+                LeadAuditEvent.details.like("%-> Удачно%"),
+                LeadAuditEvent.created_at >= start,
+                LeadAuditEvent.created_at < end,
+            )
+        )
+        return int(value or 0)
+
+    async def _bookings(start: datetime, end: datetime) -> int:
+        value = await db.scalar(
+            select(func.count(BookingAppointment.id))
+            .outerjoin(Lead, Lead.id == BookingAppointment.lead_id)
+            .outerjoin(PipelineStage, PipelineStage.id == Lead.status_id)
+            .where(
+                BookingAppointment.company_id == company_id,
+                BookingAppointment.created_at >= start,
+                BookingAppointment.created_at < end,
+                BookingAppointment.status != "cancelled",
+                or_(
+                    BookingAppointment.pipeline_id == pipeline_id,
+                    PipelineStage.pipeline_id == pipeline_id,
+                ),
+            )
+        )
+        return int(value or 0)
+
+    leads_now = await _new_leads(cur_start, cur_end)
+    leads_was = await _new_leads(prev_start, prev_end)
+    won_now = await _won(cur_start, cur_end)
+    won_was = await _won(prev_start, prev_end)
+    book_now = await _bookings(cur_start, cur_end)
+    book_was = await _bookings(prev_start, prev_end)
+
+    fresh = (
+        await db.execute(
+            select(Lead.id, PipelineStage.name)
+            .join(PipelineStage, PipelineStage.id == Lead.status_id)
+            .where(
+                Lead.company_id == company_id,
+                PipelineStage.pipeline_id == pipeline_id,
+                PipelineStage.name != ARCHIVE_STAGE_NAME,
+                Lead.created_at >= cur_start,
+                Lead.created_at < cur_end,
+            )
+        )
+    ).all()
+    fresh_ids = [int(lid) for lid, _name in fresh]
+    open_n = sum(1 for _lid, name in fresh if str(name or "") in _STATS_OPEN_STAGES)
+    booked_n = 0
+    came_n = 0
+    if fresh_ids:
+        booked_n = int(
+            await db.scalar(
+                select(func.count(func.distinct(BookingAppointment.lead_id))).where(
+                    BookingAppointment.lead_id.in_(fresh_ids),
+                    BookingAppointment.status != "cancelled",
+                )
+            )
+            or 0
+        )
+        came_n = int(
+            await db.scalar(
+                select(func.count(func.distinct(BookingAppointment.lead_id))).where(
+                    BookingAppointment.lead_id.in_(fresh_ids),
+                    BookingAppointment.status == "completed",
+                )
+            )
+            or 0
+        )
+
+    def metric(key: str, label: str, current: Decimal, previous: Decimal, note: str) -> RopWeekPaceMetric:
+        return RopWeekPaceMetric(
+            key=key,
+            label=label,
+            current=current,
+            previous=previous,
+            percent=pace_percent(current, previous),
+            note=note,
+        )
+
+    return RopWeekPace(
+        date_from=cur_from,
+        date_to=cur_to,
+        compare_from=prev_from,
+        compare_to=prev_to,
+        label=week_span_label(cur_from, cur_to),
+        compare_label=week_span_label(prev_from, prev_to),
+        metrics=[
+            metric(
+                "revenue",
+                "Выручка недели",
+                Decimal(str(cur_rev or 0)),
+                Decimal(str(prev_rev or 0)),
+                "оплаты записи и курсов за эти дни",
+            ),
+            metric(
+                "leads",
+                "Новые лиды",
+                Decimal(leads_now),
+                Decimal(leads_was),
+                "карточки, созданные за эти дни. Архив не входит",
+            ),
+            metric(
+                "won",
+                "Удачно",
+                Decimal(won_now),
+                Decimal(won_was),
+                "переводы в «Удачно», в том числе владельцем",
+            ),
+            metric(
+                "bookings",
+                "Записи",
+                Decimal(book_now),
+                Decimal(book_was),
+                "новые визиты в онлайн-записи",
+            ),
+            RopWeekPaceMetric(
+                key="calls",
+                label="Разговоры 30+ мин",
+                note="в CRM нет длины звонка",
+                tracked=False,
+            ),
+        ],
+        funnel=[
+            RopWeekPaceStep(label="Новые лиды", value=leads_now, note="созданы за эти дни"),
+            RopWeekPaceStep(label="В обработке", value=open_n, note="ещё без исхода"),
+            RopWeekPaceStep(label="Запись", value=booked_n, note="есть визит"),
+            RopWeekPaceStep(label="Пришёл", value=came_n, note="визит со статусом «Пришёл»"),
+        ],
+    )
+
+
 @router.get("/outlook", response_model=RopOutlookReport)
 async def rop_outlook(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -1641,6 +1822,13 @@ async def rop_outlook(
         manager_ids=manager_ids,
         by_id=by_id,
     )
+    week = await _build_week_pace(
+        db,
+        current_user,
+        company_id,
+        pipeline_id,
+        today,
+    )
 
     return RopOutlookReport(
         as_of=today,
@@ -1656,6 +1844,7 @@ async def rop_outlook(
         plan_fact=plan_fact,
         plan_total=plan_total,
         fact_total=fact_total,
+        week=week,
     )
 
 

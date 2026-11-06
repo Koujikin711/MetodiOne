@@ -5437,6 +5437,148 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   margin: 0;
 }
 
+.rop-week {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.rop-week__hint {
+  margin: 0;
+  color: var(--mo-text-muted);
+  font-size: var(--mo-text-xs);
+}
+
+.rop-week__rings,
+.rop-week__bottom {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.rop-week__rings {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.rop-week__bottom {
+  grid-template-columns: 1fr 1fr;
+}
+
+.rop-week__card {
+  padding: 0.65rem 0.7rem 0.75rem;
+  border-radius: 0.7rem;
+  border: 1px solid var(--mo-border);
+  background: var(--mo-surface-elevated);
+}
+
+.rop-week__card h4 {
+  margin: 0.45rem 0 0.1rem;
+  font-size: var(--mo-text-xs);
+  font-weight: 650;
+}
+
+.rop-week__card > strong {
+  display: block;
+  font-size: var(--mo-text-lg);
+}
+
+.rop-week__card > em,
+.rop-week__card > p,
+.rop-week__pair em,
+.rop-week__card li em {
+  font-style: normal;
+  color: var(--mo-text-muted);
+  font-size: var(--mo-text-2xs);
+}
+
+.rop-week__card > p {
+  margin: 0.3rem 0 0;
+}
+
+.rop-week__ring {
+  --pace: 0deg;
+  width: 3.6rem;
+  height: 3.6rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: conic-gradient(var(--mo-text-muted) var(--pace), var(--mo-border) 0deg);
+}
+
+.rop-week__ring--up {
+  background: conic-gradient(#16a34a var(--pace), var(--mo-border) 0deg);
+}
+
+.rop-week__ring--mid {
+  background: conic-gradient(var(--mo-accent) var(--pace), var(--mo-border) 0deg);
+}
+
+.rop-week__ring--down {
+  background: conic-gradient(#d97706 var(--pace), var(--mo-border) 0deg);
+}
+
+.rop-week__ring span {
+  width: 2.55rem;
+  height: 2.55rem;
+  border-radius: 50%;
+  background: var(--mo-surface-elevated);
+  display: grid;
+  place-items: center;
+  font-size: var(--mo-text-2xs);
+  font-weight: 700;
+}
+
+.rop-week__pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+  margin-top: 0.45rem;
+}
+
+.rop-week__pair span,
+.rop-week__card li span {
+  display: block;
+  color: var(--mo-text-muted);
+  font-size: var(--mo-text-2xs);
+}
+
+.rop-week__pair strong {
+  font-size: var(--mo-text-xl);
+}
+
+.rop-week__card ul {
+  list-style: none;
+  margin: 0.45rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.rop-week__card li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  column-gap: 0.5rem;
+}
+
+.rop-week__card li em {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 960px) {
+  .rop-week__rings,
+  .rop-week__bottom {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .rop-week__rings,
+  .rop-week__bottom,
+  .rop-week__pair {
+    grid-template-columns: 1fr;
+  }
+}
+
 .rop-outlook-compare {
   display: grid;
   gap: 0.55rem;

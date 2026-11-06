@@ -228,6 +228,35 @@ class RopOutlookPace(BaseModel):
     remaining_days: int = 0
 
 
+class RopWeekPaceMetric(BaseModel):
+    key: str
+    label: str
+    current: Decimal = Decimal("0")
+    previous: Decimal = Decimal("0")
+    percent: int | None = None
+    note: str = ""
+    tracked: bool = True
+
+
+class RopWeekPaceStep(BaseModel):
+    label: str
+    value: int = 0
+    note: str = ""
+
+
+class RopWeekPace(BaseModel):
+    """Темп с понедельника по сегодня против тех же дней прошлой недели."""
+
+    date_from: date
+    date_to: date
+    compare_from: date
+    compare_to: date
+    label: str
+    compare_label: str
+    metrics: list[RopWeekPaceMetric] = Field(default_factory=list)
+    funnel: list[RopWeekPaceStep] = Field(default_factory=list)
+
+
 class RopOutlookSignal(BaseModel):
     kind: str
     severity: str
@@ -260,3 +289,4 @@ class RopOutlookReport(BaseModel):
     plan_fact: list[RopOutlookPlanFact] = Field(default_factory=list)
     plan_total: Decimal = Decimal("0")
     fact_total: Decimal = Decimal("0")
+    week: RopWeekPace | None = None

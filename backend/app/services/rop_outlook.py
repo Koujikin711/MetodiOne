@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 
 
@@ -20,6 +20,54 @@ class OutlookScenario:
     label: str
     leads: int
     revenue: Decimal
+
+
+_RU_MONTHS_GEN = (
+    "января",
+    "февраля",
+    "марта",
+    "апреля",
+    "мая",
+    "июня",
+    "июля",
+    "августа",
+    "сентября",
+    "октября",
+    "ноября",
+    "декабря",
+)
+
+
+def week_span_label(start: date, end: date) -> str:
+    if start.month == end.month:
+        if start == end:
+            return f"{start.day} {_RU_MONTHS_GEN[start.month - 1]}"
+        return f"{start.day}–{end.day} {_RU_MONTHS_GEN[start.month - 1]}"
+    return (
+        f"{start.day} {_RU_MONTHS_GEN[start.month - 1]}"
+        f" – {end.day} {_RU_MONTHS_GEN[end.month - 1]}"
+    )
+
+
+def week_pace_bounds(today: date) -> tuple[date, date, date, date]:
+    """Понедельник–сегодня и те же будни прошлой недели.
+
+    Пятница 6 ноября → 2–6 ноября против 26–30 октября.
+    «Должно быть сегодня» — факт тех же дней, не план месяца.
+    """
+    monday = today - timedelta(days=today.weekday())
+    span = today.weekday()
+    prev_monday = monday - timedelta(days=7)
+    return monday, today, prev_monday, prev_monday + timedelta(days=span)
+
+
+def pace_percent(current: float | int | Decimal, previous: float | int | Decimal) -> int | None:
+    """Процент к тем же дням. Нет базы — нечего делить."""
+    cur = float(current or 0)
+    prev = float(previous or 0)
+    if prev <= 0:
+        return None
+    return int(round(100.0 * cur / prev))
 
 
 def days_elapsed_in_month(today: date, month_start: date) -> int:

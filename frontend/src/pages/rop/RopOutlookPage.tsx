@@ -37,6 +37,25 @@ type PlanFact = {
   progress_percent: number;
 };
 
+type WeekMetric = {
+  key: string;
+  label: string;
+  current: number | string;
+  previous: number | string;
+  percent?: number | null;
+  note?: string;
+  tracked?: boolean;
+};
+
+type WeekStep = { label: string; value: number; note?: string };
+
+type WeekPace = {
+  label: string;
+  compare_label: string;
+  metrics: WeekMetric[];
+  funnel: WeekStep[];
+};
+
 type Outlook = {
   as_of: string;
   current: Month;
@@ -48,6 +67,7 @@ type Outlook = {
   plan_fact?: PlanFact[];
   plan_total?: number | string;
   fact_total?: number | string;
+  week?: WeekPace | null;
 };
 
 function money(v: number | string | undefined) {
@@ -63,6 +83,93 @@ function deltaText(v: number | null | undefined, unit = "%") {
 function deltaClass(v: number | null | undefined) {
   if (v == null || v === 0) return "mo-muted";
   return v > 0 ? "rop-delta--up" : "rop-delta--down";
+}
+
+function ringTone(metric: WeekMetric) {
+  if (metric.tracked === false || metric.percent == null) return "muted";
+  if (metric.percent >= 100) return "up";
+  if (metric.percent >= 80) return "mid";
+  return "down";
+}
+
+function WeekPaceStrip({ week }: { week: WeekPace }) {
+  const revenue = week.metrics.find((m) => m.key === "revenue");
+  const revenuePct =
+    revenue?.previous != null && Number(revenue.previous) > 0
+      ? Math.round((Number(revenue.current) / Number(revenue.previous) - 1) * 100)
+      : null;
+  return (
+    <section className="rop-week" aria-label="Темп недели">
+      <div className="rop-panel__head">
+        <h3 className="rop-panel__title">Темп недели</h3>
+        <span className="rop-panel__meta">
+          {week.label} против {week.compare_label}
+        </span>
+      </div>
+      <p className="rop-week__hint">
+        План кольца — сколько уже было в те же дни прошлой недели, не план месяца.
+      </p>
+      <div className="rop-week__rings">
+        {week.metrics.map((metric) => {
+          const tone = ringTone(metric);
+          const pct = metric.tracked === false || metric.percent == null ? 0 : Math.min(100, Math.max(0, metric.percent));
+          const shown =
+            metric.tracked === false
+              ? "—"
+              : metric.key === "revenue"
+                ? money(metric.current)
+                : Number(metric.current || 0).toLocaleString("ru-RU");
+          const was =
+            metric.tracked === false
+              ? "нет учёта"
+              : `было ${metric.key === "revenue" ? money(metric.previous) : Number(metric.previous || 0).toLocaleString("ru-RU")}`;
+          return (
+            <article key={metric.key} className="rop-week__card">
+              <div
+                className={`rop-week__ring rop-week__ring--${tone}`}
+                style={{ ["--pace" as string]: `${pct * 3.6}deg` }}
+              >
+                <span>{metric.tracked === false || metric.percent == null ? "—" : `${metric.percent}%`}</span>
+              </div>
+              <h4>{metric.label}</h4>
+              <strong>{shown}</strong>
+              <em>{was}</em>
+              {metric.note ? <p>{metric.note}</p> : null}
+            </article>
+          );
+        })}
+      </div>
+      <div className="rop-week__bottom">
+        <article className="rop-week__card rop-week__card--wide">
+          <h4>Главное за неделю</h4>
+          <div className="rop-week__pair">
+            <div>
+              <span>Выручка, факт</span>
+              <strong>{money(revenue?.current)}</strong>
+              <em className={deltaClass(revenuePct)}>{deltaText(revenuePct)}</em>
+            </div>
+            <div>
+              <span>Должно быть сегодня</span>
+              <strong>{money(revenue?.previous)}</strong>
+              <em>темп тех же дней</em>
+            </div>
+          </div>
+        </article>
+        <article className="rop-week__card rop-week__card--wide">
+          <h4>Воронка новых клиентов</h4>
+          <ul>
+            {week.funnel.map((step) => (
+              <li key={step.label}>
+                <span>{step.label}</span>
+                <strong>{step.value.toLocaleString("ru-RU")}</strong>
+                {step.note ? <em>{step.note}</em> : null}
+              </li>
+            ))}
+          </ul>
+        </article>
+      </div>
+    </section>
+  );
 }
 
 export function RopOutlookPage() {
@@ -86,7 +193,7 @@ export function RopOutlookPage() {
       <PrintMasthead title="Прогноз отдела продаж" meta={data?.as_of ? `на ${data.as_of}` : undefined} />
       <RopPageIntro
         title="Прогноз"
-        hint="Месяцы, сценарии темпа, сигналы и план/факт KPI."
+        hint="Темп этой недели, месяцы, сценарии, сигналы и план/факт KPI."
       />
 
       {query.isLoading ? <p className="text-sm mo-muted">Загрузка…</p> : null}
@@ -94,6 +201,7 @@ export function RopOutlookPage() {
 
       {cur && prev ? (
         <>
+          {data?.week ? <WeekPaceStrip week={data.week} /> : null}
           <section className="rop-outlook-compare" aria-label="Сравнение месяцев">
             <article className="rop-outlook-month">
               <div className="rop-outlook-month__top">

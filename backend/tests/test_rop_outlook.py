@@ -9,9 +9,24 @@ from app.services.rop_outlook import (
     days_remaining_in_month,
     month_label_ru,
     next_month_mid,
+    pace_percent,
     pct_delta,
     project_scenarios,
+    week_pace_bounds,
+    week_span_label,
 )
+
+
+def test_week_pace_is_monday_through_today_against_prior_weekdays():
+    # Пятница 6 ноября 2026 → 2–6 ноября против 26–30 октября.
+    cur_from, cur_to, prev_from, prev_to = week_pace_bounds(date(2026, 11, 6))
+    assert (cur_from, cur_to) == (date(2026, 11, 2), date(2026, 11, 6))
+    assert (prev_from, prev_to) == (date(2026, 10, 26), date(2026, 10, 30))
+    assert week_span_label(cur_from, cur_to) == "2–6 ноября"
+    assert week_span_label(prev_from, prev_to) == "26–30 октября"
+    assert pace_percent(5600, 8000) == 70
+    assert pace_percent(0, 0) is None
+    assert pace_percent(5, 0) is None
 
 
 def test_days_elapsed_and_remaining():
