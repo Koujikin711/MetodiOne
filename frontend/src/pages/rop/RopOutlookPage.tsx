@@ -103,12 +103,9 @@ function WeekPaceStrip({ week }: { week: WeekPace }) {
       <div className="rop-panel__head">
         <h3 className="rop-panel__title">Темп недели</h3>
         <span className="rop-panel__meta">
-          {week.label} против {week.compare_label}
+          {week.label} · было {week.compare_label}
         </span>
       </div>
-      <p className="rop-week__hint">
-        План кольца — сколько уже было в те же дни прошлой недели, не план месяца.
-      </p>
       <div className="rop-week__rings">
         {week.metrics.map((metric) => {
           const tone = ringTone(metric);
@@ -131,41 +128,41 @@ function WeekPaceStrip({ week }: { week: WeekPace }) {
               >
                 <span>{metric.tracked === false || metric.percent == null ? "—" : `${metric.percent}%`}</span>
               </div>
-              <h4>{metric.label}</h4>
-              <strong>{shown}</strong>
-              <em>{was}</em>
-              {metric.note ? <p>{metric.note}</p> : null}
+              <div className="rop-week__body">
+                <h4>{metric.label}</h4>
+                <strong>{shown}</strong>
+                <em>{was}</em>
+              </div>
             </article>
           );
         })}
       </div>
       <div className="rop-week__bottom">
         <article className="rop-week__card rop-week__card--wide">
-          <h4>Главное за неделю</h4>
+          <h4>Главное</h4>
           <div className="rop-week__pair">
             <div>
-              <span>Выручка, факт</span>
+              <span>Факт</span>
               <strong>{money(revenue?.current)}</strong>
               <em className={deltaClass(revenuePct)}>{deltaText(revenuePct)}</em>
             </div>
             <div>
-              <span>Должно быть сегодня</span>
+              <span>Должно быть</span>
               <strong>{money(revenue?.previous)}</strong>
-              <em>темп тех же дней</em>
+              <em>те же дни</em>
             </div>
           </div>
         </article>
         <article className="rop-week__card rop-week__card--wide">
-          <h4>Воронка новых клиентов</h4>
-          <ul>
+          <h4>Новые клиенты</h4>
+          <div className="rop-week__funnel">
             {week.funnel.map((step) => (
-              <li key={step.label}>
+              <div key={step.label}>
                 <span>{step.label}</span>
                 <strong>{step.value.toLocaleString("ru-RU")}</strong>
-                {step.note ? <em>{step.note}</em> : null}
-              </li>
+              </div>
             ))}
-          </ul>
+          </div>
         </article>
       </div>
     </section>

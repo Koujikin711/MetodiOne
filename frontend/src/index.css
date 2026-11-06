@@ -5443,16 +5443,10 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   gap: 0.55rem;
 }
 
-.rop-week__hint {
-  margin: 0;
-  color: var(--mo-text-muted);
-  font-size: var(--mo-text-xs);
-}
-
 .rop-week__rings,
 .rop-week__bottom {
   display: grid;
-  gap: 0.55rem;
+  gap: 0.45rem;
 }
 
 .rop-week__rings {
@@ -5460,44 +5454,53 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .rop-week__bottom {
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1.3fr;
 }
 
 .rop-week__card {
-  padding: 0.65rem 0.7rem 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+  padding: 0.55rem 0.65rem;
   border-radius: 0.7rem;
   border: 1px solid var(--mo-border);
   background: var(--mo-surface-elevated);
 }
 
-.rop-week__card h4 {
-  margin: 0.45rem 0 0.1rem;
-  font-size: var(--mo-text-xs);
-  font-weight: 650;
+.rop-week__body {
+  min-width: 0;
 }
 
-.rop-week__card > strong {
+.rop-week__card h4,
+.rop-week__body h4 {
+  margin: 0;
+  font-size: var(--mo-text-2xs);
+  font-weight: 650;
+  color: var(--mo-text-muted);
+}
+
+.rop-week__body strong,
+.rop-week__pair strong,
+.rop-week__funnel strong {
   display: block;
   font-size: var(--mo-text-lg);
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
 }
 
-.rop-week__card > em,
-.rop-week__card > p,
-.rop-week__pair em,
-.rop-week__card li em {
+.rop-week__body em,
+.rop-week__pair em {
   font-style: normal;
   color: var(--mo-text-muted);
   font-size: var(--mo-text-2xs);
 }
 
-.rop-week__card > p {
-  margin: 0.3rem 0 0;
-}
-
 .rop-week__ring {
   --pace: 0deg;
-  width: 3.6rem;
-  height: 3.6rem;
+  width: 3.15rem;
+  height: 3.15rem;
+  flex: 0 0 auto;
   border-radius: 50%;
   display: grid;
   place-items: center;
@@ -5517,51 +5520,39 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .rop-week__ring span {
-  width: 2.55rem;
-  height: 2.55rem;
+  width: 2.25rem;
+  height: 2.25rem;
   border-radius: 50%;
   background: var(--mo-surface-elevated);
   display: grid;
   place-items: center;
-  font-size: var(--mo-text-2xs);
+  font-size: 0.65rem;
   font-weight: 700;
 }
 
-.rop-week__pair {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.65rem;
-  margin-top: 0.45rem;
-}
-
-.rop-week__pair span,
-.rop-week__card li span {
-  display: block;
-  color: var(--mo-text-muted);
-  font-size: var(--mo-text-2xs);
-}
-
-.rop-week__pair strong {
-  font-size: var(--mo-text-xl);
-}
-
-.rop-week__card ul {
-  list-style: none;
-  margin: 0.45rem 0 0;
-  padding: 0;
-  display: flex;
+.rop-week__card--wide {
+  align-items: flex-start;
   flex-direction: column;
   gap: 0.35rem;
 }
 
-.rop-week__card li {
+.rop-week__pair,
+.rop-week__funnel {
   display: grid;
-  grid-template-columns: 1fr auto;
-  column-gap: 0.5rem;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem 0.75rem;
+  width: 100%;
 }
 
-.rop-week__card li em {
-  grid-column: 1 / -1;
+.rop-week__funnel {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.rop-week__pair span,
+.rop-week__funnel span {
+  display: block;
+  color: var(--mo-text-muted);
+  font-size: var(--mo-text-2xs);
 }
 
 @media (max-width: 960px) {
