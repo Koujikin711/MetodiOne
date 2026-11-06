@@ -5384,6 +5384,186 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   color: var(--mo-text);
 }
 
+.rop-report {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.rop-report__totals {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.rop-report__totals article {
+  padding: 0.75rem 0.85rem 0.8rem;
+  border-radius: 0.85rem;
+  border: 1px solid var(--mo-border);
+  background: var(--mo-surface-elevated);
+}
+
+.rop-report__totals span,
+.rop-report-person__nums span,
+.rop-report-person__who em {
+  display: block;
+  font-style: normal;
+  font-size: var(--mo-text-2xs);
+  color: var(--mo-text-muted);
+}
+
+.rop-report__totals strong {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 1.35rem;
+  font-weight: 650;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.rop-report__conv--up {
+  color: #16a34a;
+}
+
+.rop-report__conv--mid {
+  color: var(--mo-accent);
+}
+
+.rop-report__conv--down {
+  color: #d97706;
+}
+
+.rop-report__people {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.rop-report-person {
+  padding: 0.7rem 0.8rem 0.75rem;
+  border-radius: 0.85rem;
+  border: 1px solid var(--mo-border);
+  background: var(--mo-surface-elevated);
+}
+
+.rop-report-person__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rop-report-person__who {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.rop-report-person__who strong {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 650;
+}
+
+.rop-report-person__mark {
+  width: 2.1rem;
+  height: 2.1rem;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 0.7rem;
+  font-weight: 700;
+  background: color-mix(in srgb, currentColor 14%, var(--mo-surface));
+}
+
+.rop-report-person__pct {
+  font-size: 1.15rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.rop-report-person__bar {
+  height: 0.35rem;
+  margin: 0.65rem 0 0.6rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mo-border) 80%, transparent);
+  overflow: hidden;
+}
+
+.rop-report-person__bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: currentColor;
+}
+
+.rop-report-person__nums {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.rop-report-person__nums strong {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.rop-report-person__services {
+  margin-top: 0.65rem;
+}
+
+.rop-report-person__services table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.rop-report-person__services th,
+.rop-report-person__services td {
+  padding: 0.35rem 0.2rem;
+  border-top: 1px solid var(--mo-border);
+}
+
+.rop-report-person__services th {
+  font-size: var(--mo-text-2xs);
+  font-weight: 600;
+  color: var(--mo-text-muted);
+  text-align: right;
+}
+
+.rop-report-person__services th:first-child,
+.rop-report-person__services td:first-child {
+  text-align: left;
+}
+
+.rop-report-person__services td:not(:first-child) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.rop-report__empty {
+  margin: 0;
+  color: var(--mo-text-muted);
+  font-size: 0.85rem;
+}
+
+@media (max-width: 720px) {
+  .rop-report__totals,
+  .rop-report-person__nums {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 .rop-date-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

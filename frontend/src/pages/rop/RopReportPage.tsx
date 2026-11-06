@@ -33,6 +33,22 @@ function num(v: number | string | undefined) {
   return Number(v || 0);
 }
 
+function pct(part: number, whole: number) {
+  if (whole <= 0) return 0;
+  return (part / whole) * 100;
+}
+
+function pctText(value: number) {
+  const rounded = Math.round(value * 10) / 10;
+  return Number.isInteger(rounded) ? `${rounded}%` : `${rounded.toFixed(1)}%`;
+}
+
+function tone(value: number) {
+  if (value >= 95) return "up";
+  if (value >= 80) return "mid";
+  return "down";
+}
+
 export function RopReportPage() {
   const { pipelineId, from, to } = useRopContext();
   const [openId, setOpenId] = useState<number | null>(null);
@@ -87,69 +103,91 @@ export function RopReportPage() {
   const soldTotal = num(query.data?.sold_total);
   const paidTotal = num(query.data?.total);
   const fullTotal = num(query.data?.full_paid_total);
-  const conv = soldTotal > 0 ? (fullTotal / soldTotal) * 100 : 0;
+  const conv = pct(fullTotal, soldTotal);
 
   return (
     <div className="mo-print-doc rop-dense flex flex-col gap-3">
       <PrintMasthead title="Отчёт отдела продаж" meta={printPeriod(from, to)} />
-      <RopPageIntro
-        title="Отчёт"
-        hint="Выручка KPI за период. Конверсия — полностью оплаченные от проданных."
-      />
+      <RopPageIntro title="Отчёт" hint="Сколько продали и сколько из этого закрыли полностью." />
 
-      <div className="rop-panel">
-        <div className="rop-panel__head">
-          <h3 className="rop-panel__title">Выручка отдела</h3>
+      <section className="rop-report" aria-label="Выручка отдела">
+        <div className="rop-report__totals">
+          <article>
+            <span>Продали</span>
+            <strong>{money(soldTotal)}</strong>
+          </article>
+          <article>
+            <span>Оплатили</span>
+            <strong>{money(paidTotal)}</strong>
+          </article>
+          <article>
+            <span>Полностью</span>
+            <strong>{money(fullTotal)}</strong>
+          </article>
+          <article className={`rop-report__conv rop-report__conv--${tone(conv)}`}>
+            <span>Закрыто</span>
+            <strong>{pctText(conv)}</strong>
+          </article>
         </div>
-        <div className="rop-metric-strip">
-          <div className="rop-metric-chip">
-            <span className="rop-metric-chip__label">Продали</span>
-            <span className="rop-metric-chip__value">{money(soldTotal)}</span>
-          </div>
-          <div className="rop-metric-chip">
-            <span className="rop-metric-chip__label">Оплатили</span>
-            <span className="rop-metric-chip__value">{money(paidTotal)}</span>
-          </div>
-          <div className="rop-metric-chip">
-            <span className="rop-metric-chip__label">Полностью</span>
-            <span className="rop-metric-chip__value">{money(fullTotal)}</span>
-          </div>
-          <div className="rop-metric-chip">
-            <span className="rop-metric-chip__label">Конверсия</span>
-            <span className="rop-metric-chip__value">{conv.toFixed(1)}%</span>
-          </div>
-        </div>
+
         {query.isLoading ? (
-          <p className="mt-3 text-sm mo-muted">Загрузка…</p>
+          <p className="rop-report__empty">Загрузка…</p>
         ) : (
-          <div className="mt-3 flex flex-col gap-2">
+          <div className="rop-report__people">
             {groups.map((g) => {
               const open = openId === g.id;
-              const gConv = g.sold > 0 ? (g.fullPaid / g.sold) * 100 : 0;
-              const visitConv = g.soldCount > 0 ? (g.fullCount / g.soldCount) * 100 : 0;
+              const gConv = pct(g.fullPaid, g.sold);
+              const bar = Math.max(0, Math.min(100, gConv));
               return (
-                <div key={g.id} className="rounded-lg border border-[var(--mo-border)]">
+                <article key={g.id} className="rop-report-person">
                   <button
                     type="button"
-                    className="print-keep flex w-full flex-col gap-1 px-3 py-2 text-left text-sm sm:flex-row sm:items-center sm:justify-between"
+                    className="print-keep rop-report-person__head"
                     onClick={() => setOpenId(open ? null : g.id)}
+                    aria-expanded={open}
                   >
-                    <span className="font-medium">{g.name}</span>
-                    <span className="tabular-nums mo-muted">
-                      продали {money(g.sold)} · полностью {money(g.fullPaid)} ({gConv.toFixed(1)}% суммы)
-                      {g.soldCount > 0
-                        ? ` · визиты ${g.fullCount}/${g.soldCount} (${visitConv.toFixed(1)}%)`
-                        : ""}
+                    <span className="rop-report-person__who">
+                      <span className={`rop-report-person__mark rop-report__conv--${tone(gConv)}`}>
+                        {(g.name.trim()[0] || "·").toUpperCase()}
+                      </span>
+                      <span>
+                        <strong>{g.name}</strong>
+                        <em>
+                          {g.soldCount > 0
+                            ? `${g.fullCount} из ${g.soldCount} визитов`
+                            : "без визитов"}
+                        </em>
+                      </span>
+                    </span>
+                    <span className={`rop-report-person__pct rop-report__conv--${tone(gConv)}`}>
+                      {pctText(gConv)}
                     </span>
                   </button>
-                  <div className={open ? undefined : "mo-print-detail"}>
-                    <table className="w-full border-t border-[var(--mo-border)] text-sm">
-                      <thead className="text-xs mo-muted">
+                  <div className="rop-report-person__bar" aria-hidden>
+                    <i className={`rop-report__conv--${tone(gConv)}`} style={{ width: `${bar}%` }} />
+                  </div>
+                  <div className="rop-report-person__nums">
+                    <div>
+                      <span>Продали</span>
+                      <strong>{money(g.sold)}</strong>
+                    </div>
+                    <div>
+                      <span>Оплатили</span>
+                      <strong>{money(g.paid)}</strong>
+                    </div>
+                    <div>
+                      <span>Полностью</span>
+                      <strong>{money(g.fullPaid)}</strong>
+                    </div>
+                  </div>
+                  <div className={open ? "rop-report-person__services" : "mo-print-detail rop-report-person__services"}>
+                    <table>
+                      <thead>
                         <tr>
-                          <th className="px-3 py-1 text-left">Услуга</th>
-                          <th className="px-3 py-1 text-right">Продали</th>
-                          <th className="px-3 py-1 text-right">Оплатили</th>
-                          <th className="px-3 py-1 text-right">Полностью</th>
+                          <th>Услуга</th>
+                          <th>Продали</th>
+                          <th>Оплатили</th>
+                          <th>Полностью</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -157,29 +195,23 @@ export function RopReportPage() {
                           .slice()
                           .sort((a, b) => num(b.sold_amount ?? b.amount) - num(a.sold_amount ?? a.amount))
                           .map((s) => (
-                            <tr key={s.service_name} className="border-t border-[var(--mo-border)]">
-                              <td className="px-3 py-1">{s.service_name}</td>
-                              <td className="px-3 py-1 text-right tabular-nums">
-                                {money(s.sold_amount ?? s.amount)}
-                              </td>
-                              <td className="px-3 py-1 text-right tabular-nums">
-                                {money(s.paid_amount ?? s.amount)}
-                              </td>
-                              <td className="px-3 py-1 text-right tabular-nums">
-                                {money(s.full_paid_amount)}
-                              </td>
+                            <tr key={s.service_name}>
+                              <td>{s.service_name}</td>
+                              <td>{money(s.sold_amount ?? s.amount)}</td>
+                              <td>{money(s.paid_amount ?? s.amount)}</td>
+                              <td>{money(s.full_paid_amount)}</td>
                             </tr>
                           ))}
                       </tbody>
                     </table>
                   </div>
-                </div>
+                </article>
               );
             })}
-            {!groups.length && <p className="text-sm mo-muted">Нет продаж за период</p>}
+            {!groups.length && <p className="rop-report__empty">Нет продаж за период</p>}
           </div>
         )}
-      </div>
+      </section>
       <PrintSign />
     </div>
   );
