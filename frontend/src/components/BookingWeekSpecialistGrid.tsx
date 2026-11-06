@@ -25,8 +25,6 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
-import { createPortal } from "react-dom";
-
 import { GripVertical, Pencil } from "@/components/icons";
 import { BookingAppointmentCardBody } from "@/components/BookingAppointmentCardBody";
 import {
@@ -238,25 +236,6 @@ function buildDayRows(
   return pairSameStart(rows);
 }
 
-function dayLoad(
-  spec: BookingSpecialist,
-  dateYmd: string,
-  dayAppts: BookingAppointment[],
-): { busy: number; free: number } {
-  const busy = dayAppts.filter((a) => a.status !== "cancelled").length;
-  if (!isSpecWorkingDay(spec, dateYmd)) return { busy, free: 0 };
-  const startH = spec.work_start_hour ?? 9;
-  const endH = spec.work_end_hour ?? 18;
-  const totalHours = Math.max(0, endH - startH);
-  const taken = new Set<number>();
-  for (const a of dayAppts) {
-    if (a.status === "cancelled") continue;
-    const { h } = utcMsToHourMinuteInBookingTz(new Date(a.start_at).getTime());
-    if (h >= startH && h < endH) taken.add(h);
-  }
-  return { busy, free: Math.max(0, totalHours - taken.size) };
-}
-
 function CollapsedDayCell({
   count,
   canAdd,
@@ -276,104 +255,30 @@ function CollapsedDayCell({
   dayAppts: BookingAppointment[];
   onSlotClick?: (payload: WeekSlotClickPayload) => void;
 }) {
-  const btnRef = useRef<HTMLButtonElement>(null);
-  const closeTimer = useRef<number | null>(null);
-  const [hover, setHover] = useState(false);
-  const [pos, setPos] = useState({ top: 0, left: 0 });
-  const load = dayLoad(spec, dateYmd, dayAppts);
-  const working = isSpecWorkingDay(spec, dateYmd);
-
-  const cancelClose = () => {
-    if (closeTimer.current != null) {
-      window.clearTimeout(closeTimer.current);
-      closeTimer.current = null;
-    }
-  };
-
-  const open = () => {
-    cancelClose();
-    const rect = btnRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    setPos({ top: rect.bottom + 6, left: rect.left + rect.width / 2 });
-    setHover(true);
-  };
-
-  const scheduleClose = () => {
-    cancelClose();
-    closeTimer.current = window.setTimeout(() => setHover(false), 140);
-  };
-
-  useEffect(() => () => cancelClose(), []);
-
   return (
-    <>
-      <button
-        ref={btnRef}
-        type="button"
-        disabled={!canAdd}
-        onClick={() => emitSlotClick(onSlotClick, spec, dateYmd, dayAppts)}
-        onMouseEnter={open}
-        onMouseLeave={scheduleClose}
+    <button
+      type="button"
+      disabled={!canAdd}
+      onClick={() => emitSlotClick(onSlotClick, spec, dateYmd, dayAppts)}
+      className={[
+        DAY_COL_COLLAPSED_CLASS,
+        wideColumns ? "booking-week-grid__day-col--open" : "",
+        isToday ? "bg-[var(--mo-accent-soft)]/40" : "bg-[var(--mo-surface)]",
+        canAdd
+          ? "cursor-pointer transition hover:bg-indigo-500/10 hover:ring-1 hover:ring-inset hover:ring-indigo-500/25"
+          : "cursor-default",
+      ].join(" ")}
+      style={{ minHeight: COLLAPSED_ROW_PX }}
+    >
+      <span
         className={[
-          DAY_COL_COLLAPSED_CLASS,
-          wideColumns ? "booking-week-grid__day-col--open" : "",
-          isToday ? "bg-[var(--mo-accent-soft)]/40" : "bg-[var(--mo-surface)]",
-          canAdd
-            ? "cursor-pointer transition hover:bg-indigo-500/10 hover:ring-1 hover:ring-inset hover:ring-indigo-500/25"
-            : "cursor-default",
+          "text-lg font-semibold tabular-nums",
+          count > 0 ? "text-[var(--mo-text)]" : "mo-muted",
         ].join(" ")}
-        style={{ minHeight: COLLAPSED_ROW_PX }}
       >
-        <span
-          className={[
-            "text-lg font-semibold tabular-nums",
-            count > 0 ? "text-[var(--mo-text)]" : "mo-muted",
-          ].join(" ")}
-        >
-          {count}
-        </span>
-      </button>
-      {hover
-        ? createPortal(
-            <div
-              className="booking-day-hover"
-              style={{ top: pos.top, left: pos.left }}
-              role="tooltip"
-              onMouseEnter={open}
-              onMouseLeave={scheduleClose}
-            >
-              {working ? (
-                <>
-                  <div className="booking-day-hover__row">
-                    <span>Занято</span>
-                    <em className="booking-day-hover__badge">{load.busy}</em>
-                  </div>
-                  <div className="booking-day-hover__row">
-                    <span>Свободно</span>
-                    <em className="booking-day-hover__badge booking-day-hover__badge--free">{load.free}</em>
-                  </div>
-                  {canAdd ? (
-                    <button
-                      type="button"
-                      className="booking-day-hover__create"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        emitSlotClick(onSlotClick, spec, dateYmd, dayAppts);
-                        setHover(false);
-                      }}
-                    >
-                      Создать
-                    </button>
-                  ) : null}
-                </>
-              ) : (
-                <div className="booking-day-hover__row">Выходной</div>
-              )}
-            </div>,
-            document.body,
-          )
-        : null}
-    </>
+        {count}
+      </span>
+    </button>
   );
 }
 
