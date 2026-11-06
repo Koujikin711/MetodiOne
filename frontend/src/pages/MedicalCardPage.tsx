@@ -5,9 +5,9 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { apiFetch } from "@/lib/api";
+import { apiFetch, getActiveCompanyId, getStoredToken, resolveApiUrl } from "@/lib/api";
 
 type TabId = "overview" | "history" | "dynamics" | "diagnostics" | "treatment" | "documents";
 
@@ -46,6 +46,7 @@ type EmrChart = {
   phone: string | null;
   birth_date: string | null;
   age_label: string | null;
+  birth_from_booking?: boolean;
   stage_name: string | null;
   manager_name: string | null;
   first_visit_at: string | null;
@@ -66,6 +67,7 @@ type EmrChart = {
   todos: { text: string; at: string | null }[];
   stages: string[];
   current_stage: string | null;
+  documents?: { title: string; source: string; at: string | null; href: string | null }[];
 };
 
 function fmtDt(iso: string | null | undefined): string {
@@ -86,6 +88,48 @@ function fmtDate(iso: string | null | undefined): string {
   const d = new Date(iso.length <= 10 ? `${iso}T00:00:00` : iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleDateString("ru-RU");
+}
+
+function courseStatusLabel(status: string): string {
+  if (status === "completed") return "завершён";
+  if (status === "active") return "идёт";
+  if (status === "none" || !status) return "не начат";
+  return status;
+}
+
+function programBadge(data: EmrChart): string {
+  const flow = data.journey.membership_flow || "";
+  if (/основн/i.test(flow)) return "Основной курс";
+  if (flow) return flow.split("·")[0]?.trim() || flow;
+  if (data.journey.course_15_status === "active") return "Курс 15";
+  if (data.journey.course_15_status === "completed") return "Курс 15 завершён";
+  return data.stage_name || "Наблюдение";
+}
+
+function programValue(data: EmrChart): string {
+  if (data.journey.membership_flow) return data.journey.membership_flow;
+  if (data.journey.course_15_status === "active") return "Курс 15 · идёт";
+  if (data.journey.course_15_status === "completed") return "Курс 15 · завершён";
+  if (data.journey.branch && data.journey.branch !== "none") return data.journey.branch;
+  return "нет активной программы";
+}
+
+function displayStages(data: EmrChart): { stages: string[]; current: string | null } {
+  const flow = data.journey.membership_flow || "";
+  const c15 = data.journey.course_15_status;
+  if (/основн/i.test(flow)) {
+    return {
+      stages: ["1-й приём", "Обследования", "Курс 15", "Основной курс"],
+      current: "Основной курс",
+    };
+  }
+  if (c15 === "active") {
+    return { stages: ["1-й приём", "Обследования", "Курс 15", "Заключение"], current: "Курс 15" };
+  }
+  if (c15 === "completed") {
+    return { stages: ["1-й приём", "Обследования", "Курс 15", "Заключение"], current: "Заключение" };
+  }
+  return { stages: data.stages.length ? data.stages : ["1-й приём", "Обследования", "Курс 15", "Заключение"], current: data.current_stage };
 }
 
 export default function MedicalCardPage() {
@@ -170,15 +214,12 @@ export default function MedicalCardPage() {
         </div>
 
         {!leadId ? (
-          <p className="emr2__dev">
-            Найдите пациента по ФИО или телефону. Ключ карты — <strong>lead_id</strong>. Оплаты в ЭМК не
-            показываем.
-          </p>
+          <p className="emr2__dev">Найдите пациента по имени или телефону. Оплаты в карте не показываем.</p>
         ) : null}
 
         {leadId && chartQuery.isLoading ? <p className="emr2-muted">Загружаем карту…</p> : null}
         {leadId && chartQuery.isError ? (
-          <p className="emr2-muted">Не удалось открыть карту. Проверьте доступ и lead_id.</p>
+          <p className="emr2-muted">Не удалось открыть карту. Проверьте, что пациент есть в вашей клинике.</p>
         ) : null}
 
         {chartQuery.data ? <ChartView data={chartQuery.data} tab={tab} setTab={setTab} /> : null}
@@ -187,21 +228,18 @@ export default function MedicalCardPage() {
   );
 }
 
-function ChartView({
+export function ChartView({
   data,
   tab,
   setTab,
+  preview = false,
 }: {
   data: EmrChart;
   tab: TabId;
   setTab: (t: TabId) => void;
+  preview?: boolean;
 }) {
-  const badge =
-    data.journey.course_15_status === "active"
-      ? "Курс 15"
-      : data.journey.course_15_status === "completed"
-        ? "Курс завершён"
-        : data.stage_name || "Карта";
+  const badge = programBadge(data);
 
   return (
     <>
@@ -211,50 +249,24 @@ function ChartView({
             <h1 className="emr2-head__name">{data.name}</h1>
             <p className="emr2-head__meta">
               Карта <strong>#{data.lead_id}</strong>
-              {data.birth_date ? (
-                <>
-                  <span>·</span>
-                  {fmtDate(data.birth_date)}
-                  {data.age_label ? ` · ${data.age_label}` : ""}
-                </>
-              ) : null}
+              <span>·</span>
+              <BirthField data={data} preview={preview} />
               {data.first_visit_at ? (
                 <>
                   <span>·</span>
                   первое обращение {fmtDate(data.first_visit_at)}
                 </>
               ) : null}
-              {data.phone ? (
-                <>
-                  <span>·</span>
-                  {data.phone}
-                </>
-              ) : null}
             </p>
+            {data.phone ? <p className="emr2-head__phone">{data.phone}</p> : null}
           </div>
           <span className="emr2-badge">{badge}</span>
         </div>
-        <div className="emr2-head__grid">
-          <Info label="Основной диагноз" value={data.diagnosis || "не указан в CRM"} />
-          <Info label="Лечащий врач" value={data.attending_doctor || "—"} />
-          <Info
-            label="Текущая программа"
-            value={
-              data.journey.membership_flow ||
-              (data.journey.course_15_status === "active"
-                ? "Курс 15 · активен"
-                : data.journey.course_15_status === "completed"
-                  ? "Курс 15 · завершён"
-                  : data.journey.branch !== "none"
-                    ? data.journey.branch
-                    : "нет активной программы")
-            }
-          />
-          <Info
-            label="Предупреждения"
-            value={data.warning || "нет отметок"}
-            warn={Boolean(data.warning)}
-          />
+        <DiagnosisField leadId={data.lead_id} diagnosis={data.diagnosis} preview={preview} />
+        <div className="emr2-head__grid emr2-head__grid--3">
+          <Info label="Лечащий врач" value={data.attending_doctor || "не указан"} />
+          <Info label="Текущая программа" value={programValue(data)} />
+          <Info label="Предупреждения" value={data.warning || "нет"} warn={Boolean(data.warning)} />
         </div>
         <div className="emr2-chips" aria-label="Фактически полученные услуги">
           {data.service_chips.map((c) => (
@@ -265,7 +277,6 @@ function ChartView({
           ))}
         </div>
         <p className="emr2-note" style={{ marginTop: "0.55rem" }}>
-          Счётчики — только визиты со статусом «Пришёл».{" "}
           <Link to={`/leads/${data.lead_id}`}>Карточка лида</Link>
           {" · "}
           <Link to={`/booking?lead_id=${data.lead_id}`}>Запись</Link>
@@ -314,6 +325,7 @@ function Card({ title, children, action }: { title: string; children: ReactNode;
 function renderTab(tab: TabId, data: EmrChart) {
   const completed = data.visits.filter((v) => v.status_code === "completed");
   const diagVisits = data.visits.filter((v) => v.kind === "diag");
+  const stages = displayStages(data);
 
   switch (tab) {
     case "overview":
@@ -321,9 +333,9 @@ function renderTab(tab: TabId, data: EmrChart) {
         <div className="emr2-grid">
           <Card title="Текущий этап">
             <ol className="emr2-stages">
-              {data.stages.map((s) => {
-                const curIdx = data.current_stage ? data.stages.indexOf(data.current_stage) : -1;
-                const idx = data.stages.indexOf(s);
+              {stages.stages.map((s) => {
+                const curIdx = stages.current ? stages.stages.indexOf(stages.current) : -1;
+                const idx = stages.stages.indexOf(s);
                 const cls = idx < curIdx ? "is-done" : idx === curIdx ? "is-now" : "";
                 return (
                   <li key={s} className={cls}>
@@ -333,9 +345,9 @@ function renderTab(tab: TabId, data: EmrChart) {
               })}
             </ol>
             {data.journey.membership_flow ? (
-              <p className="emr2-note">Поток: {data.journey.membership_flow}</p>
+              <p className="emr2-note">Сейчас в журнале: {data.journey.membership_flow}</p>
             ) : (
-              <p className="emr2-note">Нет активного потока в журнале куратора.</p>
+              <p className="emr2-note">В журнале куратора активного потока нет.</p>
             )}
           </Card>
           <Card title="Последние события">
@@ -357,7 +369,7 @@ function renderTab(tab: TabId, data: EmrChart) {
           </Card>
           <Card title="Краткая динамика">
             {data.dynamics.length === 0 ? (
-              <p className="emr2-muted">Жалоб куратора по этому lead пока нет.</p>
+              <p className="emr2-muted">Жалоб в журнале куратора пока нет.</p>
             ) : (
               <div className="emr2-dyn-mini">
                 {data.dynamics.slice(0, 6).map((d, i) => (
@@ -388,33 +400,12 @@ function renderTab(tab: TabId, data: EmrChart) {
         </div>
       );
     case "history":
-      return (
-        <Card title="Хронология">
-          {data.visits.length === 0 ? (
-            <p className="emr2-muted">Визитов по записи нет.</p>
-          ) : (
-            <ul className="emr2-timeline">
-              {data.visits.map((e) => (
-                <li key={e.appointment_id} data-kind={e.kind}>
-                  <time>{fmtDt(e.start_at)}</time>
-                  <div>
-                    <strong>{e.service_title}</strong>
-                    <p>
-                      {[e.specialist_name, e.status].filter(Boolean).join(" · ")}
-                    </p>
-                    {e.comment ? <p className="emr2-muted">{e.comment}</p> : null}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      );
+      return <HistoryTab visits={data.visits} />;
     case "dynamics":
       return (
         <Card title="Наблюдения куратора">
           <p className="emr2-muted emr2-lead">
-            Шкалы врача пока не ведутся в CRM. Здесь — жалобы из журнала куратора по этому lead_id.
+            Здесь жалобы из журнала куратора: сон, вес, боль и другие отметки. Шкалы врача появятся позже.
           </p>
           {data.dynamics.length === 0 ? (
             <p className="emr2-muted">Нет данных.</p>
@@ -442,9 +433,9 @@ function renderTab(tab: TabId, data: EmrChart) {
       );
     case "diagnostics":
       return (
-        <Card title="Исследования (из записи)">
+        <Card title="Исследования">
           {diagVisits.length === 0 ? (
-            <p className="emr2-muted">Визитов с типом диагностики (ЭЭГ и т.п.) нет.</p>
+            <p className="emr2-muted">ЭЭГ и других исследований в записи пока нет.</p>
           ) : (
             <table className="emr2-table">
               <thead>
@@ -474,25 +465,308 @@ function renderTab(tab: TabId, data: EmrChart) {
         </Card>
       );
     case "treatment":
-      return (
-        <div className="emr2-grid">
-          <Card title="А. Курсы">
-            <div className="emr2-course">
-              <strong>Курс 15</strong>
+      return <TreatmentTab data={data} />;
+    case "documents":
+      return <DocumentsTab leadId={data.lead_id} documents={data.documents ?? []} />;
+  }
+}
+
+function BirthField({ data, preview }: { data: EmrChart; preview: boolean }) {
+  const qc = useQueryClient();
+  const fromBooking = data.birth_from_booking === true;
+  const [value, setValue] = useState(data.birth_date ?? "");
+  const [localBirth, setLocalBirth] = useState<string | null>(null);
+  const [editing, setEditing] = useState(!data.birth_date);
+  const [state, setState] = useState<"idle" | "saving" | "error">("idle");
+
+  useEffect(() => {
+    setValue(data.birth_date ?? "");
+    setLocalBirth(null);
+    setEditing(!data.birth_date);
+    setState("idle");
+  }, [data.birth_date, data.lead_id, fromBooking]);
+
+  const shown = fromBooking ? data.birth_date : localBirth ?? data.birth_date;
+
+  async function save() {
+    if (!value) return;
+    if (preview) {
+      setLocalBirth(value);
+      setEditing(false);
+      setState("idle");
+      return;
+    }
+    setState("saving");
+    try {
+      await apiFetch(`/api/emr/${data.lead_id}/birth-date`, {
+        method: "PATCH",
+        body: JSON.stringify({ birth_date: value }),
+      });
+      await qc.invalidateQueries({ queryKey: ["emr-chart", data.lead_id] });
+      setEditing(false);
+      setState("idle");
+    } catch {
+      setState("error");
+    }
+  }
+
+  if (fromBooking && shown) {
+    return (
+      <>
+        {fmtDate(shown)}
+        {data.age_label ? ` · ${data.age_label}` : ""}
+      </>
+    );
+  }
+
+  if (shown && !editing) {
+    return (
+      <span className="emr2-born">
+        {fmtDate(shown)}
+        {data.age_label && !localBirth ? ` · ${data.age_label}` : ""}
+        <button type="button" onClick={() => setEditing(true)}>
+          изменить
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <span className="emr2-born">
+      <input
+        type="date"
+        aria-label="Дата рождения"
+        value={value}
+        max="9999-12-31"
+        onChange={(e) => {
+          setValue(e.target.value);
+          setState("idle");
+        }}
+      />
+      <button type="button" onClick={() => void save()} disabled={state === "saving" || !value}>
+        {state === "saving" ? "…" : "Сохранить"}
+      </button>
+      {state === "error" ? <em>Не сохранилось</em> : <em>В записи даты нет — впишите здесь</em>}
+    </span>
+  );
+}
+
+function DiagnosisField({
+  leadId,
+  diagnosis,
+  preview,
+}: {
+  leadId: number;
+  diagnosis: string | null;
+  preview: boolean;
+}) {
+  const qc = useQueryClient();
+  const [value, setValue] = useState(diagnosis ?? "");
+  const [state, setState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+
+  useEffect(() => {
+    setValue(diagnosis ?? "");
+    setState("idle");
+  }, [diagnosis, leadId]);
+
+  async function save() {
+    const next = value.trim();
+    if (preview) {
+      setState("saved");
+      return;
+    }
+    setState("saving");
+    try {
+      await apiFetch(`/api/emr/${leadId}/diagnosis`, {
+        method: "PATCH",
+        body: JSON.stringify({ diagnosis: next || null }),
+      });
+      await qc.invalidateQueries({ queryKey: ["emr-chart", leadId] });
+      setState("saved");
+    } catch {
+      setState("error");
+    }
+  }
+
+  return (
+    <div className="emr2-dx">
+      <label>
+        <span>Основной диагноз</span>
+        <textarea
+          value={value}
+          rows={2}
+          maxLength={2000}
+          placeholder="Например: F80.1 — задержка экспрессивной речи"
+          onChange={(e) => {
+            setValue(e.target.value);
+            setState("idle");
+          }}
+        />
+      </label>
+      <div className="emr2-dx__row">
+        <button type="button" className="emr2-dx__save" onClick={() => void save()} disabled={state === "saving"}>
+          {state === "saving" ? "Сохраняем…" : "Сохранить в карту"}
+        </button>
+        <p>
+          {state === "saved"
+            ? "Записано в эту медкарту."
+            : state === "error"
+              ? "Не сохранилось. Попробуйте ещё раз."
+              : "Пишется только здесь. Другого поля диагноза в CRM нет."}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function DocumentsTab({
+  leadId,
+  documents,
+}: {
+  leadId: number;
+  documents: { title: string; source: string; at: string | null; href: string | null }[];
+}) {
+  async function openMedia(href: string) {
+    const headers = new Headers();
+    const token = getStoredToken();
+    if (token) headers.set("Authorization", `Bearer ${token}`);
+    const companyId = getActiveCompanyId();
+    if (companyId != null) headers.set("X-Company-Id", String(companyId));
+    const res = await fetch(resolveApiUrl(href), { headers });
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank", "noopener");
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }
+
+  return (
+    <Card title="Документы">
+      <p className="emr2-muted">
+        Сюда сами файлы не загружаются. Карта показывает то, что уже есть у этого пациента.
+      </p>
+      <ul className="emr2-todo">
+        <li>
+          <strong>Чат.</strong> Отправьте фото, PDF или результат исследования в переписку — файл появится в этом списке.
+          {" "}
+          <Link to={`/chat?lead_id=${leadId}`}>Открыть чат</Link>
+        </li>
+        <li>
+          <strong>Протокол.</strong> Эксперт прикрепляет файл к сделке-протоколу в карточке лида.
+          {" "}
+          <Link to={`/leads/${leadId}`}>Карточка лида</Link>
+        </li>
+      </ul>
+      {documents.length === 0 ? (
+        <p className="emr2-muted">Пока пусто: в чате нет файлов и к протоколу ничего не прикреплено.</p>
+      ) : (
+        <ul className="emr2-docs">
+          {documents.map((doc) => (
+            <li key={`${doc.source}-${doc.href}-${doc.title}`}>
+              <strong>{doc.title}</strong>
               <span>
-                статус: {data.journey.course_15_status}
-                {data.journey.course_15_started_at
-                  ? ` · с ${fmtDate(data.journey.course_15_started_at)}`
-                  : ""}
+                {doc.source}
+                {doc.at ? ` · ${fmtDt(doc.at)}` : ""}
               </span>
+              {doc.href?.startsWith("/api/") ? (
+                <button type="button" className="emr2-dx__save" onClick={() => void openMedia(doc.href!)}>
+                  Открыть файл
+                </button>
+              ) : doc.href ? (
+                <Link to={doc.href}>Открыть</Link>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+const HISTORY_FILTERS: { id: string; label: string }[] = [
+  { id: "all", label: "Все" },
+  { id: "completed", label: "Пришёл" },
+  { id: "booked", label: "Запись" },
+  { id: "no_show", label: "Неявка" },
+];
+
+function HistoryTab({ visits }: { visits: EmrVisit[] }) {
+  const [filter, setFilter] = useState("all");
+  const shown = filter === "all" ? visits : visits.filter((v) => v.status_code === filter);
+  return (
+    <Card
+      title="Хронология"
+      action={
+        <div className="emr2-pills" role="tablist" aria-label="Фильтр визитов">
+          {HISTORY_FILTERS.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              className={filter === f.id ? "is-on" : ""}
+              onClick={() => setFilter(f.id)}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      }
+    >
+      {visits.length === 0 ? (
+        <p className="emr2-muted">Записей пока нет.</p>
+      ) : shown.length === 0 ? (
+        <p className="emr2-muted">В этом фильтре пусто.</p>
+      ) : (
+        <ul className="emr2-timeline">
+          {shown.map((e) => (
+            <li key={e.appointment_id} data-kind={e.kind} data-status={e.status_code}>
+              <time>{fmtDt(e.start_at)}</time>
+              <div>
+                <strong>{e.service_title}</strong>
+                {e.specialist_name ? <p>{e.specialist_name}</p> : null}
+                {e.comment ? <p className="emr2-muted">{e.comment}</p> : null}
+              </div>
+              <em>{e.status}</em>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+function TreatmentTab({ data }: { data: EmrChart }) {
+  const procs = data.visits.filter((v) => v.kind === "proc");
+  const [open, setOpen] = useState(false);
+  const visible = open ? procs : procs.slice(0, 6);
+  const came = procs.filter((v) => v.status_code === "completed").length;
+  const missed = procs.filter((v) => v.status_code === "no_show").length;
+  const planned = procs.filter((v) => v.status_code === "booked").length;
+  return (
+    <div className="emr2-grid">
+      <Card title="Курсы">
+        <div className="emr2-course">
+          <strong>Курс 15</strong>
+          <span>
+            {courseStatusLabel(data.journey.course_15_status)}
+            {data.journey.course_15_started_at ? ` · с ${fmtDate(data.journey.course_15_started_at)}` : ""}
+          </span>
+        </div>
+        {data.journey.membership_flow ? (
+          <p className="emr2-muted">Журнал куратора: {data.journey.membership_flow}</p>
+        ) : (
+          <p className="emr2-muted">В журнале куратора потока нет.</p>
+        )}
+      </Card>
+      <Card title="Процедуры">
+        {procs.length === 0 ? (
+          <p className="emr2-muted">Процедур в записи нет.</p>
+        ) : (
+          <>
+            <div className="emr2-pills emr2-pills--static" aria-label="Сводка процедур">
+              <span>Пришёл {came}</span>
+              <span>Неявка {missed}</span>
+              <span>Запись {planned}</span>
             </div>
-            {data.journey.membership_flow ? (
-              <p className="emr2-muted">Журнал: {data.journey.membership_flow}</p>
-            ) : (
-              <p className="emr2-muted">Участник потока не найден.</p>
-            )}
-          </Card>
-          <Card title="Б. Процедуры (факт)">
             <table className="emr2-table">
               <thead>
                 <tr>
@@ -502,31 +776,23 @@ function renderTab(tab: TabId, data: EmrChart) {
                 </tr>
               </thead>
               <tbody>
-                {data.visits
-                  .filter((v) => v.kind === "proc")
-                  .slice(0, 20)
-                  .map((v) => (
-                    <tr key={v.appointment_id}>
-                      <td>{v.service_title}</td>
-                      <td>{fmtDate(v.start_at)}</td>
-                      <td>{v.status}</td>
-                    </tr>
-                  ))}
+                {visible.map((v) => (
+                  <tr key={v.appointment_id}>
+                    <td>{v.service_title}</td>
+                    <td>{fmtDate(v.start_at)}</td>
+                    <td>{v.status}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
-            {data.visits.filter((v) => v.kind === "proc").length === 0 ? (
-              <p className="emr2-muted">Процедур в записи нет.</p>
+            {procs.length > 6 ? (
+              <button type="button" className="emr2-more" onClick={() => setOpen((v) => !v)}>
+                {open ? "Свернуть" : `Показать все ${procs.length}`}
+              </button>
             ) : null}
-          </Card>
-        </div>
-      );
-    case "documents":
-      return (
-        <Card title="Документы">
-          <p className="emr2-muted">
-            Хранилище медфайлов ещё не подключено. PDF ЭЭГ и согласия появятся после отдельного шага.
-          </p>
-        </Card>
-      );
-  }
+          </>
+        )}
+      </Card>
+    </div>
+  );
 }

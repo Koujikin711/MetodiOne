@@ -41,6 +41,8 @@ from app.database_migrate import (
     ensure_user_accepts_new_leads,
     ensure_user_daily_archive_leads_quota,
     ensure_lead_archived_from_stage,
+    ensure_lead_clinical_diagnosis,
+    ensure_lead_patient_birth_date,
     ensure_settle_completed_booking_debts,
     ensure_fix_kurs_direction_and_session_pay,
     ensure_fix_ayub_massage_prepaid_10x150,
@@ -205,6 +207,8 @@ async def _run_startup_migrations_with_retry() -> None:
                 await ensure_payroll_sheet_hides(conn, db_url)
                 await ensure_payroll_sheet_order(conn, db_url)
                 await ensure_lead_archived_from_stage(conn, db_url)
+                await ensure_lead_clinical_diagnosis(conn, db_url)
+                await ensure_lead_patient_birth_date(conn, db_url)
                 await ensure_settle_completed_booking_debts(conn, db_url)
                 await ensure_fix_kurs_direction_and_session_pay(conn, db_url)
                 await ensure_fix_ayub_massage_prepaid_10x150(conn, db_url)
@@ -663,6 +667,8 @@ async def _run_startup_db_and_seed() -> None:
             await ensure_task_repeat_dates(conn, settings.database_url)
             await ensure_task_repeat_until(conn, settings.database_url)
             await ensure_booking_referrer(conn, settings.database_url)
+            await ensure_lead_clinical_diagnosis(conn, settings.database_url)
+            await ensure_lead_patient_birth_date(conn, settings.database_url)
             await ensure_payroll_adjustments(conn, settings.database_url)
             await ensure_employee_name_terms(conn, settings.database_url)
             await ensure_payroll_sheet_hides(conn, settings.database_url)

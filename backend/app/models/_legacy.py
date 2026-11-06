@@ -554,6 +554,10 @@ class Lead(Base):
     reactivated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     # Откуда ушли в Архив (напр. «Удачно») — для двойной метки Удачно+Архив.
     archived_from_stage: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    # Основной диагноз в электронной карте. Пишет врач или администратор.
+    clinical_diagnosis: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Дата рождения, если в записи её не было. Если в записи есть — карта берёт оттуда.
+    patient_birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
     stage: Mapped["PipelineStage"] = relationship(back_populates="leads")
     manager: Mapped["User | None"] = relationship(back_populates="leads", foreign_keys=[manager_id])

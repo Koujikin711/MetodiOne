@@ -1,8 +1,9 @@
-"""Электронная мед. карта — read-only агрегат по lead_id. Без финансов."""
+"""Электронная мед. карта по lead_id. Без финансов. Диагноз пишется в карту."""
 
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -14,18 +15,24 @@ from app.models import (
     BookingAppointment,
     BookingDirection,
     BookingSpecialist,
+    ChatMessage,
+    ChatThread,
     CuratorCourseFlow,
     CuratorFlowMembership,
     CuratorJournalComplaint,
     CuratorJournalEntry,
+    Deal,
     Lead,
     PatientJourney,
     User,
     UserRole,
 )
 from app.schemas.emr import (
+    EmrBirthUpdate,
     EmrChart,
     EmrComplaintPoint,
+    EmrDiagnosisUpdate,
+    EmrDocument,
     EmrJourney,
     EmrSearchItem,
     EmrServiceChip,
@@ -129,6 +136,10 @@ async def emr_search(
             if lid is None or born is None:
                 continue
             birth_by_lead.setdefault(int(lid), born)
+        for lead, _mgr in rows:
+            lid = int(lead.id)
+            if lid not in birth_by_lead and lead.patient_birth_date is not None:
+                birth_by_lead[lid] = lead.patient_birth_date
 
     out: list[EmrSearchItem] = []
     seen: set[int] = set()
@@ -213,11 +224,15 @@ async def emr_chart(
         )
     ).all()
 
+    birth_from_booking = False
     birth: date | None = None
     for row in visits_q:
         if row[5] is not None:
             birth = row[5]
+            birth_from_booking = True
             break
+    if birth is None:
+        birth = lead.patient_birth_date
 
     chips_raw = build_service_chips((r[6], r[3], r[2]) for r in visits_q)
 
@@ -348,11 +363,12 @@ async def emr_chart(
         phone=phone_val if phone_val is not None else (phone_display or lead.phone),
         birth_date=birth,
         age_label=age_label(birth),
+        birth_from_booking=birth_from_booking,
         stage_name=lead.stage.name if lead.stage else None,
         manager_name=mgr_name,
         first_visit_at=first_visit,
         attending_doctor=attending,
-        diagnosis=None,
+        diagnosis=(lead.clinical_diagnosis or "").strip() or None,
         warning=warning,
         service_chips=[EmrServiceChip(**c) for c in chips_raw],
         visits=visits,
@@ -368,4 +384,127 @@ async def emr_chart(
         todos=todos,
         stages=stages,
         current_stage=current_stage,
+        documents=await _lead_documents(db, company_id=company_id, lead_id=lead_id),
     )
+
+
+async def _lead_documents(db: AsyncSession, *, company_id: int, lead_id: int) -> list[EmrDocument]:
+    """Файлы, которые уже есть: вложения чата и протокол сделки."""
+    docs: list[EmrDocument] = []
+    media = (
+        await db.execute(
+            select(
+                ChatMessage.id,
+                ChatMessage.file_name,
+                ChatMessage.message_type,
+                ChatMessage.created_at,
+            )
+            .join(ChatThread, ChatThread.id == ChatMessage.thread_id)
+            .where(
+                ChatThread.company_id == company_id,
+                ChatThread.lead_id == lead_id,
+                ChatMessage.media_url.is_not(None),
+                ChatMessage.media_url != "",
+            )
+            .order_by(ChatMessage.created_at.desc())
+            .limit(40),
+        )
+    ).all()
+    for msg_id, file_name, message_type, created_at in media:
+        title = (file_name or "").strip() or {
+            "image": "Фото из чата",
+            "video": "Видео из чата",
+            "audio": "Аудио из чата",
+            "document": "Файл из чата",
+        }.get(str(message_type or ""), "Файл из чата")
+        docs.append(
+            EmrDocument(
+                title=title,
+                source="Чат",
+                at=created_at,
+                href=f"/api/chat/messages/{int(msg_id)}/media",
+            ),
+        )
+
+    protocols = (
+        await db.execute(
+            select(Deal.id, Deal.title, Deal.protocol_file_path)
+            .where(
+                Deal.company_id == company_id,
+                Deal.lead_id == lead_id,
+                Deal.protocol_file_path.is_not(None),
+                Deal.protocol_file_path != "",
+            )
+            .order_by(Deal.id.desc())
+            .limit(10),
+        )
+    ).all()
+    for _deal_id, title, path in protocols:
+        name = Path(str(path)).name or "Протокол"
+        docs.append(
+            EmrDocument(
+                title=(title or "").strip() or name,
+                source="Протокол",
+                at=None,
+                href=f"/leads/{lead_id}",
+            ),
+        )
+    return docs
+
+
+@router.patch("/{lead_id}/diagnosis", response_model=EmrDiagnosisUpdate)
+async def emr_save_diagnosis(
+    lead_id: int,
+    body: EmrDiagnosisUpdate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> EmrDiagnosisUpdate:
+    """Основной диагноз пишется в карту пациента (leads.clinical_diagnosis)."""
+    await _assert_emr_access(current_user)
+    lead = await db.get(Lead, lead_id)
+    if lead is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+    await _assert_lead_visible(db, current_user=current_user, lead=lead, company_id=company_id)
+    text = (body.diagnosis or "").strip()
+    lead.clinical_diagnosis = text[:2000] or None
+    await db.flush()
+    return EmrDiagnosisUpdate(diagnosis=lead.clinical_diagnosis)
+
+
+@router.patch("/{lead_id}/birth-date", response_model=EmrBirthUpdate)
+async def emr_save_birth_date(
+    lead_id: int,
+    body: EmrBirthUpdate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,
+    company_id: CurrentCompanyId,
+) -> EmrBirthUpdate:
+    """Ручная дата рождения, только если в записях её нет."""
+    await _assert_emr_access(current_user)
+    lead = await db.get(Lead, lead_id)
+    if lead is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
+    await _assert_lead_visible(db, current_user=current_user, lead=lead, company_id=company_id)
+    booking_birth = (
+        await db.execute(
+            select(BookingAppointment.patient_birth_date)
+            .where(
+                BookingAppointment.company_id == company_id,
+                BookingAppointment.lead_id == lead_id,
+                BookingAppointment.patient_birth_date.is_not(None),
+            )
+            .limit(1),
+        )
+    ).scalar_one_or_none()
+    if booking_birth is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Дата рождения уже указана в записи",
+        )
+    born = body.birth_date
+    if born is not None and (born > date.today() or born.year < 1900):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Некорректная дата рождения")
+    lead.patient_birth_date = born
+    await db.flush()
+    return EmrBirthUpdate(birth_date=lead.patient_birth_date)

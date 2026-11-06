@@ -3243,6 +3243,30 @@ async def ensure_user_daily_archive_leads_quota(conn: AsyncConnection, database_
         )
 
 
+async def ensure_lead_patient_birth_date(conn: AsyncConnection, database_url: str) -> None:
+    """Колонка leads.patient_birth_date — дата рождения, если в записи её нет."""
+    low = database_url.lower()
+    if "sqlite" in low:
+        r = await conn.execute(text("PRAGMA table_info(leads)"))
+        cols = {row[1] for row in r.fetchall()}
+        if "patient_birth_date" not in cols:
+            await conn.execute(text("ALTER TABLE leads ADD COLUMN patient_birth_date DATE"))
+        return
+    await conn.execute(text("ALTER TABLE leads ADD COLUMN IF NOT EXISTS patient_birth_date DATE"))
+
+
+async def ensure_lead_clinical_diagnosis(conn: AsyncConnection, database_url: str) -> None:
+    """Колонка leads.clinical_diagnosis — основной диагноз в медкарте."""
+    low = database_url.lower()
+    if "sqlite" in low:
+        r = await conn.execute(text("PRAGMA table_info(leads)"))
+        cols = {row[1] for row in r.fetchall()}
+        if "clinical_diagnosis" not in cols:
+            await conn.execute(text("ALTER TABLE leads ADD COLUMN clinical_diagnosis TEXT"))
+        return
+    await conn.execute(text("ALTER TABLE leads ADD COLUMN IF NOT EXISTS clinical_diagnosis TEXT"))
+
+
 async def ensure_lead_archived_from_stage(conn: AsyncConnection, database_url: str) -> None:
     """Колонка leads.archived_from_stage — двойная метка (напр. Удачно + Архив)."""
     low = database_url.lower()

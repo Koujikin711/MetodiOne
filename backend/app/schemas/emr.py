@@ -56,12 +56,28 @@ class EmrJourney(BaseModel):
     membership_joined_on: date | None = None
 
 
+class EmrDocument(BaseModel):
+    title: str
+    source: str
+    at: datetime | None = None
+    href: str | None = None
+
+
+class EmrDiagnosisUpdate(BaseModel):
+    diagnosis: str | None = None
+
+
+class EmrBirthUpdate(BaseModel):
+    birth_date: date | None = None
+
+
 class EmrChart(BaseModel):
     lead_id: int
     name: str
     phone: str | None = None
     birth_date: date | None = None
     age_label: str | None = None
+    birth_from_booking: bool = False
     stage_name: str | None = None
     manager_name: str | None = None
     first_visit_at: datetime | None = None
@@ -75,3 +91,4 @@ class EmrChart(BaseModel):
     todos: list[EmrTodo] = Field(default_factory=list)
     stages: list[str] = Field(default_factory=list)
     current_stage: str | None = None
+    documents: list[EmrDocument] = Field(default_factory=list)

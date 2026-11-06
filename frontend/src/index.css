@@ -14621,8 +14621,42 @@ html:has(.studio-root) {
   align-items: center;
 }
 
-.emr2-head__meta span {
+.emr2-head__meta > span:not(.emr2-born) {
   opacity: 0.5;
+}
+
+.emr2-born {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  opacity: 1;
+}
+
+.emr2-born input {
+  font: inherit;
+  font-size: 0.78rem;
+  color: #0f172a;
+  background: #fff;
+  border: 1px solid #99f6e4;
+  border-radius: 0.4rem;
+  padding: 0.1rem 0.35rem;
+}
+
+.emr2-born button {
+  border: 0;
+  background: transparent;
+  color: #0f766e;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 650;
+  padding: 0;
+  cursor: pointer;
+}
+
+.emr2-born em {
+  font-style: normal;
+  font-size: 0.7rem;
+  color: #94a3b8;
 }
 
 .emr2-badge {
@@ -14645,6 +14679,83 @@ html:has(.studio-root) {
   .emr2-head__grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
+
+  .emr2-head__grid--3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.emr2-dx {
+  margin-top: 0.75rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.65rem;
+  background: #f0fdfa;
+  border: 1px solid #99f6e4;
+}
+
+.emr2-dx label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.emr2-dx label span {
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #0f766e;
+}
+
+.emr2-dx textarea {
+  width: 100%;
+  min-height: 3.4rem;
+  resize: vertical;
+  box-sizing: border-box;
+  padding: 0.45rem 0.55rem;
+  border-radius: 0.5rem;
+  border: 1px solid #5eead4;
+  background: #fff;
+  color: #0f172a;
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.emr2-dx__row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-top: 0.4rem;
+}
+
+.emr2-dx__row p {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.emr2-dx__save {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  background: #0f766e;
+  color: #fff;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.emr2-dx__save:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.emr2-docs button.emr2-dx__save,
+.emr2-docs a {
+  align-self: flex-start;
+  margin-top: 0.2rem;
 }
 
 .emr2-info {
@@ -14702,14 +14813,68 @@ html:has(.studio-root) {
   color: #0f766e;
 }
 
+.emr2-head__phone {
+  margin: 0.2rem 0 0;
+  font-size: 0.95rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  color: #0f172a;
+}
+
 .emr2-tabs {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.25rem;
   padding: 0.25rem;
   background: #fff;
   border: 1px solid #d9e4e6;
   border-radius: 0.85rem;
+  overflow-x: auto;
+}
+
+.emr2-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.emr2-pills button,
+.emr2-pills--static span {
+  border: 1px solid #d9e4e6;
+  background: #fff;
+  color: #475569;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.22rem 0.5rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.emr2-pills button.is-on {
+  background: #0f766e;
+  border-color: #0f766e;
+  color: #fff;
+}
+
+.emr2-pills--static span {
+  cursor: default;
+  background: #f0fdfa;
+  border-color: #99f6e4;
+  color: #115e59;
+}
+
+.emr2-more {
+  margin-top: 0.55rem;
+  border: 0;
+  background: transparent;
+  color: #0f766e;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 650;
+  cursor: pointer;
+  padding: 0;
 }
 
 .emr2-tab {
@@ -14893,45 +15058,73 @@ html:has(.studio-root) {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: 0.28rem;
 }
 
 .emr2-timeline li {
   display: grid;
-  grid-template-columns: 7.5rem minmax(0, 1fr);
-  gap: 0.65rem;
-  padding: 0.5rem 0.55rem;
-  border-radius: 0.55rem;
-  border-left: 3px solid #14b8a6;
-  background: #f8fafc;
+  grid-template-columns: 6.2rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.35rem 0.55rem;
+  padding: 0.32rem 0.5rem 0.32rem 0.55rem;
+  border-radius: 0.45rem;
+  border: 1px solid #e7eef0;
+  border-left: 2px solid #99f6e4;
+  background: #fff;
 }
 
 .emr2-timeline li[data-kind="diag"] {
-  border-left-color: #0284c7;
+  border-left-color: #7dd3fc;
 }
 
 .emr2-timeline li[data-kind="proc"] {
-  border-left-color: #7c3aed;
+  border-left-color: #ddd6fe;
 }
 
 .emr2-timeline li[data-kind="course"] {
-  border-left-color: #0f766e;
+  border-left-color: #5eead4;
 }
 
 .emr2-timeline time {
-  font-size: 0.7rem;
+  font-size: 0.68rem;
+  line-height: 1.25;
   color: #94a3b8;
 }
 
 .emr2-timeline strong {
   display: block;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
+  font-weight: 650;
+  line-height: 1.2;
 }
 
 .emr2-timeline p {
-  margin: 0.15rem 0 0;
-  font-size: 0.75rem;
+  margin: 0.05rem 0 0;
+  font-size: 0.7rem;
+  line-height: 1.25;
   color: #64748b;
+}
+
+.emr2-timeline em {
+  font-style: normal;
+  font-size: 0.66rem;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0.16rem 0.42rem;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.emr2-timeline li[data-status="completed"] em {
+  background: #f0fdfa;
+  color: #0f766e;
+}
+
+.emr2-timeline li[data-status="no_show"] em {
+  background: #fff1f2;
+  color: #be123c;
 }
 
 .emr2-table {
