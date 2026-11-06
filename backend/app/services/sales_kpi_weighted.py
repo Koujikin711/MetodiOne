@@ -452,7 +452,12 @@ async def load_brought_paid_detail(
     company_id: int,
     pipeline_id: int,
     ym: date,
-) -> tuple[dict[tuple[int, int, int, Decimal], Decimal], dict[tuple[int, int, int, Decimal], int]]:
+) -> tuple[
+    dict[tuple[int, int, int, Decimal], Decimal],
+    dict[tuple[int, int, int, Decimal], int],
+    dict[tuple[int, str], Decimal],
+    dict[tuple[int, str], int],
+]:
     """Оплаты визитов месяца и число новых.
 
     Основной курс: в «Привёл» — оплата как есть после мин. 3к/5к.
@@ -497,6 +502,7 @@ async def load_brought_paid_detail(
                 BookingAppointment.paid_amount,
                 BookingAppointment.status,
                 BookingAppointment.patient_name,
+                BookingAppointment.service_title,
                 Lead.manager_id,
             )
             .select_from(BookingAppointment)
@@ -508,9 +514,13 @@ async def load_brought_paid_detail(
         )
     ).all()
     # KPI-продажа курса/протокола на то же ФИО — визит не дублируем в «Привёл» / «Новых».
-    kpi_fio_kinds = await _manual_sale_fio_product_kinds(db, company_id=company_id, pipeline_id=pipeline_id)
+    kpi_fio_kinds = await _manual_sale_fio_product_kinds(
+        db, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
+    )
     out: dict[tuple[int, int, int, Decimal], Decimal] = {}
     counts: dict[tuple[int, int, int, Decimal], int] = {}
+    package_brought: dict[tuple[int, str], Decimal] = {}
+    package_counts: dict[tuple[int, str], int] = {}
     for (
         appt_id,
         created_by,
@@ -523,6 +533,7 @@ async def load_brought_paid_detail(
         paid,
         status,
         patient_name,
+        service_title,
         lead_manager_id,
     ) in rows:
         manager_id = booking_client_owner_manager_id(
@@ -536,7 +547,9 @@ async def load_brought_paid_detail(
             continue
         if kpi_client_excluded_from_brought(str(patient_name or "")):
             continue
-        kind = classify_product_kind(direction_names.get(int(direction_id)))
+        direction_name = direction_names.get(int(direction_id))
+        package_label = booking_package_label(str(service_title or ""), direction_name)
+        kind = classify_product_kind(package_label or direction_name)
         fk = fio_key(str(patient_name or ""))
         if fk and kind in {"main_course", "course_15", "protocol"} and (fk, kind) in kpi_fio_kinds:
             # Уже есть KPI-продажа на это ФИО — запись не считаем (Курбонзода хусейн / Хусейн).
@@ -555,17 +568,41 @@ async def load_brought_paid_detail(
         # «Новых» только если сумма уже в «Привёл» (неполные Курс 15 / протокол /
         # ниже мин. курса — видно в детализации серым, в счётчик шапки не входят).
         counted_new = False
+        brought = Decimal("0.00")
         if kind == "main_course":
             brought = course_brought_from_gross(price, gross)
-            if brought > 0:
-                out[key] = (out.get(key, Decimal("0")) + brought).quantize(Decimal("0.01"))
-                counted_new = True
+            counted_new = brought > 0
         elif is_full_payment(service_amount, gross):
-            out[key] = (out.get(key, Decimal("0")) + gross).quantize(Decimal("0.01"))
+            brought = gross
             counted_new = True
-        if st != "cancelled" and counted_new:
-            counts[key] = counts.get(key, 0) + 1
-    return out, counts
+        if brought > 0 and package_label:
+            plabel = _norm_kpi_label(package_label)
+            pkey = (int(manager_id), plabel)
+            package_brought[pkey] = (package_brought.get(pkey, Decimal("0")) + brought).quantize(Decimal("0.01"))
+            if st != "cancelled" and counted_new:
+                package_counts[pkey] = package_counts.get(pkey, 0) + 1
+        elif brought > 0:
+            out[key] = (out.get(key, Decimal("0")) + brought).quantize(Decimal("0.01"))
+            if st != "cancelled" and counted_new:
+                counts[key] = counts.get(key, 0) + 1
+    return out, counts, package_brought, package_counts
+
+
+def booking_package_label(service_title: str | None, direction_name: str | None) -> str | None:
+    """Название пакета, если в записи «Курс / Курс 15 / Протокол», а направление — кабинет врача.
+
+    Иначе сводка кладёт оплату на консультацию и строка курса остаётся пустой.
+    Если направление уже само этот пакет — None, его считает обычный путь.
+    """
+    from app.services.booking_directions import is_course_like_direction_name
+    from app.services.patient_ltv import classify_product_kind
+
+    title = (service_title or "").strip()
+    if not is_course_like_direction_name(title):
+        return None
+    if classify_product_kind(title) == classify_product_kind(direction_name):
+        return None
+    return title
 
 
 async def _manual_sale_fio_product_kinds(
@@ -573,20 +610,32 @@ async def _manual_sale_fio_product_kinds(
     *,
     company_id: int,
     pipeline_id: int,
+    ym: date,
 ) -> set[tuple[str, str]]:
-    """Множество (fio_key, product_kind) по KPI-продажам курса/протокола."""
+    """(fio_key, product_kind) только если в этом месяце уже есть подтверждённая оплата KPI.
+
+    Старая продажа на то же имя не должна прятать новую запись курса/протокола.
+    """
     from app.services.patient_ltv import classify_product_kind
 
+    start, end = month_bounds(ym)
     rows = (
         await db.execute(
             select(SalesKpiManualSale.client_name, SalesKpiPlanItem.name)
             .join(SalesKpiPlanItem, SalesKpiPlanItem.id == SalesKpiManualSale.plan_item_id)
+            .join(SalesKpiManualSalePayment, SalesKpiManualSalePayment.sale_id == SalesKpiManualSale.id)
             .where(
                 SalesKpiManualSale.company_id == company_id,
                 SalesKpiManualSale.pipeline_id == pipeline_id,
                 SalesKpiManualSale.status != "refused",
                 SalesKpiManualSale.paid_amount > 0,
-            ),
+                SalesKpiManualSalePayment.amount > 0,
+                SalesKpiManualSalePayment.paid_at >= start,
+                SalesKpiManualSalePayment.paid_at < end,
+                SalesKpiManualSalePayment.confirmed_at.is_not(None),
+                SalesKpiManualSalePayment.rejected_at.is_(None),
+            )
+            .distinct()
         )
     ).all()
     out: set[tuple[str, str]] = set()
@@ -768,6 +817,61 @@ def kpi_client_owner_manager_id(
     if fio_crm_manager_id is not None:
         return int(fio_crm_manager_id)
     return None
+
+
+# С ноября 2026 оплата курса, открытого менеджером не из текущей воронки,
+# идёт менеджеру продажи. Октябрь и раньше не трогаем: их уже посчитали.
+KPI_REASSIGN_INACTIVE_OPENER_FROM = date(2026, 11, 1)
+
+
+def payment_manager_on_board(
+    *,
+    owner_id: int,
+    sale_manager_id: int | None,
+    paid_at: datetime,
+    active_manager_ids: set[int],
+) -> int:
+    """Куда класть конкретную оплату.
+
+    До ноября 2026 — как раньше, открывшему. С ноября, если открывшего нет
+    среди менеджеров воронки, оплата идёт текущему менеджеру продажи.
+    Уже посчитанный октябрь из-за этого не переезжает в ноябрь.
+    """
+    at = paid_at if paid_at.tzinfo else paid_at.replace(tzinfo=UTC)
+    cutoff = datetime(
+        KPI_REASSIGN_INACTIVE_OPENER_FROM.year,
+        KPI_REASSIGN_INACTIVE_OPENER_FROM.month,
+        KPI_REASSIGN_INACTIVE_OPENER_FROM.day,
+        tzinfo=UTC,
+    )
+    if (
+        at >= cutoff
+        and int(owner_id) not in active_manager_ids
+        and sale_manager_id is not None
+        and int(sale_manager_id) in active_manager_ids
+    ):
+        return int(sale_manager_id)
+    return int(owner_id)
+
+
+def sale_board_manager_id(
+    *,
+    owner_id: int | None,
+    sale_manager_id: int | None,
+    ym: date,
+    active_manager_ids: set[int],
+) -> int | None:
+    """Чья строка в детализации месяца. С ноября — текущий менеджер, если открывший уже не в воронке."""
+    if owner_id is None:
+        return int(sale_manager_id) if sale_manager_id is not None else None
+    if (
+        ym >= KPI_REASSIGN_INACTIVE_OPENER_FROM
+        and int(owner_id) not in active_manager_ids
+        and sale_manager_id is not None
+        and int(sale_manager_id) in active_manager_ids
+    ):
+        return int(sale_manager_id)
+    return int(owner_id)
 
 
 async def apply_kpi_owner_follow_crm_exceptions(
@@ -1025,7 +1129,14 @@ def _matched_brought(
     explicit = [int(d) for d in direction_ids]
     specs = {int(s) for s in specialist_ids}
     price = Decimal(str(unit_price or 0))
-    total = Decimal("0")
+    # Запись «Курс / Курс 15 / Протокол» на кабинете врача лежит в manual по имени услуги.
+    from app.services.booking_directions import is_course_like_direction_name
+
+    total = (
+        manual.get((manager_id, _norm_kpi_label(name)), Decimal("0"))
+        if is_course_like_direction_name(name)
+        else Decimal("0")
+    )
     for key, amount in detail.items():
         mid, sid, did, service_amount = _detail_row(key)
         if mid != manager_id:
@@ -1122,6 +1233,9 @@ async def load_manual_brought_by_label(
     """
     start, end = month_bounds(ym)
     fio_owners = await load_fio_crm_owner_managers(db, company_id=company_id, pipeline_id=pipeline_id)
+    active_manager_ids = {
+        mid for mid, _name in await load_managers(db, company_id=company_id, pipeline_id=pipeline_id)
+    }
     # «Привёл» владельцу клиента. Denylist — только скрыть/не считать разовые ФИО.
     rows = (
         await db.execute(
@@ -1234,11 +1348,18 @@ async def load_manual_brought_by_label(
                 continue
             sid = int(sale_id)
             sale_client[sid] = str(client_name or "")
+            at = paid_at if paid_at.tzinfo else paid_at.replace(tzinfo=UTC)
+            board_mid = payment_manager_on_board(
+                owner_id=int(mid),
+                sale_manager_id=int(sale_mid) if sale_mid is not None else None,
+                paid_at=at,
+                active_manager_ids=active_manager_ids,
+            )
             by_sale.setdefault(sid, []).append(
                 (
-                    paid_at if paid_at.tzinfo else paid_at.replace(tzinfo=UTC),
+                    at,
                     Decimal(str(amount or 0)),
-                    int(mid),
+                    int(board_mid),
                     str(name or ""),
                     Decimal(str(sale_service or 0)),
                 )

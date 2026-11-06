@@ -861,6 +861,8 @@ export function KpiPage() {
     queryKey: ["sales-kpi-service-earnings", qs],
     queryFn: () => apiFetch<SalesKpiServiceEarningsReport>(`/api/sales-kpi/service-earnings?${qs}`),
     enabled: Boolean(pipelineId && tab === "sales" && !isCurator),
+    staleTime: 0,
+    refetchInterval: tab === "sales" ? 30_000 : false,
   });
 
   const manualQuery = useQuery({

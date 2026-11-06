@@ -124,6 +124,8 @@ from app.services.sales_kpi_weighted import (
     is_main_course_product,
     kpi_client_excluded_from_brought,
     kpi_client_owner_manager_id,
+    payment_manager_on_board,
+    sale_board_manager_id,
     load_fio_crm_owner_managers,
     protocol_full_pay_credits_for_payments,
     load_bonus_fund,
@@ -917,7 +919,7 @@ async def _service_earnings_report(
     plan_ids = [int(item.id) for item in items]
     item_services = await load_plan_item_services(db, plan_item_ids=plan_ids)
     item_specialists = await load_plan_item_specialists(db, plan_item_ids=plan_ids)
-    detail, sale_counts = await load_brought_paid_detail(
+    detail, sale_counts, package_brought, package_counts = await load_brought_paid_detail(
         db, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
     )
     direction_names = await load_booking_direction_names(db, company_id=company_id)
@@ -936,6 +938,10 @@ async def _service_earnings_report(
     manual_new = await load_manual_new_sales_by_label(
         db, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
     )
+    for pkey, pamount in package_brought.items():
+        manual[pkey] = (manual.get(pkey, Decimal("0")) + pamount).quantize(Decimal("0.01"))
+    for pkey, pcount in package_counts.items():
+        manual_new[pkey] = manual_new.get(pkey, 0) + pcount
     managers = await load_managers(db, company_id=company_id, pipeline_id=pipeline_id)
     if only_manager is not None:
         managers = [(mid, name) for mid, name in managers if mid == only_manager]
@@ -1229,6 +1235,7 @@ async def _service_earning_detail(
     if item is None:
         raise HTTPException(status_code=404, detail="Услуга плана не найдена")
     managers = await load_managers(db, company_id=company_id, pipeline_id=pipeline_id)
+    active_manager_ids = {int(mid) for mid, _name in managers}
     manager_name = next((name for mid, name in managers if mid == manager_id), f"#{manager_id}")
     item_services = await load_plan_item_services(db, plan_item_ids=[plan_item_id])
     item_specialists = await load_plan_item_specialists(db, plan_item_ids=[plan_item_id])
@@ -1236,7 +1243,7 @@ async def _service_earning_detail(
     unit_prices = await load_kpi_unit_prices_by_label(
         db, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
     )
-    detail, sale_counts = await load_brought_paid_detail(
+    detail, sale_counts, package_brought, package_counts = await load_brought_paid_detail(
         db, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
     )
     refund_detail = await load_booking_brought_refunds(
@@ -1251,6 +1258,10 @@ async def _service_earning_detail(
     manual_new = await load_manual_new_sales_by_label(
         db, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
     )
+    for pkey, pamount in package_brought.items():
+        manual[pkey] = (manual.get(pkey, Decimal("0")) + pamount).quantize(Decimal("0.01"))
+    for pkey, pcount in package_counts.items():
+        manual_new[pkey] = manual_new.get(pkey, 0) + pcount
     label = _norm_kpi_label(item.name)
     unit_price = unit_prices.get(label)
     direction_ids = item_services.get(plan_item_id, [])
@@ -1346,8 +1357,14 @@ async def _service_earning_detail(
                 if sale_id is None or mid is None or paid_at is None:
                     continue
                 at = paid_at if paid_at.tzinfo else paid_at.replace(tzinfo=UTC)
+                board_mid = payment_manager_on_board(
+                    owner_id=int(mid),
+                    sale_manager_id=int(sale_mid) if sale_mid is not None else None,
+                    paid_at=at,
+                    active_manager_ids=active_manager_ids,
+                )
                 pays_by_sale.setdefault(int(sale_id), []).append(
-                    (at, Decimal(str(amount or 0)).quantize(Decimal("0.01")), int(mid)),
+                    (at, Decimal(str(amount or 0)).quantize(Decimal("0.01")), int(board_mid)),
                 )
 
         for sale, pname, lead_mid in sale_rows:
@@ -1377,7 +1394,13 @@ async def _service_earning_detail(
             # Разовый зачёт другому менеджеру — строку у открывшего не показываем.
             if force_mid is not None and not force_for_me:
                 continue
-            if owner_mid != manager_id and not force_for_me:
+            board_owner = sale_board_manager_id(
+                owner_id=owner_mid,
+                sale_manager_id=int(sale.manager_user_id) if sale.manager_user_id is not None else None,
+                ym=ym,
+                active_manager_ids=active_manager_ids,
+            )
+            if board_owner != manager_id and not force_for_me:
                 continue
             is_new = sale.sold_at is not None and start <= sale.sold_at < end and paid > 0
             payments = pays_by_sale.get(int(sale.id), [])
@@ -1490,7 +1513,7 @@ async def _service_earning_detail(
         from app.services.patient_ltv import classify_product_kind
 
         kpi_fio_kinds = await _manual_sale_fio_product_kinds(
-            db, company_id=company_id, pipeline_id=pipeline_id,
+            db, company_id=company_id, pipeline_id=pipeline_id, ym=ym,
         )
         creator = aliased(User)
         responsible = aliased(User)

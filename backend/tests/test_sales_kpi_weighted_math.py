@@ -9,6 +9,7 @@ from app.services.sales_kpi_weighted import (
     amounts_match_unit_price,
     bonus_amount,
     booking_client_owner_manager_id,
+    booking_package_label,
     brought_booking_manager_id,
     brought_for_plan_item,
     course_brought_from_gross,
@@ -21,6 +22,7 @@ from app.services.sales_kpi_weighted import (
     is_full_payment,
     kpi_client_excluded_from_brought,
     kpi_client_owner_manager_id,
+    payment_manager_on_board,
     new_sales_for_plan_item,
     build_manager_lines,
     completion_ratio,
@@ -586,6 +588,31 @@ def test_course_brought_from_gross_as_paid_after_minimum():
     assert course_brought_from_gross(Decimal("10000"), Decimal("6000")) == Decimal("6000.00")
 
 
+def test_november_payment_of_inactive_opener_stays_out_of_october():
+    """Октябрь уже посчитан открывшему. Ноябрьская доплата идёт текущему менеджеру, не в октябрь."""
+    active = {20, 96, 12}
+    october = datetime(2026, 10, 16, 7, 0, tzinfo=UTC)
+    november = datetime(2026, 11, 3, 7, 0, tzinfo=UTC)
+    assert payment_manager_on_board(
+        owner_id=9, sale_manager_id=96, paid_at=october, active_manager_ids=active,
+    ) == 9
+    assert payment_manager_on_board(
+        owner_id=9, sale_manager_id=96, paid_at=november, active_manager_ids=active,
+    ) == 96
+    assert payment_manager_on_board(
+        owner_id=96, sale_manager_id=20, paid_at=november, active_manager_ids=active,
+    ) == 96
+    payments = [
+        (datetime(2026, 9, 26, 7, 0, tzinfo=UTC), Decimal("5600"), 9),
+        (november, Decimal("5600"), 96),
+    ]
+    credits = course_stage_credits_for_payments(service_amount=Decimal("17000"), payments=payments)
+    november_only = [c for c in credits if c[0].month == 11]
+    october_only = [c for c in credits if c[0].month == 10]
+    assert october_only == []
+    assert november_only == [(november, 96, Decimal("5600.00"))]
+
+
 def test_course_stage_credits_as_paid_after_minimum():
     """5000 открывает; доплата < мин. цены (3000 на 17к) сама не в Привёл — копится до мин."""
     t0 = datetime(2026, 10, 1, 12, 0, tzinfo=UTC)
@@ -674,6 +701,14 @@ def test_makhmadov_mavlonchon_october_force_5600_mulkiya():
         ym=date(2026, 9, 1),
         client_name="Махмадов Мавлончон",
     ) is None
+
+
+def test_booking_package_label_uses_service_title_not_doctor_cabinet():
+    assert booking_package_label("Курс 15", "Невролог") == "Курс 15"
+    assert booking_package_label("Курс", "Консультация") == "Курс"
+    assert booking_package_label("Протокол", "Эндокринолог") == "Протокол"
+    assert booking_package_label("Курс 15", "Курс 15") is None
+    assert booking_package_label("Консультация", "Невролог") is None
 
 
 def test_khurshedzoda_and_taygunov_october_force_sitora():
