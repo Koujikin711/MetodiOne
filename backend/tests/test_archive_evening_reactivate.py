@@ -16,17 +16,18 @@ from app.services.archive_evening_reactivate import (
 def test_reactivate_constants():
     assert LEADS_PER_MANAGER == 6
     assert FIRST_CONTACT_MIN_DAYS == 60
-    assert REACTIVATE_HOUR_START == 10
-    assert REACTIVATE_HOUR_END == 14
+    assert REACTIVATE_HOUR_START == 9
+    assert REACTIVATE_HOUR_END == 11
 
 
 def test_reactivate_window_asia_dushanbe():
     tz = ZoneInfo("Asia/Dushanbe")
+    assert _is_reactivate_window(datetime(2026, 8, 18, 9, 0, tzinfo=tz)) is True
     assert _is_reactivate_window(datetime(2026, 8, 18, 10, 5, tzinfo=tz)) is True
-    assert _is_reactivate_window(datetime(2026, 8, 18, 13, 30, tzinfo=tz)) is True
-    assert _is_reactivate_window(datetime(2026, 8, 18, 14, 59, tzinfo=tz)) is True
-    assert _is_reactivate_window(datetime(2026, 8, 18, 9, 59, tzinfo=tz)) is False
-    assert _is_reactivate_window(datetime(2026, 8, 18, 15, 0, tzinfo=tz)) is False
+    assert _is_reactivate_window(datetime(2026, 8, 18, 11, 59, tzinfo=tz)) is True
+    assert _is_reactivate_window(datetime(2026, 8, 18, 8, 59, tzinfo=tz)) is False
+    assert _is_reactivate_window(datetime(2026, 8, 18, 12, 0, tzinfo=tz)) is False
+    assert _is_reactivate_window(datetime(2026, 8, 18, 13, 30, tzinfo=tz)) is False
 
 
 def test_get_latest_stats_helper_importable():

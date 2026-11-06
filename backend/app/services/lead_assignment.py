@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.rbac import is_lead_assignee_role
 from app.models import Lead, Pipeline, PipelineStage, User, UserPipelineAssignment, UserRole
 from app.services.manager_daily_lead_quotas import filter_managers_by_new_leads_quota
+from app.services.manager_mulkiya_leads import mulkiya_manager_id, new_leads_only_mulkiya
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +96,11 @@ async def assign_manager_for_new_lead(
     if pipe.company_id is None:
         return None
     company_id = int(pipe.company_id)
+    if new_leads_only_mulkiya():
+        only_mulkiya = await mulkiya_manager_id(db, company_id=company_id)
+        if only_mulkiya is not None:
+            return only_mulkiya
+
     mode = (pipe.lead_assignment_mode or "none").strip().lower()
     if not force and mode not in ("round_robin", "least_loaded"):
         return None

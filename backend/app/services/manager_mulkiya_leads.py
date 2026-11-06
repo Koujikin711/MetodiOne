@@ -1,10 +1,16 @@
-"""Хайдарзода Мулкия — должна получать новые лиды наравне с другими менеджерами."""
+"""Хайдарзода Мулкия — должна получать новые лиды наравне с другими менеджерами.
+
+До вторника 10.11.2026 (Душанбе) новые лиды идут только ей, по одному.
+С 10.11 снова общая очередь.
+"""
 
 from __future__ import annotations
 
 import logging
 import re
 import unicodedata
+from datetime import UTC, date, datetime
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +24,22 @@ def _norm_name(value: str | None) -> str:
     raw = unicodedata.normalize("NFKC", (value or "")).casefold()
     raw = raw.replace("ё", "е")
     return re.sub(r"\s+", " ", raw).strip()
+
+
+# До этой даты (не включая) новые лиды назначаются только Мулкии.
+MULKIYA_ONLY_NEW_LEADS_UNTIL = date(2026, 11, 10)
+
+
+def _dushanbe_tz() -> ZoneInfo:
+    return ZoneInfo("Asia/Dushanbe")
+
+
+def new_leads_only_mulkiya(now: datetime | None = None) -> bool:
+    """True, пока не наступило 10.11.2026 00:00 по Душанбе."""
+    clock = now or datetime.now(UTC)
+    if clock.tzinfo is None:
+        clock = clock.replace(tzinfo=UTC)
+    return clock.astimezone(_dushanbe_tz()).date() < MULKIYA_ONLY_NEW_LEADS_UNTIL
 
 
 def is_mulkiya_haidarzoda(full_name: str | None) -> bool:
@@ -34,6 +56,21 @@ def is_mulkiya_haidarzoda(full_name: str | None) -> bool:
     if n in {"мулкия", "mulkiya", "mulkia"}:
         return True
     return False
+
+
+async def mulkiya_manager_id(db: AsyncSession, *, company_id: int) -> int | None:
+    """Активный менеджер Хайдарзода Мулкия в компании."""
+    managers = (
+        await db.execute(
+            select(User).where(
+                User.company_id == company_id,
+                User.role == UserRole.manager,
+                User.is_active.is_(True),
+            ),
+        )
+    ).scalars().all()
+    target = next((u for u in managers if is_mulkiya_haidarzoda(u.full_name)), None)
+    return int(target.id) if target is not None else None
 
 
 async def apply_mulkiya_receives_new_leads(db: AsyncSession) -> dict[str, int | str]:

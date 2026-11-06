@@ -1,7 +1,7 @@
 """Дневная раздача архивных лидов менеджерам как «Новый лид».
 
 Правило: из «Архив», первое обращение ≥ 2 месяцев назад → каждому активному
-менеджеру компании в «Новый лид» (раз в календарный день, 10:00–14:59).
+менеджеру компании в «Новый лид» (раз в календарный день, 09:00–11:59).
 Квота: users.daily_archive_leads_quota или дефолт LEADS_PER_MANAGER (=6).
 Манижа Холикова не участвует.
 """
@@ -38,8 +38,8 @@ LEADS_PER_MANAGER = 6
 FIRST_CONTACT_MIN_DAYS = 60
 # Не брать снова лиды, реактивированные недавно (цикл «игнор → Архив → снова»).
 REACTIVATION_COOLDOWN_DAYS = 14
-REACTIVATE_HOUR_START = 10  # booking_timezone, inclusive
-REACTIVATE_HOUR_END = 14  # inclusive → 10:00–14:59
+REACTIVATE_HOUR_START = 9  # booking_timezone, inclusive
+REACTIVATE_HOUR_END = 11  # inclusive → 09:00–11:59
 AUDIT_ACTION = "archive_evening_reactivate_done"
 _BATCH = 2000
 
@@ -367,7 +367,7 @@ async def run_archive_evening_reactivate_tick(
 ) -> int:
     """
     Тик раз в ~минуту из _reminder_loop.
-    В окне 10:00–14:59 локального TZ (booking_timezone) — по одному прогону на компанию в день.
+    В окне 09:00–11:59 локального TZ (booking_timezone) — по одному прогону на компанию в день.
     force=True — игнор окна (для тестов/ручного вызова).
     """
     local = local_now or _local_now()
@@ -411,4 +411,48 @@ async def run_archive_evening_reactivate_tick(
             )
         total += n
 
+    return total
+
+
+async def run_archive_reactivate_recent_days_now(
+    db: AsyncSession,
+    *,
+    local_now: datetime | None = None,
+) -> int:
+    """Сразу раздаёт архив за вчера и сегодня, если за этот день отметки ещё нет.
+
+    Окно 09:00–11:59 не проверяется. Повторный старт не раздаёт день второй раз.
+    """
+    local = local_now or _local_now()
+    days = (local.date() - timedelta(days=1), local.date())
+    now_utc = datetime.now(UTC)
+    total = 0
+    companies = (await db.execute(select(Company.id).order_by(Company.id.asc()))).scalars().all()
+    for day in days:
+        day_key = day.isoformat()
+        for cid in companies:
+            company_id = int(cid)
+            if await _already_done_today(db, company_id=company_id, day_key=day_key):
+                logger.info("archive catch-up skip company=%s day=%s already done", company_id, day_key)
+                continue
+            managers = await list_company_manager_ids(db, company_id=company_id)
+            if not managers:
+                await _mark_done_today(db, company_id=company_id, day_key=day_key, assigned=0, managers=0)
+                continue
+            n = await reactivate_company_archive_leads(db, company_id=company_id, now=now_utc)
+            await _mark_done_today(
+                db,
+                company_id=company_id,
+                day_key=day_key,
+                assigned=n,
+                managers=len(managers),
+            )
+            logger.info(
+                "archive catch-up company=%s day=%s assigned=%s managers=%s",
+                company_id,
+                day_key,
+                n,
+                len(managers),
+            )
+            total += n
     return total
