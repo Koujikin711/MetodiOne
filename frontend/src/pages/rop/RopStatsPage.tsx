@@ -22,6 +22,8 @@ export function RopStatsPage() {
   const query = useQuery({
     queryKey: ["rop-stats", pipelineId, from, to],
     enabled: pipelineId != null,
+    staleTime: 0,
+    refetchInterval: 30_000,
     queryFn: () =>
       apiFetch<Stats>(
         `/api/rop/stats?pipeline_id=${pipelineId}&from=${from}&to=${to}`,
@@ -36,7 +38,7 @@ export function RopStatsPage() {
     <div className="rop-dense flex flex-col gap-3">
       <RopPageIntro
         title="Статистика"
-        hint="Воронка менеджера за период (с / по в шапке): пришло и стадии."
+        hint="Воронка менеджера за период (с / по в шапке): пришло и стадии. Архив сюда не входит."
       />
       {query.isLoading ? (
         <p className="text-sm mo-muted">Загрузка…</p>
