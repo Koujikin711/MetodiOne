@@ -165,133 +165,13 @@ function MetricRing({ pct, color }: { pct: number | null; color: string }) {
   );
 }
 
-const SCENARIO_COLOR: Record<string, string> = {
-  worst: "#e0a15a",
-  mid: "#8b90ff",
-  best: "#3ee0b0",
-};
-
-export function MonthDynamics({ current, previous }: { current: Month; previous: Month }) {
-  const rows = [
-    {
-      label: "Лиды",
-      now: current.leads,
-      then: previous.leads,
-      nowText: current.leads.toLocaleString("ru-RU"),
-      thenText: previous.leads.toLocaleString("ru-RU"),
-      delta: deltaText(current.leads_delta_pct),
-      tone: deltaClass(current.leads_delta_pct),
-    },
-    {
-      label: "Выручка",
-      now: Number(current.revenue) || 0,
-      then: Number(previous.revenue) || 0,
-      nowText: money(current.revenue),
-      thenText: money(previous.revenue),
-      delta: deltaText(current.revenue_delta_pct),
-      tone: deltaClass(current.revenue_delta_pct),
-    },
-    {
-      label: "Конверсия",
-      now: current.conversion_percent,
-      then: previous.conversion_percent,
-      nowText: `${current.conversion_percent.toLocaleString("ru-RU", { maximumFractionDigits: 1 })}%`,
-      thenText: `${previous.conversion_percent.toLocaleString("ru-RU", { maximumFractionDigits: 1 })}%`,
-      delta: deltaText(current.conversion_delta_pp, " п.п."),
-      tone: deltaClass(current.conversion_delta_pp),
-    },
-  ];
-  return (
-    <section className="rop-dynamics" aria-label="Ноябрь и октябрь">
-      <div className="rop-panel__head">
-        <h3 className="rop-panel__title">{current.label} и {previous.label}</h3>
-        <span className="rop-panel__meta">динамика к прошлому месяцу</span>
-      </div>
-      {rows.map((row) => {
-        const max = Math.max(row.now, row.then, 1);
-        return (
-          <div key={row.label} className="rop-dynamics__row">
-            <div className="rop-dynamics__name">
-              <span>{row.label}</span>
-              <b className={row.tone}>{row.delta}</b>
-            </div>
-            <div className="rop-dynamics__bars">
-              <div className="rop-dynamics__line">
-                <em>{current.label}</em>
-                <strong>{row.nowText}</strong>
-                <i><b className="is-now" style={{ width: `${Math.max(4, (row.now / max) * 100)}%` }} /></i>
-              </div>
-              <div className="rop-dynamics__line">
-                <em>{previous.label}</em>
-                <strong>{row.thenText}</strong>
-                <i><b className="is-then" style={{ width: `${Math.max(4, (row.then / max) * 100)}%` }} /></i>
-              </div>
-            </div>
-          </div>
-        );
-      })}
-    </section>
-  );
-}
-
-export function ScenarioChart({ fact, scenarios }: { fact: number; scenarios: Scenario[] }) {
-  const rows = scenarios.map((item) => ({ ...item, value: Number(item.revenue) || 0 }));
-  const max = Math.max(fact, ...rows.map((item) => item.value), 1) * 1.12;
-  const width = 720;
-  const height = 248;
-  const padTop = 16;
-  const padRight = 16;
-  const padBottom = 28;
-  const x0 = 12;
-  const x1 = width - padRight;
-  const yOf = (value: number) => padTop + (1 - value / max) * (height - padTop - padBottom);
-  const yFact = yOf(fact);
-  const curve = (end: number) => {
-    const y1 = yOf(end);
-    const dx = x1 - x0;
-    return `M ${x0} ${yFact} C ${x0 + dx * 0.46} ${yFact}, ${x0 + dx * 0.7} ${y1}, ${x1} ${y1}`;
-  };
-  return (
-    <section className="rop-panel rop-growth" aria-label="Если так пойдёт">
-      <div className="rop-panel__head">
-        <h3 className="rop-panel__title">Если так пойдёт</h3>
-        <span className="rop-panel__meta">от факта сегодня до конца месяца</span>
-      </div>
-      <svg viewBox={`0 0 ${width} ${height}`} role="img">
-        {[0.25, 0.5, 0.75].map((step) => (
-          <line
-            key={step}
-            x1={x0}
-            x2={x1}
-            y1={yOf(max * step)}
-            y2={yOf(max * step)}
-            className="rop-growth__grid"
-          />
-        ))}
-        {rows.map((item) => (
-          <path key={item.key} d={curve(item.value)} className="rop-growth__line" stroke={SCENARIO_COLOR[item.key] ?? "#8b90ff"} />
-        ))}
-        <circle cx={x0} cy={yFact} r="4.5" className="rop-growth__now" />
-        <text x={x0} y={height - 8} className="rop-growth__axis">сейчас</text>
-        <text x={x1} y={height - 8} textAnchor="end" className="rop-growth__axis">конец месяца</text>
-        {rows.map((item) => (
-          <circle key={item.key} cx={x1} cy={yOf(item.value)} r="3.5" fill={SCENARIO_COLOR[item.key] ?? "#8b90ff"} />
-        ))}
-      </svg>
-      <p className="rop-growth__leads">
-        {rows.map((item) => (
-          <span key={item.key} style={{ color: SCENARIO_COLOR[item.key] ?? "#d5deee" }}>
-            {item.label}: {money(item.value)} · {item.leads.toLocaleString("ru-RU")} лид.
-          </span>
-        ))}
-      </p>
-    </section>
-  );
-}
-
 function WeekPaceStrip({ week }: { week: WeekPace }) {
   const [active, setActive] = useState<string | null>(null);
-  const funnelMax = Math.max(1, ...week.funnel.map((step) => step.value));
+  const revenue = week.metrics.find((metric) => metric.key === "revenue");
+  const revenuePct =
+    revenue?.previous != null && Number(revenue.previous) > 0
+      ? Math.round((Number(revenue.current) / Number(revenue.previous) - 1) * 100)
+      : null;
   return (
     <section className="rop-week" aria-label="Темп недели">
       <div className="rop-panel__head">
@@ -337,18 +217,34 @@ function WeekPaceStrip({ week }: { week: WeekPace }) {
           );
         })}
       </div>
-      <article className="rop-week__card rop-week__card--wide">
-        <h4>Новые клиенты</h4>
-        <div className="rop-week__funnel">
-          {week.funnel.map((step) => (
-            <div key={step.label}>
-              <strong>{step.value.toLocaleString("ru-RU")}</strong>
-              <i style={{ height: `${Math.max(10, Math.round((step.value / funnelMax) * 92))}px` }} />
-              <span>{step.label}</span>
+      <div className="rop-week__bottom">
+        <article className="rop-week__card rop-week__card--wide">
+          <h4>Главное</h4>
+          <div className="rop-week__pair">
+            <div>
+              <span>Факт</span>
+              <strong>{money(revenue?.current)}</strong>
+              <em className={deltaClass(revenuePct)}>{deltaText(revenuePct)}</em>
             </div>
-          ))}
-        </div>
-      </article>
+            <div>
+              <span>Должно быть</span>
+              <strong>{money(revenue?.previous)}</strong>
+              <em>те же дни</em>
+            </div>
+          </div>
+        </article>
+        <article className="rop-week__card rop-week__card--wide">
+          <h4>Новые клиенты</h4>
+          <div className="rop-week__funnel">
+            {week.funnel.map((step) => (
+              <div key={step.label}>
+                <span>{step.label}</span>
+                <strong>{step.value.toLocaleString("ru-RU")}</strong>
+              </div>
+            ))}
+          </div>
+        </article>
+      </div>
     </section>
   );
 }
@@ -383,16 +279,82 @@ export function RopOutlookPage() {
       {cur && prev && data ? (
         <>
           {data.week ? <WeekPaceStrip week={data.week} /> : null}
-          <MonthDynamics current={cur} previous={prev} />
+          <section className="rop-outlook-compare" aria-label="Сравнение месяцев">
+            <article className="rop-outlook-month">
+              <div className="rop-outlook-month__top">
+                <h3 className="rop-outlook-month__label">{cur.label}</h3>
+                <span className="rop-outlook-month__hint">текущий</span>
+              </div>
+              <dl className="rop-outlook-month__metrics">
+                <div>
+                  <dt>Лиды</dt>
+                  <dd>
+                    {cur.leads.toLocaleString("ru-RU")}
+                    <span className={deltaClass(cur.leads_delta_pct)}>{deltaText(cur.leads_delta_pct)}</span>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Выручка</dt>
+                  <dd>
+                    {money(cur.revenue)}
+                    <span className={deltaClass(cur.revenue_delta_pct)}>{deltaText(cur.revenue_delta_pct)}</span>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Конверсия</dt>
+                  <dd>
+                    {cur.conversion_percent.toLocaleString("ru-RU", { maximumFractionDigits: 1 })}%
+                    <span className={deltaClass(cur.conversion_delta_pp)}>
+                      {deltaText(cur.conversion_delta_pp, " п.п.")}
+                    </span>
+                  </dd>
+                </div>
+              </dl>
+            </article>
+            <article className="rop-outlook-month rop-outlook-month--prev">
+              <div className="rop-outlook-month__top">
+                <h3 className="rop-outlook-month__label">{prev.label}</h3>
+                <span className="rop-outlook-month__hint">прошлый</span>
+              </div>
+              <dl className="rop-outlook-month__metrics">
+                <div>
+                  <dt>Лиды</dt>
+                  <dd>{prev.leads.toLocaleString("ru-RU")}</dd>
+                </div>
+                <div>
+                  <dt>Выручка</dt>
+                  <dd>{money(prev.revenue)}</dd>
+                </div>
+                <div>
+                  <dt>Конверсия</dt>
+                  <dd>{prev.conversion_percent.toLocaleString("ru-RU", { maximumFractionDigits: 1 })}%</dd>
+                </div>
+              </dl>
+            </article>
+          </section>
 
-          <ScenarioChart fact={Number(cur.revenue) || 0} scenarios={data.scenarios ?? []} />
-          {data.next_month ? (
-            <p className="rop-outlook-next">
-              След. месяц: <strong>{money(data.next_month.revenue)}</strong>
-              {" · "}
-              {data.next_month.leads.toLocaleString("ru-RU")} лид.
-            </p>
-          ) : null}
+          <section className="rop-panel" aria-label="Сценарии">
+            <div className="rop-panel__head">
+              <h3 className="rop-panel__title">Если так пойдёт</h3>
+              <span className="rop-panel__meta">−15% / текущий / +15%</span>
+            </div>
+            <div className="rop-outlook-scenarios">
+              {(data.scenarios ?? []).map((s) => (
+                <div key={s.key} className={`rop-outlook-scenario rop-outlook-scenario--${s.key}`}>
+                  <span className="rop-outlook-scenario__label">{s.label}</span>
+                  <strong className="rop-outlook-scenario__rev">{money(s.revenue)}</strong>
+                  <span className="rop-outlook-scenario__leads">{s.leads.toLocaleString("ru-RU")} лид.</span>
+                </div>
+              ))}
+            </div>
+            {data.next_month ? (
+              <p className="rop-outlook-next">
+                След. месяц: <strong>{money(data.next_month.revenue)}</strong>
+                {" · "}
+                {data.next_month.leads.toLocaleString("ru-RU")} лид.
+              </p>
+            ) : null}
+          </section>
 
           <div className="rop-outlook-split">
             <section className="rop-panel" aria-label="Сигналы">

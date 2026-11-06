@@ -5933,39 +5933,28 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   gap: 0.35rem;
 }
 
+.rop-week__pair,
 .rop-week__funnel {
-  display: flex;
-  align-items: flex-end;
-  gap: 0.55rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem 0.75rem;
   width: 100%;
-  min-height: 8.5rem;
 }
 
-.rop-week__funnel > div {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.35rem;
-  min-width: 0;
+.rop-week__funnel {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-.rop-week__funnel i {
-  display: block;
-  width: 100%;
-  border-radius: 0.55rem 0.55rem 0.25rem 0.25rem;
-  background: linear-gradient(0deg, #514eb7, #50c9df);
-}
-
+.rop-week__pair span,
 .rop-week__funnel span {
+  display: block;
   color: var(--mo-text-muted);
   font-size: var(--mo-text-2xs);
-  text-align: center;
 }
 
+.rop-week__pair strong,
 .rop-week__funnel strong {
-  font-size: 1.05rem;
+  font-size: var(--mo-text-lg);
 }
 
 @media (max-width: 960px) {
