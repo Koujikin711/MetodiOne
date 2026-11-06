@@ -37,6 +37,17 @@ function formatMinutes(v: number | null | undefined) {
   return mins ? `${hours} ч ${mins} мин` : `${hours} ч`;
 }
 
+function initial(name: string) {
+  return (name.trim()[0] || "·").toUpperCase();
+}
+
+function replyTone(minutes: number | null | undefined) {
+  if (minutes == null || Number.isNaN(Number(minutes))) return "mid";
+  if (minutes <= 120) return "up";
+  if (minutes <= 24 * 60) return "mid";
+  return "down";
+}
+
 export function RopAnalyticsPage() {
   const { pipelineId, from, to } = useRopContext();
   const [openId, setOpenId] = useState<number | null>(null);
@@ -78,6 +89,10 @@ export function RopAnalyticsPage() {
   if (pipelineId == null) return <p className="text-sm mo-muted">Выберите воронку</p>;
 
   const data = query.data;
+  const replyTimes = (data?.managers_sla ?? [])
+    .map((row) => row.avg_first_response_minutes)
+    .filter((value): value is number => value != null && value > 0);
+  const slowestReply = replyTimes.length ? Math.max(...replyTimes) : 0;
 
   return (
     <div className="mo-print-doc rop-dense flex flex-col gap-3">
@@ -91,83 +106,107 @@ export function RopAnalyticsPage() {
         <p className="text-sm mo-muted">Загрузка…</p>
       ) : (
         <div className="rop-analytics-grid">
-          <section className="rop-panel">
-            <div className="rop-panel__head">
-              <h3 className="rop-panel__title">Первый ответ</h3>
-              <strong className="rop-panel__hero tabular-nums">
-                {formatMinutes(data?.avg_first_response_minutes)}
-              </strong>
-            </div>
-            <table className="rop-dense-table">
-              <thead>
-                <tr>
-                  <th>Менеджер</th>
-                  <th className="text-right">Лиды</th>
-                  <th className="text-right">Ответ</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(data?.managers_sla ?? []).map((m) => (
-                  <tr key={m.user_id}>
-                    <td>{m.full_name}</td>
-                    <td className="text-right tabular-nums">{m.leads_count}</td>
-                    <td className="text-right tabular-nums">
-                      {formatMinutes(m.avg_first_response_minutes)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-
-          <section className="rop-panel">
-            <div className="rop-panel__head">
-              <h3 className="rop-panel__title">Выручка</h3>
-              <span className="rop-panel__meta">всего {money(data?.revenue_total ?? 0)}</span>
-            </div>
-            <div className="rop-rev-list">
-              {groups.map((g) => {
-                const open = openId === g.id;
+          <section className="rop-analytics-col" aria-label="Первый ответ">
+            <article className="rop-analytics-hero">
+              <span>Первый ответ</span>
+              <strong>{formatMinutes(data?.avg_first_response_minutes)}</strong>
+              <em>среднее по отделу</em>
+            </article>
+            <div className="rop-report__people">
+              {(data?.managers_sla ?? []).map((manager) => {
+                const tone = replyTone(manager.avg_first_response_minutes);
+                const minutes = manager.avg_first_response_minutes;
+                const bar =
+                  minutes != null && minutes > 0 && slowestReply > 0
+                    ? Math.max(8, Math.min(100, (minutes / slowestReply) * 100))
+                    : 8;
                 return (
-                  <div key={g.id} className="rop-rev-row">
-                    <button
-                      type="button"
-                      className="rop-rev-row__btn print-keep"
-                      onClick={() => setOpenId(open ? null : g.id)}
-                    >
-                      <span className="rop-rev-row__name">{g.name}</span>
-                      <span className="rop-rev-row__amt tabular-nums">{money(g.total)}</span>
-                      <span className="rop-rev-row__bar" aria-hidden>
-                        <i style={{ width: `${Math.max(g.share, 3)}%` }} />
+                  <article key={manager.user_id} className="rop-report-person">
+                    <div className="rop-report-person__head">
+                      <span className="rop-report-person__who">
+                        <span className={`rop-report-person__mark rop-report__conv--${tone}`}>
+                          {initial(manager.full_name)}
+                        </span>
+                        <span>
+                          <strong>{manager.full_name}</strong>
+                          <em>{manager.leads_count.toLocaleString("ru-RU")} лид.</em>
+                        </span>
                       </span>
-                    </button>
-                    <div
-                      className={[
-                        "rop-rev-row__detail",
-                        open ? "is-open" : "mo-print-detail",
-                      ]
-                        .filter(Boolean)
-                        .join(" ")}
-                    >
-                      {g.services
-                        .slice()
-                        .sort((a, b) => Number(b.amount) - Number(a.amount))
-                        .map((s) => {
-                          const share = g.total > 0 ? (Number(s.amount) / g.total) * 100 : 0;
-                          return (
-                            <div key={s.service_name} className="rop-rev-svc">
-                              <span>{s.service_name}</span>
-                              <span className="tabular-nums">
-                                {money(s.amount)} · {share.toFixed(0)}%
-                              </span>
-                            </div>
-                          );
-                        })}
+                      <span className={`rop-report-person__pct rop-report__conv--${tone}`}>
+                        {formatMinutes(minutes)}
+                      </span>
                     </div>
-                  </div>
+                    <div className="rop-report-person__bar" aria-hidden>
+                      <i className={`rop-report__conv--${tone}`} style={{ width: `${bar}%` }} />
+                    </div>
+                  </article>
                 );
               })}
-              {!groups.length && <p className="text-sm mo-muted">Нет оплат за период</p>}
+              {!data?.managers_sla?.length && <p className="rop-report__empty">Нет ответов за период</p>}
+            </div>
+          </section>
+
+          <section className="rop-analytics-col" aria-label="Выручка">
+            <article className="rop-analytics-hero">
+              <span>Выручка</span>
+              <strong>{money(data?.revenue_total ?? 0)}</strong>
+              <em>всего за период</em>
+            </article>
+            <div className="rop-report__people">
+              {groups.map((group) => {
+                const open = openId === group.id;
+                return (
+                  <article key={group.id} className="rop-report-person">
+                    <button
+                      type="button"
+                      className="print-keep rop-report-person__head"
+                      onClick={() => setOpenId(open ? null : group.id)}
+                      aria-expanded={open}
+                    >
+                      <span className="rop-report-person__who">
+                        <span className="rop-report-person__mark rop-report__conv--mid">
+                          {initial(group.name)}
+                        </span>
+                        <span>
+                          <strong>{group.name}</strong>
+                          <em>{Math.round(group.share)}% выручки</em>
+                        </span>
+                      </span>
+                      <span className="rop-report-person__pct">{money(group.total)}</span>
+                    </button>
+                    <div className="rop-report-person__bar" aria-hidden>
+                      <i className="rop-report__conv--mid" style={{ width: `${Math.max(group.share, 4)}%` }} />
+                    </div>
+                    <div className={open ? "rop-report-person__services" : "mo-print-detail rop-report-person__services"}>
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Услуга</th>
+                            <th>Сумма</th>
+                            <th>Доля</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {group.services
+                            .slice()
+                            .sort((a, b) => Number(b.amount) - Number(a.amount))
+                            .map((service) => {
+                              const share = group.total > 0 ? (Number(service.amount) / group.total) * 100 : 0;
+                              return (
+                                <tr key={service.service_name}>
+                                  <td>{service.service_name}</td>
+                                  <td>{money(service.amount)}</td>
+                                  <td>{share.toFixed(0)}%</td>
+                                </tr>
+                              );
+                            })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </article>
+                );
+              })}
+              {!groups.length && <p className="rop-report__empty">Нет оплат за период</p>}
             </div>
           </section>
         </div>
