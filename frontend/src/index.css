@@ -5617,6 +5617,92 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   margin: 0;
 }
 
+.rop-plan {
+  padding: 1rem 1.15rem 1.05rem;
+  border-radius: 1.05rem;
+  border: 1px solid #30415f;
+  background: #1b2744;
+}
+
+.rop-plan h3 {
+  margin: 0 0 0.85rem;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.rop-plan__body {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1.2rem 1.5rem;
+  align-items: center;
+}
+
+.rop-plan__ring {
+  width: 9.2rem;
+  height: 9.2rem;
+}
+
+.rop-plan__track,
+.rop-plan__value {
+  fill: none;
+  stroke-width: 11;
+}
+
+.rop-plan__track {
+  stroke: #66748f;
+}
+
+.rop-plan__value {
+  stroke-linecap: round;
+}
+
+.rop-plan__pct {
+  fill: #f7f8fc;
+  font-size: 18px;
+  font-weight: 750;
+}
+
+.rop-plan__cap {
+  fill: #9aa6bd;
+  font-size: 8px;
+}
+
+.rop-plan__rows > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid #31415f;
+}
+
+.rop-plan__rows span {
+  color: #d5deee;
+}
+
+.rop-plan__rows b {
+  font-variant-numeric: tabular-nums;
+}
+
+.rop-plan__rows b.is-forecast {
+  color: #3ee0b0;
+}
+
+.rop-plan__note {
+  margin: 0.85rem 0 0;
+  padding: 0.7rem 0.85rem;
+  border-left: 3px solid #e0a15a;
+  border-radius: 0.5rem;
+  background: #243049;
+  color: #d5deee;
+  font-size: 0.88rem;
+}
+
+@media (max-width: 720px) {
+  .rop-plan__body {
+    grid-template-columns: 1fr;
+  }
+}
+
 .rop-week {
   display: flex;
   flex-direction: column;
@@ -5633,6 +5719,29 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
+.rop-plan__ring--metric {
+  width: 4.8rem;
+  height: 4.8rem;
+  flex: 0 0 auto;
+  transform-origin: center;
+  transition: transform 0.22s ease;
+}
+
+.rop-plan__ring--metric .rop-plan__track,
+.rop-plan__ring--metric .rop-plan__value {
+  stroke-width: 12;
+  stroke-linecap: round;
+}
+
+.rop-plan__ring--metric .rop-plan__track {
+  stroke: #5a6882;
+}
+
+.rop-plan__ring--metric .rop-plan__pct {
+  font-size: 15px;
+  font-weight: 800;
+}
+
 .rop-week__bottom {
   grid-template-columns: 1fr 1.3fr;
 }
@@ -5640,12 +5749,85 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 .rop-week__card {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
+  justify-content: flex-start;
+  gap: 1rem;
   min-width: 0;
-  padding: 0.55rem 0.65rem;
-  border-radius: 0.7rem;
-  border: 1px solid var(--mo-border);
-  background: var(--mo-surface-elevated);
+  padding: 1rem 1.15rem;
+  border-radius: 1.15rem;
+  border: 1px solid #30415f;
+  background: linear-gradient(145deg, #1a2944, #121e33);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.rop-week__rings .rop-week__card:hover .rop-plan__ring--metric,
+.rop-week__rings .rop-week__card.is-on .rop-plan__ring--metric {
+  transform: scale(1.18);
+}
+
+.rop-donut {
+  width: 8.6rem;
+  height: 8.6rem;
+  flex: 0 0 auto;
+}
+
+.rop-donut__shadow,
+.rop-donut__value {
+  fill: none;
+  stroke-width: 14;
+}
+
+.rop-donut__shadow {
+  stroke: #46556f;
+  stroke-linecap: butt;
+}
+
+.rop-donut__value {
+  stroke-linecap: round;
+}
+
+.rop-donut__value {
+  transition: stroke-dasharray 0.7s ease;
+}
+
+.rop-donut__pct {
+  fill: #f7f8fc;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.rop-donut__sub {
+  fill: #8e9bb3;
+  font-size: 8px;
+}
+
+.rop-donut-stats {
+  min-width: 0;
+}
+
+.rop-donut-stats strong {
+  display: block;
+  font-size: 1.7rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+.rop-donut-stats span,
+.rop-donut-stats em {
+  display: block;
+  font-style: normal;
+  color: #9aaccb;
+  font-size: 0.78rem;
+}
+
+.rop-donut-stats b {
+  display: block;
+  margin-top: 0.55rem;
+  font-size: 1.2rem;
+  font-weight: 800;
 }
 
 .rop-week__body {
@@ -5661,11 +5843,12 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .rop-week__body strong,
-.rop-week__pair strong,
 .rop-week__funnel strong {
   display: block;
-  font-size: var(--mo-text-lg);
-  line-height: 1.15;
+  font-size: 1.45rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
   font-variant-numeric: tabular-nums;
 }
 
@@ -5678,36 +5861,31 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 
 .rop-week__ring {
   --pace: 0deg;
-  width: 3.15rem;
-  height: 3.15rem;
+  --ring: #9985ff;
+  position: relative;
+  width: 4.7rem;
+  height: 4.7rem;
   flex: 0 0 auto;
   border-radius: 50%;
   display: grid;
   place-items: center;
-  background: conic-gradient(var(--mo-text-muted) var(--pace), var(--mo-border) 0deg);
+  background: conic-gradient(var(--ring) var(--pace), #33425e 0deg);
+  transition: transform 0.18s ease;
 }
 
-.rop-week__ring--up {
-  background: conic-gradient(#16a34a var(--pace), var(--mo-border) 0deg);
-}
-
-.rop-week__ring--mid {
-  background: conic-gradient(var(--mo-accent) var(--pace), var(--mo-border) 0deg);
-}
-
-.rop-week__ring--down {
-  background: conic-gradient(#d97706 var(--pace), var(--mo-border) 0deg);
+.rop-week__rings .rop-week__card:hover .rop-week__ring {
+  transform: scale(1.06);
 }
 
 .rop-week__ring span {
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 3.45rem;
+  height: 3.45rem;
   border-radius: 50%;
-  background: var(--mo-surface-elevated);
+  background: #192740;
   display: grid;
   place-items: center;
-  font-size: 0.65rem;
-  font-weight: 700;
+  font-size: 0.85rem;
+  font-weight: 800;
 }
 
 .rop-week__card--wide {
@@ -5716,23 +5894,39 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   gap: 0.35rem;
 }
 
-.rop-week__pair,
 .rop-week__funnel {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.45rem 0.75rem;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.55rem;
   width: 100%;
+  min-height: 8.5rem;
 }
 
-.rop-week__funnel {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+.rop-week__funnel > div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  min-width: 0;
 }
 
-.rop-week__pair span,
-.rop-week__funnel span {
+.rop-week__funnel i {
   display: block;
+  width: 100%;
+  border-radius: 0.55rem 0.55rem 0.25rem 0.25rem;
+  background: linear-gradient(0deg, #514eb7, #50c9df);
+}
+
+.rop-week__funnel span {
   color: var(--mo-text-muted);
   font-size: var(--mo-text-2xs);
+  text-align: center;
+}
+
+.rop-week__funnel strong {
+  font-size: 1.05rem;
 }
 
 @media (max-width: 960px) {
@@ -5884,6 +6078,138 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 .rop-outlook-scenario__leads {
   font-size: 0.7rem;
   color: var(--mo-text-muted);
+}
+
+.rop-dynamics {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.85rem 1rem 0.7rem;
+  border-radius: 1.05rem;
+  border: 1px solid #30415f;
+  background: linear-gradient(145deg, #1a2944, #121e33);
+}
+
+.rop-dynamics__row {
+  display: grid;
+  grid-template-columns: 6.4rem 1fr;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.45rem 0;
+}
+
+.rop-dynamics__row + .rop-dynamics__row {
+  border-top: 1px solid #2c3d5c;
+}
+
+.rop-dynamics__name span {
+  display: block;
+  color: #d5deee;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.rop-dynamics__name b {
+  font-weight: 700;
+}
+
+.rop-dynamics__bars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.32rem;
+}
+
+.rop-dynamics__line {
+  display: grid;
+  grid-template-columns: 6.6rem 5.2rem minmax(0, 1fr);
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.rop-dynamics__line em {
+  font-style: normal;
+  color: #9aaccb;
+  font-size: 0.72rem;
+}
+
+.rop-dynamics__line i {
+  display: block;
+  height: 0.55rem;
+  border-radius: 99px;
+  background: #2a3b58;
+  overflow: hidden;
+}
+
+.rop-dynamics__line b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.rop-dynamics__line b.is-now {
+  background: linear-gradient(90deg, #6d78f6, #9aa4ff);
+}
+
+.rop-dynamics__line b.is-then {
+  background: #66748f;
+}
+
+.rop-dynamics__line strong {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.92rem;
+}
+
+.rop-growth svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.rop-growth__grid {
+  stroke: #2c3d5c;
+  stroke-width: 1;
+}
+
+.rop-growth__area {
+  fill: #8b90ff;
+  opacity: 0.16;
+}
+
+.rop-growth__line {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.rop-growth__now {
+  fill: #f4f7ff;
+  stroke: #8b90ff;
+  stroke-width: 2;
+}
+
+.rop-growth__axis {
+  fill: #8e9bb3;
+  font-size: 12px;
+}
+
+.rop-growth__label {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.rop-growth__value {
+  fill: #edf3ff;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.rop-growth__leads {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.9rem;
+  margin: 0.15rem 0 0;
+  color: #9aaccb;
+  font-size: 0.75rem;
 }
 
 .rop-outlook-next {
