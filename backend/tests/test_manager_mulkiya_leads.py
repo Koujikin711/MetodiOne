@@ -3,7 +3,11 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from app.services.manager_mulkiya_leads import is_mulkiya_haidarzoda, new_leads_only_mulkiya
+from app.services.manager_mulkiya_leads import (
+    MULKIYA_NEW_LEAD_CAP,
+    is_mulkiya_haidarzoda,
+    new_leads_only_mulkiya,
+)
 
 
 def test_mulkiya_name_match():
@@ -21,3 +25,4 @@ def test_new_leads_only_mulkiya_until_tuesday():
     assert new_leads_only_mulkiya(datetime(2026, 11, 6, 11, 40, tzinfo=tz)) is True
     assert new_leads_only_mulkiya(datetime(2026, 11, 9, 23, 59, tzinfo=tz)) is True
     assert new_leads_only_mulkiya(datetime(2026, 11, 10, 0, 1, tzinfo=tz)) is False
+    assert MULKIYA_NEW_LEAD_CAP == 1

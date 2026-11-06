@@ -10,7 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.rbac import is_lead_assignee_role
 from app.models import Lead, Pipeline, PipelineStage, User, UserPipelineAssignment, UserRole
 from app.services.manager_daily_lead_quotas import filter_managers_by_new_leads_quota
-from app.services.manager_mulkiya_leads import mulkiya_manager_id, new_leads_only_mulkiya
+from app.services.manager_mulkiya_leads import (
+    mulkiya_manager_id,
+    mulkiya_new_lead_cap_reached,
+    new_leads_only_mulkiya,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -96,11 +100,6 @@ async def assign_manager_for_new_lead(
     if pipe.company_id is None:
         return None
     company_id = int(pipe.company_id)
-    if new_leads_only_mulkiya():
-        only_mulkiya = await mulkiya_manager_id(db, company_id=company_id)
-        if only_mulkiya is not None:
-            return only_mulkiya
-
     mode = (pipe.lead_assignment_mode or "none").strip().lower()
     if not force and mode not in ("round_robin", "least_loaded"):
         return None
@@ -135,6 +134,15 @@ async def assign_manager_for_new_lead(
         )
         if not user_ids:
             return None
+
+    if new_leads_only_mulkiya():
+        mulkiya_id = await mulkiya_manager_id(db, company_id=company_id)
+        if mulkiya_id is not None and await mulkiya_new_lead_cap_reached(
+            db, company_id=company_id, user_id=mulkiya_id,
+        ):
+            user_ids = [uid for uid in user_ids if uid != mulkiya_id]
+            if not user_ids:
+                return None
 
     effective_mode = mode if mode in ("round_robin", "least_loaded") else "round_robin"
 

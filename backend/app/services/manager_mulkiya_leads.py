@@ -1,7 +1,8 @@
-"""Хайдарзода Мулкия — должна получать новые лиды наравне с другими менеджерами.
+"""Хайдарзода Мулкия — в общей очереди новых лидов.
 
-До вторника 10.11.2026 (Душанбе) новые лиды идут только ей, по одному.
-С 10.11 снова общая очередь.
+До вторника 10.11.2026 (Душанбе) ей можно отдать только 1 новый лид,
+созданный с 6.11. Дальше до этой даты новые лиды её пропускают.
+С 10.11 снова без этого потолка. Архив сюда не входит.
 """
 
 from __future__ import annotations
@@ -9,13 +10,13 @@ from __future__ import annotations
 import logging
 import re
 import unicodedata
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Pipeline, User, UserPipelineAssignment, UserRole
+from app.models import Lead, Pipeline, User, UserPipelineAssignment, UserRole
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +27,11 @@ def _norm_name(value: str | None) -> str:
     return re.sub(r"\s+", " ", raw).strip()
 
 
-# До этой даты (не включая) новые лиды назначаются только Мулкии.
+# До этой даты (не включая) у Мулкии потолок на новые лиды.
 MULKIYA_ONLY_NEW_LEADS_UNTIL = date(2026, 11, 10)
+# Считаем новые карточки, созданные с этой даты по Душанбе.
+MULKIYA_NEW_LEAD_CAP_FROM = date(2026, 11, 6)
+MULKIYA_NEW_LEAD_CAP = 1
 
 
 def _dushanbe_tz() -> ZoneInfo:
@@ -35,7 +39,7 @@ def _dushanbe_tz() -> ZoneInfo:
 
 
 def new_leads_only_mulkiya(now: datetime | None = None) -> bool:
-    """True, пока не наступило 10.11.2026 00:00 по Душанбе."""
+    """True, пока действует потолок «1 новый лид» (до 10.11.2026 00:00 Душанбе)."""
     clock = now or datetime.now(UTC)
     if clock.tzinfo is None:
         clock = clock.replace(tzinfo=UTC)
@@ -56,6 +60,25 @@ def is_mulkiya_haidarzoda(full_name: str | None) -> bool:
     if n in {"мулкия", "mulkiya", "mulkia"}:
         return True
     return False
+
+
+async def mulkiya_new_lead_cap_reached(
+    db: AsyncSession,
+    *,
+    company_id: int,
+    user_id: int,
+) -> bool:
+    """Уже есть 1 новый лид с 6.11 по Душанбе. Архивные реактивации не считаются: у них старый created_at."""
+    start = datetime.combine(MULKIYA_NEW_LEAD_CAP_FROM, time.min, tzinfo=_dushanbe_tz()).astimezone(UTC)
+    cnt = await db.scalar(
+        select(func.count(Lead.id)).where(
+            Lead.company_id == company_id,
+            Lead.manager_id == user_id,
+            Lead.created_at.is_not(None),
+            Lead.created_at >= start,
+        ),
+    )
+    return int(cnt or 0) >= MULKIYA_NEW_LEAD_CAP
 
 
 async def mulkiya_manager_id(db: AsyncSession, *, company_id: int) -> int | None:
