@@ -280,7 +280,10 @@ async def ensure_canonical_pipeline_stages() -> None:
             from app.services.protocol_reassign import reassign_protocols_from_inactive_managers
             from app.services.recent_admin_leads_split import apply_recent_admin_leads_equal_split
             from app.services.recent_mulkiya_leads_split import apply_recent_mulkiya_leads_equal_split
-            from app.services.archive_evening_reactivate import run_archive_reactivate_recent_days_now
+            from app.services.archive_evening_reactivate import (
+                run_archive_burst_once,
+                run_archive_reactivate_recent_days_now,
+            )
 
             n = await ensure_all_pipelines_chat_stages(session)
             backfilled = await backfill_archived_from_stage(session)
@@ -291,13 +294,15 @@ async def ensure_canonical_pipeline_stages() -> None:
             admin_split = await apply_recent_admin_leads_equal_split(session)
             mulkiya_split = await apply_recent_mulkiya_leads_equal_split(session)
             archive_catchup = await run_archive_reactivate_recent_days_now(session)
+            archive_burst = await run_archive_burst_once(session)
             protocols_moved = await reassign_protocols_from_inactive_managers(session)
             ganjina = await apply_ganjina_also_expert(session)
             await session.commit()
             logger.info(
                 "Canonical pipeline stages: %s pipeline(s); backfill archived_from=%s; "
                 "new_leads_block=%s; mavluda_quota=%s; mulkiya_leads=%s; lead_rr=%s; "
-                "admin_split=%s; mulkiya_split=%s; archive_catchup=%s; protocols_from_inactive=%s; ganjina_expert=%s",
+                "admin_split=%s; mulkiya_split=%s; archive_catchup=%s; archive_burst=%s; "
+                "protocols_from_inactive=%s; ganjina_expert=%s",
                 n,
                 backfilled,
                 blocked,
@@ -307,6 +312,7 @@ async def ensure_canonical_pipeline_stages() -> None:
                 admin_split,
                 mulkiya_split,
                 archive_catchup,
+                archive_burst,
                 protocols_moved,
                 ganjina,
             )

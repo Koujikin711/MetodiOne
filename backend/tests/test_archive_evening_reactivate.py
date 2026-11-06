@@ -1,9 +1,11 @@
 """Unit tests for archive daytime reactivate helpers."""
 
-from datetime import datetime
+from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 from app.services.archive_evening_reactivate import (
+    ARCHIVE_BURST_DAY,
+    ARCHIVE_BURST_PER_MANAGER,
     FIRST_CONTACT_MIN_DAYS,
     LEADS_PER_MANAGER,
     REACTIVATE_HOUR_END,
@@ -15,6 +17,8 @@ from app.services.archive_evening_reactivate import (
 
 def test_reactivate_constants():
     assert LEADS_PER_MANAGER == 6
+    assert ARCHIVE_BURST_PER_MANAGER == 30
+    assert ARCHIVE_BURST_DAY == date(2026, 11, 6)
     assert FIRST_CONTACT_MIN_DAYS == 60
     assert REACTIVATE_HOUR_START == 9
     assert REACTIVATE_HOUR_END == 11

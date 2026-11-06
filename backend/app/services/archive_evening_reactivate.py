@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import func, or_, select, update
@@ -41,6 +41,10 @@ REACTIVATION_COOLDOWN_DAYS = 14
 REACTIVATE_HOUR_START = 9  # booking_timezone, inclusive
 REACTIVATE_HOUR_END = 11  # inclusive → 09:00–11:59
 AUDIT_ACTION = "archive_evening_reactivate_done"
+# Разово 6.11.2026: по 30 архивных лидов, сверх обычной дневной шестёрки.
+ARCHIVE_BURST_DAY = date(2026, 11, 6)
+ARCHIVE_BURST_PER_MANAGER = 30
+ARCHIVE_BURST_ACTION = "archive_reactivate_burst_2026-11-06"
 _BATCH = 2000
 
 
@@ -203,8 +207,12 @@ async def list_company_manager_quotas(
     *,
     company_id: int,
     default_quota: int = LEADS_PER_MANAGER,
+    force_quota: int | None = None,
 ) -> list[tuple[int, int]]:
-    """[(manager_id, daily_quota), ...] — персональная квота или дефолт."""
+    """[(manager_id, daily_quota), ...] — персональная квота или дефолт.
+
+    force_quota подменяет число, но не включает тех, у кого квота явно 0.
+    """
     rows = (
         await db.execute(
             select(User.id, User.daily_archive_leads_quota, User.full_name).where(
@@ -219,7 +227,11 @@ async def list_company_manager_quotas(
     for uid, quota, full_name in rows:
         if is_kholikova_manizha(full_name):
             continue
-        q = int(quota) if quota is not None else int(default_quota)
+        if quota is not None and int(quota) <= 0:
+            continue
+        q = int(force_quota) if force_quota is not None else (
+            int(quota) if quota is not None else int(default_quota)
+        )
         if q <= 0:
             continue
         out.append((int(uid), q))
@@ -232,6 +244,7 @@ async def reactivate_company_archive_leads(
     company_id: int,
     now: datetime | None = None,
     leads_per_manager: int = LEADS_PER_MANAGER,
+    force_quota: int | None = None,
 ) -> int:
     """Раздаёт архив по менеджерам компании. Возвращает число назначенных лидов."""
     clock = now or datetime.now(UTC)
@@ -242,6 +255,7 @@ async def reactivate_company_archive_leads(
         db,
         company_id=company_id,
         default_quota=leads_per_manager,
+        force_quota=force_quota,
     )
     if not managers:
         return 0
@@ -455,4 +469,46 @@ async def run_archive_reactivate_recent_days_now(
                 len(managers),
             )
             total += n
+    return total
+
+
+async def run_archive_burst_once(db: AsyncSession) -> int:
+    """6.11.2026: один раз по 30 архивных лидов каждому. Повторный старт не шлёт снова."""
+    if _local_now().date() != ARCHIVE_BURST_DAY:
+        return 0
+    companies = (await db.execute(select(Company.id).order_by(Company.id.asc()))).scalars().all()
+    total = 0
+    now_utc = datetime.now(UTC)
+    for cid in companies:
+        company_id = int(cid)
+        already = await db.scalar(
+            select(SystemAuditEvent.id)
+            .where(
+                SystemAuditEvent.company_id == company_id,
+                SystemAuditEvent.action == ARCHIVE_BURST_ACTION,
+            )
+            .limit(1),
+        )
+        if already is not None:
+            continue
+        n = await reactivate_company_archive_leads(
+            db,
+            company_id=company_id,
+            now=now_utc,
+            leads_per_manager=ARCHIVE_BURST_PER_MANAGER,
+            force_quota=ARCHIVE_BURST_PER_MANAGER,
+        )
+        db.add(
+            SystemAuditEvent(
+                company_id=company_id,
+                entity_type="company",
+                entity_id=company_id,
+                action=ARCHIVE_BURST_ACTION,
+                details=f"assigned={n};per_manager={ARCHIVE_BURST_PER_MANAGER}",
+                user_id=None,
+            ),
+        )
+        await db.flush()
+        logger.info("archive burst company=%s assigned=%s", company_id, n)
+        total += n
     return total
