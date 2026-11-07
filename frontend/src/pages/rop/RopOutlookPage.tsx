@@ -87,10 +87,10 @@ function deltaClass(v: number | null | undefined) {
 }
 
 const RING_COLOR: Record<string, string> = {
-  revenue: "#8b90ff",
-  leads: "#ffae62",
-  won: "#8b90ff",
-  bookings: "#3ee0b0",
+  revenue: "#9aa3ff",
+  leads: "#e4b07a",
+  won: "#9aa3ff",
+  bookings: "#6ecfad",
 };
 
 function MetricRing({ pct, color }: { pct: number | null; color: string }) {
@@ -218,32 +218,37 @@ function WeekPaceStrip({ week }: { week: WeekPace }) {
         })}
       </div>
       <div className="rop-week__bottom">
-        <article className="rop-week__card rop-week__card--wide">
-          <h4>Главное</h4>
-          <div className="rop-week__pair">
-            <div>
-              <span>Факт</span>
-              <strong>{money(revenue?.current)}</strong>
-              <em className={deltaClass(revenuePct)}>{deltaText(revenuePct)}</em>
-            </div>
-            <div>
-              <span>Должно быть</span>
-              <strong>{money(revenue?.previous)}</strong>
-              <em>те же дни</em>
-            </div>
+        <article
+          className="rop-week__card rop-week__focus"
+          style={{ ["--ring" as string]: RING_COLOR.revenue }}
+        >
+          <MetricRing
+            pct={
+              revenue?.tracked === false || revenue?.percent == null
+                ? null
+                : Number(revenue.percent)
+            }
+            color={RING_COLOR.revenue}
+          />
+          <div className="rop-donut-stats">
+            <strong>{money(revenue?.current)}</strong>
+            <span>Факт недели</span>
+            <b style={{ color: RING_COLOR.revenue }}>{money(revenue?.previous)}</b>
+            <em>
+              должно быть ·{" "}
+              <span className={deltaClass(revenuePct)}>{deltaText(revenuePct)}</span>
+            </em>
           </div>
         </article>
-        <article className="rop-week__card rop-week__card--wide">
-          <h4>Новые клиенты</h4>
-          <div className="rop-week__funnel">
-            {week.funnel.map((step) => (
-              <div key={step.label}>
-                <span>{step.label}</span>
-                <strong>{step.value.toLocaleString("ru-RU")}</strong>
-              </div>
-            ))}
-          </div>
-        </article>
+        <div className="rop-week__steps" aria-label="Новые клиенты">
+          {week.funnel.map((step, index) => (
+            <article key={step.label} className="rop-week__step">
+              <em>{index + 1}</em>
+              <strong>{step.value.toLocaleString("ru-RU")}</strong>
+              <span>{step.label}</span>
+            </article>
+          ))}
+        </div>
       </div>
     </section>
   );

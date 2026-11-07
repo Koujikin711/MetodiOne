@@ -5170,14 +5170,22 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .rop-dense {
-  gap: 0.65rem;
+  --rop-card-border: color-mix(in srgb, #7b8fad 22%, transparent);
+  --rop-card-bg: color-mix(in srgb, #1c273c 88%, #0b1220);
+  --rop-card-radius: 0.95rem;
+  --rop-tone-up: #6ecfad;
+  --rop-tone-mid: #9aa3ff;
+  --rop-tone-down: #e4b07a;
+  --rop-muted: #8e9cb8;
+  gap: 0.7rem;
 }
 
 .rop-panel {
-  padding: 0.65rem 0.75rem;
-  border-radius: 0.7rem;
-  border: 1px solid var(--mo-border);
-  background: var(--mo-surface-elevated);
+  padding: 0.9rem 1rem;
+  border-radius: var(--rop-card-radius, 0.95rem);
+  border: 1px solid var(--rop-card-border);
+  background: var(--rop-card-bg);
+  box-shadow: none;
 }
 
 .rop-panel__head {
@@ -5186,12 +5194,12 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   align-items: baseline;
   justify-content: space-between;
   gap: 0.25rem 0.75rem;
-  margin-bottom: 0.45rem;
+  margin-bottom: 0.55rem;
 }
 
 .rop-panel__title {
   margin: 0;
-  font-size: 0.8125rem;
+  font-size: 0.88rem;
   font-weight: 600;
   color: var(--mo-text);
 }
@@ -5254,26 +5262,27 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .rop-analytics-hero {
-  padding: 0.8rem 0.9rem 0.85rem;
-  border-radius: 0.9rem;
-  border: 1px solid var(--mo-border);
-  background: var(--mo-surface-elevated);
+  padding: 0.9rem 1rem;
+  border-radius: var(--rop-card-radius, 0.95rem);
+  border: 1px solid var(--rop-card-border);
+  background: var(--rop-card-bg);
 }
 
 .rop-analytics-hero span,
 .rop-analytics-hero em {
   display: block;
   font-style: normal;
-  font-size: var(--mo-text-2xs);
-  color: var(--mo-text-muted);
+  font-size: 0.72rem;
+  color: var(--rop-muted, #8e9cb8);
 }
 
 .rop-analytics-hero strong {
   display: block;
-  margin: 0.15rem 0 0.1rem;
-  font-size: 1.45rem;
-  font-weight: 750;
-  line-height: 1.1;
+  margin: 0.25rem 0 0.15rem;
+  font-size: 1.35rem;
+  font-weight: 650;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
 
@@ -5436,10 +5445,10 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .rop-report__totals article {
-  padding: 0.75rem 0.85rem 0.8rem;
-  border-radius: 0.85rem;
-  border: 1px solid var(--mo-border);
-  background: var(--mo-surface-elevated);
+  padding: 0.9rem 1rem;
+  border-radius: var(--rop-card-radius, 0.95rem);
+  border: 1px solid var(--rop-card-border);
+  background: var(--rop-card-bg);
 }
 
 .rop-report__totals span,
@@ -5447,42 +5456,43 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 .rop-report-person__who em {
   display: block;
   font-style: normal;
-  font-size: var(--mo-text-2xs);
-  color: var(--mo-text-muted);
+  font-size: 0.72rem;
+  color: var(--rop-muted, #8e9cb8);
 }
 
 .rop-report__totals strong {
   display: block;
-  margin-top: 0.2rem;
+  margin-top: 0.25rem;
   font-size: 1.35rem;
   font-weight: 650;
   line-height: 1.15;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
 
 .rop-report__conv--up {
-  color: #16a34a;
+  color: var(--rop-tone-up, #6ecfad);
 }
 
 .rop-report__conv--mid {
-  color: var(--mo-accent);
+  color: var(--rop-tone-mid, #9aa3ff);
 }
 
 .rop-report__conv--down {
-  color: #d97706;
+  color: var(--rop-tone-down, #e4b07a);
 }
 
 .rop-report__people {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.55rem;
 }
 
 .rop-report-person {
-  padding: 0.7rem 0.8rem 0.75rem;
-  border-radius: 0.85rem;
-  border: 1px solid var(--mo-border);
-  background: var(--mo-surface-elevated);
+  padding: 0.9rem 1rem;
+  border-radius: var(--rop-card-radius, 0.95rem);
+  border: 1px solid var(--rop-card-border);
+  background: var(--rop-card-bg);
 }
 
 .rop-report-person__head {
@@ -5508,32 +5518,33 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 
 .rop-report-person__who strong {
   display: block;
-  font-size: 0.95rem;
-  font-weight: 650;
+  font-size: 0.92rem;
+  font-weight: 600;
 }
 
 .rop-report-person__mark {
-  width: 2.1rem;
-  height: 2.1rem;
+  width: 2rem;
+  height: 2rem;
   flex: 0 0 auto;
   display: grid;
   place-items: center;
-  border-radius: 0.7rem;
-  font-weight: 700;
-  background: color-mix(in srgb, currentColor 14%, var(--mo-surface));
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 650;
+  background: color-mix(in srgb, currentColor 14%, #172033);
 }
 
 .rop-report-person__pct {
-  font-size: 1.15rem;
-  font-weight: 700;
+  font-size: 1.05rem;
+  font-weight: 650;
   font-variant-numeric: tabular-nums;
 }
 
 .rop-report-person__bar {
-  height: 0.35rem;
-  margin: 0.65rem 0 0.6rem;
+  height: 0.28rem;
+  margin: 0.7rem 0 0.7rem;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--mo-border) 80%, transparent);
+  background: color-mix(in srgb, #7b8fad 16%, transparent);
   overflow: hidden;
 }
 
@@ -5542,18 +5553,26 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   height: 100%;
   border-radius: inherit;
   background: currentColor;
+  opacity: 0.9;
+}
+
+.rop-report-person__bar i.rop-report__conv--up,
+.rop-report-person__bar i.rop-report__conv--mid,
+.rop-report-person__bar i.rop-report__conv--down {
+  background: currentColor;
 }
 
 .rop-report-person__nums {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.4rem;
+  gap: 0.45rem;
 }
 
 .rop-report-person__nums strong {
   display: block;
   margin-top: 0.1rem;
   font-size: 0.95rem;
+  font-weight: 650;
   font-variant-numeric: tabular-nums;
 }
 
@@ -5759,51 +5778,101 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .rop-plan__ring--metric {
-  width: 4.8rem;
-  height: 4.8rem;
+  width: 4.4rem;
+  height: 4.4rem;
   flex: 0 0 auto;
   transform-origin: center;
-  transition: transform 0.22s ease;
+  transition: transform 0.28s ease;
 }
 
 .rop-plan__ring--metric .rop-plan__track,
 .rop-plan__ring--metric .rop-plan__value {
-  stroke-width: 12;
+  stroke-width: 10;
   stroke-linecap: round;
 }
 
 .rop-plan__ring--metric .rop-plan__track {
-  stroke: #5a6882;
+  stroke: #4a5872;
 }
 
 .rop-plan__ring--metric .rop-plan__pct {
-  font-size: 15px;
-  font-weight: 800;
+  font-size: 14px;
+  font-weight: 650;
 }
 
 .rop-week__bottom {
-  grid-template-columns: 1fr 1.3fr;
+  grid-template-columns: minmax(15rem, 18rem) minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.rop-week__focus {
+  cursor: default;
+}
+
+.rop-week__focus:hover .rop-plan__ring--metric {
+  transform: scale(1.08);
+}
+
+.rop-week__steps {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.rop-week__step {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.15rem;
+  min-width: 0;
+  padding: 0.8rem 0.9rem;
+  border-radius: var(--rop-card-radius, 0.95rem);
+  border: 1px solid var(--rop-card-border);
+  background: var(--rop-card-bg);
+}
+
+.rop-week__step em {
+  display: none;
+}
+
+.rop-week__step strong {
+  font-size: 1.2rem;
+  font-weight: 650;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.rop-week__step span {
+  color: var(--rop-muted, #8e9cb8);
+  font-size: 0.72rem;
 }
 
 .rop-week__card {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 1rem;
+  gap: 0.85rem;
   min-width: 0;
-  padding: 1rem 1.15rem;
-  border-radius: 1.15rem;
-  border: 1px solid #30415f;
-  background: linear-gradient(145deg, #1a2944, #121e33);
+  padding: 0.85rem 0.95rem;
+  border-radius: var(--rop-card-radius, 0.95rem);
+  border: 1px solid var(--rop-card-border);
+  background: var(--rop-card-bg);
   color: inherit;
   text-align: left;
   cursor: pointer;
-  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  transition: border-color 0.2s ease;
 }
 
 .rop-week__rings .rop-week__card:hover .rop-plan__ring--metric,
 .rop-week__rings .rop-week__card.is-on .rop-plan__ring--metric {
-  transform: scale(1.18);
+  transform: scale(1.08);
+}
+
+.rop-week__rings .rop-week__card:hover,
+.rop-week__rings .rop-week__card.is-on {
+  border-color: color-mix(in srgb, var(--ring, #9aa3ff) 45%, transparent);
 }
 
 .rop-donut {
@@ -5848,25 +5917,25 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 
 .rop-donut-stats strong {
   display: block;
-  font-size: 1.7rem;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  line-height: 1.05;
+  font-size: 1.3rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
 }
 
 .rop-donut-stats span,
 .rop-donut-stats em {
   display: block;
   font-style: normal;
-  color: #9aaccb;
-  font-size: 0.78rem;
+  color: var(--rop-muted, #8e9cb8);
+  font-size: 0.72rem;
 }
 
 .rop-donut-stats b {
   display: block;
-  margin-top: 0.55rem;
-  font-size: 1.2rem;
-  font-weight: 800;
+  margin-top: 0.4rem;
+  font-size: 1rem;
+  font-weight: 650;
 }
 
 .rop-week__body {
@@ -5958,15 +6027,17 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 @media (max-width: 960px) {
-  .rop-week__rings,
-  .rop-week__bottom {
+  .rop-week__rings {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .rop-week__bottom {
+    grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 640px) {
   .rop-week__rings,
-  .rop-week__bottom,
   .rop-week__pair {
     grid-template-columns: 1fr;
   }
@@ -5984,14 +6055,14 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 }
 
 .rop-outlook-month {
-  padding: 0.6rem 0.7rem;
-  border-radius: 0.7rem;
-  border: 1px solid var(--mo-border);
-  background: var(--mo-surface-elevated);
+  padding: 0.9rem 1rem;
+  border-radius: var(--rop-card-radius, 0.95rem);
+  border: 1px solid var(--rop-card-border);
+  background: var(--rop-card-bg);
 }
 
 .rop-outlook-month--prev {
-  background: color-mix(in srgb, var(--mo-surface) 88%, var(--mo-border));
+  opacity: 0.92;
 }
 
 .rop-outlook-month__top {
@@ -5999,12 +6070,12 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   align-items: baseline;
   justify-content: space-between;
   gap: 0.5rem;
-  margin-bottom: 0.4rem;
+  margin-bottom: 0.55rem;
 }
 
 .rop-outlook-month__label {
   margin: 0;
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   font-weight: 600;
   text-transform: capitalize;
   color: var(--mo-text);
@@ -6012,33 +6083,34 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 
 .rop-outlook-month__hint {
   margin: 0;
-  font-size: 0.68rem;
-  color: var(--mo-text-muted);
+  font-size: 0.7rem;
+  color: var(--rop-muted, #8e9cb8);
 }
 
 .rop-outlook-month__metrics {
   margin: 0;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.35rem 0.5rem;
+  gap: 0.45rem 0.55rem;
 }
 
 .rop-outlook-month__metrics dt {
-  font-size: 0.62rem;
+  font-size: 0.7rem;
   font-weight: 550;
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  color: var(--mo-text-muted);
+  color: var(--rop-muted, #8e9cb8);
 }
 
 .rop-outlook-month__metrics dd {
-  margin: 0.1rem 0 0;
+  margin: 0.12rem 0 0;
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 0.15rem 0.35rem;
-  font-size: 0.95rem;
+  font-size: 1.05rem;
   font-weight: 650;
+  letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
   color: var(--mo-text);
 }
@@ -6046,13 +6118,13 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 .rop-delta--up {
   font-size: 0.68rem;
   font-weight: 550;
-  color: #4ade80;
+  color: #6ecfad;
 }
 
 .rop-delta--down {
   font-size: 0.68rem;
   font-weight: 550;
-  color: #f87171;
+  color: #e4a0a0;
 }
 
 .rop-outlook-scenarios {
@@ -6069,43 +6141,44 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 .rop-outlook-scenario {
   display: flex;
   flex-direction: column;
-  gap: 0.1rem;
-  padding: 0.45rem 0.55rem;
-  border-radius: 0.55rem;
-  border: 1px solid var(--mo-border);
-  background: var(--mo-surface);
+  gap: 0.2rem;
+  padding: 0.9rem 1rem;
+  border-radius: var(--rop-card-radius, 0.95rem);
+  border: 1px solid var(--rop-card-border);
+  background: var(--rop-card-bg);
 }
 
 .rop-outlook-scenario--worst {
-  border-color: color-mix(in srgb, #b91c1c 35%, var(--mo-border));
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--rop-tone-down, #e4b07a) 70%, transparent);
 }
 
 .rop-outlook-scenario--mid {
-  border-color: color-mix(in srgb, var(--mo-accent) 40%, var(--mo-border));
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--rop-tone-mid, #9aa3ff) 70%, transparent);
 }
 
 .rop-outlook-scenario--best {
-  border-color: color-mix(in srgb, #15803d 35%, var(--mo-border));
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--rop-tone-up, #6ecfad) 70%, transparent);
 }
 
 .rop-outlook-scenario__label {
-  font-size: 0.62rem;
+  font-size: 0.7rem;
   font-weight: 550;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
-  color: var(--mo-text-muted);
+  color: var(--rop-muted, #8e9cb8);
 }
 
 .rop-outlook-scenario__rev {
-  font-size: 0.95rem;
+  font-size: 1.2rem;
   font-weight: 650;
+  letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   color: var(--mo-text);
 }
 
 .rop-outlook-scenario__leads {
-  font-size: 0.7rem;
-  color: var(--mo-text-muted);
+  font-size: 0.72rem;
+  color: var(--rop-muted, #8e9cb8);
 }
 
 .rop-dynamics {
@@ -6276,33 +6349,32 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 .rop-outlook-signal {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 0.05rem;
-  padding: 0.35rem 0.5rem;
-  border-radius: 0.45rem;
-  border-left: 3px solid var(--mo-border);
-  background: color-mix(in srgb, var(--mo-surface) 70%, transparent);
+  gap: 0.1rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 0.85rem;
+  border: 1px solid var(--rop-card-border);
+  border-left-width: 2px;
+  background: var(--rop-card-bg);
 }
 
 .rop-outlook-signal strong {
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   font-weight: 600;
   color: var(--mo-text);
 }
 
 .rop-outlook-signal span {
   font-size: 0.7rem;
-  line-height: 1.3;
-  color: var(--mo-text-muted);
+  line-height: 1.35;
+  color: var(--rop-muted, #8e9cb8);
 }
 
 .rop-outlook-signal--critical {
-  border-left-color: #ef4444;
-  background: color-mix(in srgb, #b91c1c 10%, var(--mo-surface));
+  border-left-color: color-mix(in srgb, #e4a0a0 80%, transparent);
 }
 
 .rop-outlook-signal--warn {
-  border-left-color: #f59e0b;
-  background: color-mix(in srgb, #b45309 10%, var(--mo-surface));
+  border-left-color: color-mix(in srgb, #e4b07a 80%, transparent);
 }
 
 .kpi-report-metric {
