@@ -5767,13 +5767,9 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   gap: 0.55rem;
 }
 
-.rop-week__rings,
-.rop-week__bottom {
+.rop-week__rings {
   display: grid;
   gap: 0.45rem;
-}
-
-.rop-week__rings {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
@@ -5800,22 +5796,9 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   font-weight: 650;
 }
 
-.rop-week__bottom {
-  grid-template-columns: minmax(15rem, 18rem) minmax(0, 1fr);
-  align-items: stretch;
-}
-
-.rop-week__focus {
-  cursor: default;
-}
-
-.rop-week__focus:hover .rop-plan__ring--metric {
-  transform: scale(1.08);
-}
-
 .rop-week__steps {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.5rem;
   min-width: 0;
 }
@@ -6031,14 +6014,15 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
     grid-template-columns: 1fr 1fr;
   }
 
-  .rop-week__bottom {
-    grid-template-columns: 1fr;
+  .rop-week__steps {
+    grid-template-columns: 1fr 1fr;
   }
 }
 
 @media (max-width: 640px) {
   .rop-week__rings,
-  .rop-week__pair {
+  .rop-week__pair,
+  .rop-week__steps {
     grid-template-columns: 1fr;
   }
 }

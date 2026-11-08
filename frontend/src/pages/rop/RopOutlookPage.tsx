@@ -167,11 +167,6 @@ function MetricRing({ pct, color }: { pct: number | null; color: string }) {
 
 function WeekPaceStrip({ week }: { week: WeekPace }) {
   const [active, setActive] = useState<string | null>(null);
-  const revenue = week.metrics.find((metric) => metric.key === "revenue");
-  const revenuePct =
-    revenue?.previous != null && Number(revenue.previous) > 0
-      ? Math.round((Number(revenue.current) / Number(revenue.previous) - 1) * 100)
-      : null;
   return (
     <section className="rop-week" aria-label="Темп недели">
       <div className="rop-panel__head">
@@ -217,38 +212,13 @@ function WeekPaceStrip({ week }: { week: WeekPace }) {
           );
         })}
       </div>
-      <div className="rop-week__bottom">
-        <article
-          className="rop-week__card rop-week__focus"
-          style={{ ["--ring" as string]: RING_COLOR.revenue }}
-        >
-          <MetricRing
-            pct={
-              revenue?.tracked === false || revenue?.percent == null
-                ? null
-                : Number(revenue.percent)
-            }
-            color={RING_COLOR.revenue}
-          />
-          <div className="rop-donut-stats">
-            <strong>{money(revenue?.current)}</strong>
-            <span>Факт недели</span>
-            <b style={{ color: RING_COLOR.revenue }}>{money(revenue?.previous)}</b>
-            <em>
-              должно быть ·{" "}
-              <span className={deltaClass(revenuePct)}>{deltaText(revenuePct)}</span>
-            </em>
-          </div>
-        </article>
-        <div className="rop-week__steps" aria-label="Новые клиенты">
-          {week.funnel.map((step, index) => (
-            <article key={step.label} className="rop-week__step">
-              <em>{index + 1}</em>
-              <strong>{step.value.toLocaleString("ru-RU")}</strong>
-              <span>{step.label}</span>
-            </article>
-          ))}
-        </div>
+      <div className="rop-week__steps" aria-label="Новые клиенты">
+        {week.funnel.map((step) => (
+          <article key={step.label} className="rop-week__step">
+            <strong>{step.value.toLocaleString("ru-RU")}</strong>
+            <span>{step.label}</span>
+          </article>
+        ))}
       </div>
     </section>
   );
