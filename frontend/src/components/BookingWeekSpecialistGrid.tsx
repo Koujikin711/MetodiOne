@@ -165,11 +165,11 @@ function hourHasVisibleAppointment(dayAppts: BookingAppointment[], hour: number)
 }
 
 type FlatDayRow =
-  | { kind: "slot"; minute: number; closed?: boolean }
+  | { kind: "slot"; minute: number; closed?: boolean; moveHint?: boolean }
   | { kind: "appt"; appointment: BookingAppointment };
 
 type DayRow =
-  | { kind: "slot"; minute: number; closed?: boolean }
+  | { kind: "slot"; minute: number; closed?: boolean; moveHint?: boolean }
   | { kind: "appts"; appointments: BookingAppointment[] };
 
 /** Одинаковая минута старта — по две карточки в ряд. Другая минута — строка ниже. */
@@ -202,6 +202,7 @@ function buildDayRows(
   spec: BookingSpecialist,
   dateYmd: string,
   dayAppts: BookingAppointment[],
+  showMoveHalfSlots = false,
 ): DayRow[] | null {
   const slots = dayTimeSlots(spec, dateYmd);
   if (slots.length === 0) return null;
@@ -218,11 +219,15 @@ function buildDayRows(
       usedApptIds.add(match.id);
       rows.push({ kind: "appt", appointment: match });
     }
-    // Пустой :30 не рисуем. Час, где уже есть карточка (в том числе «Пришёл»
-    // и «Неявка»), не помечаем пунктиром: иначе занятая минута выглядит свободной.
-    if (minute % 60 !== 0) continue;
-    if (!hourHasVisibleAppointment(dayAppts, Math.floor(minute / 60))) {
-      rows.push({ kind: "slot", minute });
+    // Пустой :30 обычно не рисуем. При переносе записи показываем все
+    // свободные шаги (:00 и :30), чтобы было куда бросить.
+    if (matches.length > 0) continue;
+    if (minute % 60 !== 0) {
+      if (showMoveHalfSlots) rows.push({ kind: "slot", minute, moveHint: true });
+      continue;
+    }
+    if (showMoveHalfSlots || !hourHasVisibleAppointment(dayAppts, Math.floor(minute / 60))) {
+      rows.push({ kind: "slot", minute, moveHint: showMoveHalfSlots });
     }
   }
   for (const a of dayAppts) {
@@ -309,6 +314,8 @@ type SortableRowProps = {
   onAppointmentClick: (a: BookingAppointment) => void;
   onSlotClick?: (payload: WeekSlotClickPayload) => void;
   onMoveAppointment?: (payload: WeekMovePayload) => void;
+  showMoveHalfSlots?: boolean;
+  onAppointmentMoveDragChange?: (active: boolean) => void;
   showSessionInsteadOfTime?: boolean;
   canEditNotes?: boolean;
   onAppointmentNoteClick?: (a: BookingAppointment) => void;
@@ -331,6 +338,8 @@ function SortableSpecialistRow({
   onAppointmentClick,
   onSlotClick,
   onMoveAppointment,
+  showMoveHalfSlots = false,
+  onAppointmentMoveDragChange,
   showSessionInsteadOfTime,
   canEditNotes,
   onAppointmentNoteClick,
@@ -436,7 +445,9 @@ function SortableSpecialistRow({
           }
 
           const workingDay = isSpecWorkingDay(spec, dateYmd);
-          const dayRows = workingDay ? buildDayRows(spec, dateYmd, dayAppts) : null;
+          const dayRows = workingDay
+            ? buildDayRows(spec, dateYmd, dayAppts, showMoveHalfSlots)
+            : null;
 
           return (
             <div
@@ -510,7 +521,9 @@ function SortableSpecialistRow({
                                   e.stopPropagation();
                                   e.dataTransfer.setData("text/appointment-id", String(a.id));
                                   e.dataTransfer.effectAllowed = "move";
+                                  onAppointmentMoveDragChange?.(true);
                                 }}
+                                onDragEnd={() => onAppointmentMoveDragChange?.(false)}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   onAppointmentClick(a);
@@ -541,22 +554,29 @@ function SortableSpecialistRow({
                         </div>
                       );
                     }
-                    const slotCanAdd = Boolean(onSlotClick && !row.closed);
+                    const slotCanAdd = Boolean(onSlotClick && !row.closed && !row.moveHint);
+                    const slotCanDrop = Boolean(onMoveAppointment && !row.closed);
                     return (
                       <button
                         key={`slot-${key}-${row.minute}`}
                         type="button"
                         onDragOver={(e) => {
-                          if (!onMoveAppointment) return;
+                          if (!slotCanDrop) return;
                           e.preventDefault();
                           e.stopPropagation();
+                          e.currentTarget.classList.add("is-drop-target");
+                        }}
+                        onDragLeave={(e) => {
+                          e.currentTarget.classList.remove("is-drop-target");
                         }}
                         onDrop={(e) => {
                           if (!onMoveAppointment) return;
                           e.preventDefault();
                           e.stopPropagation();
+                          e.currentTarget.classList.remove("is-drop-target");
                           const id = Number(e.dataTransfer.getData("text/appointment-id"));
                           if (!Number.isFinite(id)) return;
+                          onAppointmentMoveDragChange?.(false);
                           onMoveAppointment({
                             appointmentId: id,
                             specialistId: spec.id,
@@ -576,16 +596,19 @@ function SortableSpecialistRow({
                         }}
                         className={[
                           "booking-week-grid__empty-slot w-full rounded-md border border-dashed px-1.5 py-1 text-left",
-                          slotCanAdd
+                          row.moveHint ? "booking-week-grid__empty-slot--move-hint" : "",
+                          slotCanAdd || slotCanDrop
                             ? "cursor-pointer border-[var(--mo-border-strong)]/55 transition hover:border-indigo-500/40 hover:bg-indigo-500/[0.06]"
                             : "cursor-default border-[var(--mo-border)]/40 opacity-60",
                         ].join(" ")}
                         title={
                           row.closed
                             ? `В этот час уже ${MAX_BOOKINGS_PER_SPECIALIST_HOUR} записи`
-                            : slotCanAdd
-                              ? `Записать на ${formatMinuteLabel(row.minute)}`
-                              : undefined
+                            : row.moveHint
+                              ? `Перенести на ${formatMinuteLabel(row.minute)}`
+                              : slotCanAdd
+                                ? `Записать на ${formatMinuteLabel(row.minute)}`
+                                : undefined
                         }
                       >
                         <span className="text-[10px] font-semibold tabular-nums leading-none text-[var(--mo-text-muted)]">
@@ -625,6 +648,19 @@ export function BookingWeekSpecialistGrid({
   const todayYmd = ymdInBookingTz(Date.now());
   const sortedSpecs = useMemo(() => sortSpecs(specialists), [specialists]);
   const [expandedSpecId, setExpandedSpecId] = useState<number | null>(null);
+  const [moveDragActive, setMoveDragActive] = useState(false);
+  const showMoveHalfSlots = Boolean(onMoveAppointment && moveDragActive);
+
+  useEffect(() => {
+    if (!moveDragActive) return;
+    const stop = () => setMoveDragActive(false);
+    window.addEventListener("dragend", stop);
+    window.addEventListener("drop", stop);
+    return () => {
+      window.removeEventListener("dragend", stop);
+      window.removeEventListener("drop", stop);
+    };
+  }, [moveDragActive]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 10 } }),
@@ -789,6 +825,8 @@ export function BookingWeekSpecialistGrid({
       onAppointmentClick={onAppointmentClick}
       onSlotClick={onSlotClick}
       onMoveAppointment={onMoveAppointment}
+      showMoveHalfSlots={showMoveHalfSlots}
+      onAppointmentMoveDragChange={setMoveDragActive}
       showSessionInsteadOfTime={showSessionInsteadOfTime}
       canEditNotes={canEditNotes}
       onAppointmentNoteClick={onAppointmentNoteClick}
