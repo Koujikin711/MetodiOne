@@ -219,15 +219,17 @@ function buildDayRows(
       usedApptIds.add(match.id);
       rows.push({ kind: "appt", appointment: match });
     }
-    // Пустой :30 обычно не рисуем. При переносе записи показываем все
-    // свободные шаги (:00 и :30), чтобы было куда бросить.
+    // Пустой :30 в DOM есть (скрыт CSS), виден только при переносе.
+    // Пустой :00 по-прежнему виден, если в этом часе ещё нет карточек.
     if (matches.length > 0) continue;
     if (minute % 60 !== 0) {
       if (showMoveHalfSlots) rows.push({ kind: "slot", minute, moveHint: true });
       continue;
     }
-    if (showMoveHalfSlots || !hourHasVisibleAppointment(dayAppts, Math.floor(minute / 60))) {
-      rows.push({ kind: "slot", minute, moveHint: showMoveHalfSlots });
+    if (!hourHasVisibleAppointment(dayAppts, Math.floor(minute / 60))) {
+      rows.push({ kind: "slot", minute });
+    } else if (showMoveHalfSlots) {
+      rows.push({ kind: "slot", minute, moveHint: true });
     }
   }
   for (const a of dayAppts) {
@@ -314,7 +316,6 @@ type SortableRowProps = {
   onAppointmentClick: (a: BookingAppointment) => void;
   onSlotClick?: (payload: WeekSlotClickPayload) => void;
   onMoveAppointment?: (payload: WeekMovePayload) => void;
-  showMoveHalfSlots?: boolean;
   onAppointmentMoveDragChange?: (active: boolean) => void;
   showSessionInsteadOfTime?: boolean;
   canEditNotes?: boolean;
@@ -338,7 +339,6 @@ function SortableSpecialistRow({
   onAppointmentClick,
   onSlotClick,
   onMoveAppointment,
-  showMoveHalfSlots = false,
   onAppointmentMoveDragChange,
   showSessionInsteadOfTime,
   canEditNotes,
@@ -446,7 +446,7 @@ function SortableSpecialistRow({
 
           const workingDay = isSpecWorkingDay(spec, dateYmd);
           const dayRows = workingDay
-            ? buildDayRows(spec, dateYmd, dayAppts, showMoveHalfSlots)
+            ? buildDayRows(spec, dateYmd, dayAppts, Boolean(onMoveAppointment))
             : null;
 
           return (
@@ -648,19 +648,22 @@ export function BookingWeekSpecialistGrid({
   const todayYmd = ymdInBookingTz(Date.now());
   const sortedSpecs = useMemo(() => sortSpecs(specialists), [specialists]);
   const [expandedSpecId, setExpandedSpecId] = useState<number | null>(null);
-  const [moveDragActive, setMoveDragActive] = useState(false);
-  const showMoveHalfSlots = Boolean(onMoveAppointment && moveDragActive);
+  // Не setState на dragStart: иначе React перерисует сетку и HTML5-drag сорвётся.
+  // :30-слоты уже в DOM (скрыты), класс на <html> только показывает их.
+  const setAppointmentMoving = useCallback((active: boolean) => {
+    document.documentElement.classList.toggle("booking-appt-moving", active);
+  }, []);
 
   useEffect(() => {
-    if (!moveDragActive) return;
-    const stop = () => setMoveDragActive(false);
+    const stop = () => setAppointmentMoving(false);
     window.addEventListener("dragend", stop);
     window.addEventListener("drop", stop);
     return () => {
       window.removeEventListener("dragend", stop);
       window.removeEventListener("drop", stop);
+      document.documentElement.classList.remove("booking-appt-moving");
     };
-  }, [moveDragActive]);
+  }, [setAppointmentMoving]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 10 } }),
@@ -825,8 +828,7 @@ export function BookingWeekSpecialistGrid({
       onAppointmentClick={onAppointmentClick}
       onSlotClick={onSlotClick}
       onMoveAppointment={onMoveAppointment}
-      showMoveHalfSlots={showMoveHalfSlots}
-      onAppointmentMoveDragChange={setMoveDragActive}
+      onAppointmentMoveDragChange={setAppointmentMoving}
       showSessionInsteadOfTime={showSessionInsteadOfTime}
       canEditNotes={canEditNotes}
       onAppointmentNoteClick={onAppointmentNoteClick}
