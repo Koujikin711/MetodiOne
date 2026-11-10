@@ -135,16 +135,6 @@ function isSpecWorkingDay(spec: BookingSpecialist, dateYmd: string): boolean {
   return specWorkWeekdays(spec).includes(weekdayMon0InBookingTz(dateYmd));
 }
 
-function dayTimeSlots(spec: BookingSpecialist, dateYmd: string, stepMin?: number): number[] {
-  if (!isSpecWorkingDay(spec, dateYmd)) return [];
-  const step = Math.max(15, stepMin ?? spec.slot_duration_min ?? 30);
-  const startMin = (spec.work_start_hour ?? 9) * 60;
-  const endMin = (spec.work_end_hour ?? 18) * 60;
-  const slots: number[] = [];
-  for (let m = startMin; m < endMin; m += step) slots.push(m);
-  return slots;
-}
-
 function formatMinuteLabel(minuteOfDay: number): string {
   const h = Math.floor(minuteOfDay / 60);
   const m = minuteOfDay % 60;
@@ -156,46 +146,13 @@ function appointmentStartMinute(a: BookingAppointment): number {
   return h * 60 + min;
 }
 
-function hourHasVisibleAppointment(dayAppts: BookingAppointment[], hour: number): boolean {
-  for (const appointment of dayAppts) {
-    const { h } = utcMsToHourMinuteInBookingTz(new Date(appointment.start_at).getTime());
-    if (h === hour) return true;
-  }
-  return false;
-}
-
-type FlatDayRow =
-  | { kind: "slot"; minute: number; closed?: boolean }
-  | { kind: "appt"; appointment: BookingAppointment };
-
 type DayRow =
   | { kind: "slot"; minute: number; closed?: boolean }
   | { kind: "appts"; appointments: BookingAppointment[] };
 
-/** Одинаковая минута старта — по две карточки в ряд. Другая минута — строка ниже. */
-function pairSameStart(flat: FlatDayRow[]): DayRow[] {
-  const out: DayRow[] = [];
-  let i = 0;
-  while (i < flat.length) {
-    const row = flat[i];
-    if (row.kind === "slot") {
-      out.push(row);
-      i += 1;
-      continue;
-    }
-    const minute = appointmentStartMinute(row.appointment);
-    const group: BookingAppointment[] = [];
-    while (i < flat.length) {
-      const cur = flat[i];
-      if (cur.kind !== "appt" || appointmentStartMinute(cur.appointment) !== minute) break;
-      group.push(cur.appointment);
-      i += 1;
-    }
-    for (let j = 0; j < group.length; j += 2) {
-      out.push({ kind: "appts", appointments: group.slice(j, j + 2) });
-    }
-  }
-  return out;
+/** Один ряд на :00 или на :30 — в ряду до двух карточек рядом. */
+function appointmentPairBucket(a: BookingAppointment): number {
+  return Math.floor(appointmentStartMinute(a) / 30) * 30;
 }
 
 function buildDayRows(
@@ -203,38 +160,63 @@ function buildDayRows(
   dateYmd: string,
   dayAppts: BookingAppointment[],
 ): DayRow[] | null {
-  // Пустые пунктиры — только :00 (если в часе нет записей).
-  // :30 в сетке только если есть реальная запись на это время.
-  const step = Math.max(15, spec.slot_duration_min ?? 30);
-  const slots = dayTimeSlots(spec, dateYmd, step);
-  if (slots.length === 0) return null;
-  const usedApptIds = new Set<number>();
-  const rows: FlatDayRow[] = [];
-  for (const minute of slots) {
-    const matches = dayAppts.filter((a) => {
-      if (usedApptIds.has(a.id)) return false;
-      const startMin = appointmentStartMinute(a);
-      return startMin >= minute && startMin < minute + step;
-    });
-    for (const match of matches) {
-      usedApptIds.add(match.id);
-      rows.push({ kind: "appt", appointment: match });
-    }
-    if (matches.length > 0) continue;
-    if (minute % 60 !== 0) continue;
-    if (!hourHasVisibleAppointment(dayAppts, Math.floor(minute / 60))) {
-      rows.push({ kind: "slot", minute });
-    }
-  }
+  // Пустые пунктиры — только :00 без записей в часе.
+  // Две записи на 15:00 или на 15:30 — рядом в одном ряду (как на скрине).
+  if (!isSpecWorkingDay(spec, dateYmd)) return null;
+  const startMin = (spec.work_start_hour ?? 9) * 60;
+  const endMin = (spec.work_end_hour ?? 18) * 60;
+  if (endMin <= startMin) return null;
+
+  const byBucket = new Map<number, BookingAppointment[]>();
   for (const a of dayAppts) {
-    if (!usedApptIds.has(a.id)) rows.push({ kind: "appt", appointment: a });
+    const bucket = appointmentPairBucket(a);
+    const list = byBucket.get(bucket);
+    if (list) list.push(a);
+    else byBucket.set(bucket, [a]);
   }
-  rows.sort((x, y) => {
-    const mx = x.kind === "slot" ? x.minute : appointmentStartMinute(x.appointment);
-    const my = y.kind === "slot" ? y.minute : appointmentStartMinute(y.appointment);
-    return mx - my || (x.kind === "appt" ? 0 : 1) - (y.kind === "appt" ? 0 : 1);
-  });
-  return pairSameStart(rows);
+  for (const list of byBucket.values()) {
+    list.sort((a, b) => appointmentStartMinute(a) - appointmentStartMinute(b) || a.id - b.id);
+  }
+
+  const hoursWithAppt = new Set<number>();
+  for (const a of dayAppts) {
+    hoursWithAppt.add(Math.floor(appointmentStartMinute(a) / 60));
+  }
+
+  const out: DayRow[] = [];
+  const emitted = new Set<number>();
+
+  for (let hour = Math.floor(startMin / 60); hour < Math.ceil(endMin / 60); hour += 1) {
+    const hourStart = hour * 60;
+    if (hourStart < startMin || hourStart >= endMin) continue;
+
+    for (const bucket of [hourStart, hourStart + 30]) {
+      if (bucket < startMin || bucket >= endMin) continue;
+      const group = byBucket.get(bucket);
+      if (!group?.length) continue;
+      for (let j = 0; j < group.length; j += 2) {
+        const pair = group.slice(j, j + 2);
+        for (const a of pair) emitted.add(a.id);
+        out.push({ kind: "appts", appointments: pair });
+      }
+    }
+
+    if (!hoursWithAppt.has(hour)) {
+      out.push({ kind: "slot", minute: hourStart });
+    }
+  }
+
+  const orphanBuckets = [...byBucket.entries()]
+    .filter(([, list]) => list.some((a) => !emitted.has(a.id)))
+    .sort(([a], [b]) => a - b);
+  for (const [, list] of orphanBuckets) {
+    const rest = list.filter((a) => !emitted.has(a.id));
+    for (let j = 0; j < rest.length; j += 2) {
+      out.push({ kind: "appts", appointments: rest.slice(j, j + 2) });
+    }
+  }
+
+  return out;
 }
 
 function CollapsedDayCell({
