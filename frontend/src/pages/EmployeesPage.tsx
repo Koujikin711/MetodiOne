@@ -1359,8 +1359,8 @@ export function EmployeesPage() {
                       </span>
                     </label>
                     {courseStreamsEnabled && (
-                      <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                        <label className="text-xs mo-muted" title="Длина потока в днях">
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        <label className="text-xs mo-muted" title="Количество приёмов в одном потоке">
                           День
                           <input
                             type="number"
@@ -1371,18 +1371,7 @@ export function EmployeesPage() {
                             className="mo-input mt-1 w-full tabular-nums"
                           />
                         </label>
-                        <label className="text-xs mo-muted" title="Мин. день, с которого можно открыть следующий поток">
-                          Мин
-                          <input
-                            type="number"
-                            min={1}
-                            max={60}
-                            value={courseStreamMinDay}
-                            onChange={(e) => setCourseStreamMinDay(Number(e.target.value))}
-                            className="mo-input mt-1 w-full tabular-nums"
-                          />
-                        </label>
-                        <label className="text-xs mo-muted" title="Пауза без визита, дней">
+                        <label className="text-xs mo-muted" title="Через сколько дней без визита снова начинать процедуру">
                           Пауза
                           <input
                             type="number"

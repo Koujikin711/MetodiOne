@@ -1669,6 +1669,7 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 }
 .booking-appt-foot {
   min-height: 0.75rem;
+  margin-top: auto;
 }
 .journal-icon-btn {
   position: relative;
@@ -1747,8 +1748,17 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   z-index: 30;
 }
 .booking-appt-card-body {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   width: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+  height: 100%;
+}
+.booking-appt-bitrix {
+  display: flex;
+  flex-direction: column;
 }
 .booking-appt-done-badge {
   color: #16a34a;
@@ -2898,66 +2908,98 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
 }
 
-/* Потоки курсов: одна строка и на мобиле (горизонтальный скролл, без наложения заголовков) */
+/* Потоки курсов: table — шапка строго над своими столбцами */
 .direction-streams-table {
   -webkit-overflow-scrolling: touch;
   overflow-x: auto;
 }
 
-.direction-streams-grid {
-  display: grid;
-  grid-template-columns: minmax(7rem, 1.35fr) 2.25rem repeat(3, 3.1rem) 3.4rem;
-  align-items: center;
-  gap: 0.35rem;
-  min-width: 24rem;
-  padding: 0.375rem 0.5rem;
+.direction-streams-sheet {
+  width: 100%;
+  min-width: 26rem;
+  border-collapse: collapse;
+  table-layout: fixed;
 }
 
-@media (min-width: 640px) {
-  .direction-streams-grid {
-    grid-template-columns: minmax(0, 1.5fr) 2.5rem repeat(3, 5rem) auto;
-    gap: 0.5rem;
-    min-width: 0;
-    padding: 0.55rem 0.75rem;
-  }
+.direction-streams-sheet col.direction-streams-col-name,
+.direction-streams-sheet th:nth-child(1),
+.direction-streams-sheet td:nth-child(1) {
+  width: auto;
+}
+
+.direction-streams-sheet th:nth-child(2),
+.direction-streams-sheet td:nth-child(2) {
+  width: 2.75rem;
+}
+
+.direction-streams-sheet th:nth-child(3),
+.direction-streams-sheet td:nth-child(3),
+.direction-streams-sheet th:nth-child(4),
+.direction-streams-sheet td:nth-child(4),
+.direction-streams-sheet th:nth-child(5),
+.direction-streams-sheet td:nth-child(5) {
+  width: 4.25rem;
+}
+
+.direction-streams-sheet th:nth-child(6),
+.direction-streams-sheet td:nth-child(6) {
+  width: 4.25rem;
+}
+
+.direction-streams-sheet th,
+.direction-streams-sheet td {
+  padding: 0.4rem 0.3rem;
+  vertical-align: middle;
+  box-sizing: border-box;
 }
 
 .direction-streams-head {
-  border-bottom: 1px solid var(--mo-border);
   background: var(--mo-surface);
+  border-bottom: 1px solid var(--mo-border);
+}
+
+.direction-streams-head th {
   font-size: 0.68rem;
   font-weight: 650;
   letter-spacing: 0.01em;
-  text-transform: none;
-  color: var(--mo-text-muted);
-}
-
-.direction-streams-head > span {
   line-height: 1.2;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: var(--mo-text-muted);
+  text-align: center;
   white-space: nowrap;
 }
 
-/* Вкл + День / Мин / Пауза — по центру над чекбоксом и полями */
-.direction-streams-head > span:nth-child(2),
-.direction-streams-head > span:nth-child(3),
-.direction-streams-head > span:nth-child(4),
-.direction-streams-head > span:nth-child(5) {
-  text-align: center;
+.direction-streams-head th:first-child {
+  text-align: left;
+  padding-left: 0.55rem;
 }
 
 @media (min-width: 640px) {
-  .direction-streams-head {
+  .direction-streams-sheet {
+    min-width: 0;
+  }
+
+  .direction-streams-sheet th,
+  .direction-streams-sheet td {
+    padding: 0.5rem 0.4rem;
+  }
+
+  .direction-streams-head th {
     font-size: 0.75rem;
   }
-}
 
-.direction-streams-visit-dur {
-  margin-top: 0.1rem;
-  font-size: 0.65rem;
-  font-weight: 500;
-  color: var(--mo-text-muted);
+  .direction-streams-sheet th:nth-child(3),
+  .direction-streams-sheet td:nth-child(3),
+  .direction-streams-sheet th:nth-child(4),
+  .direction-streams-sheet td:nth-child(4),
+  .direction-streams-sheet th:nth-child(5),
+  .direction-streams-sheet td:nth-child(5) {
+    width: 5rem;
+  }
+
+  .direction-streams-sheet th:nth-child(6),
+  .direction-streams-sheet td:nth-child(6) {
+    width: 5.25rem;
+  }
 }
 
 .direction-streams-legend {
@@ -2966,6 +3008,10 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 
 .direction-streams-row {
   background: var(--mo-surface-elevated);
+}
+
+.direction-streams-row + .direction-streams-row td {
+  border-top: 1px solid var(--mo-border);
 }
 
 .direction-streams-row.is-enabled {
@@ -2978,6 +3024,7 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   font-weight: 600;
   line-height: 1.3;
   color: var(--mo-text);
+  padding-left: 0.55rem !important;
 }
 
 @media (min-width: 640px) {
@@ -2987,7 +3034,11 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 }
 
 .direction-streams-check {
-  display: flex;
+  text-align: center;
+}
+
+.direction-streams-check label {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
 }
@@ -2995,11 +3046,13 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 .direction-streams-num {
   width: 100% !important;
   min-width: 0 !important;
-  padding: 0.35rem 0.25rem !important;
+  max-width: 100%;
+  padding: 0.35rem 0.2rem !important;
   font-size: 0.8125rem !important;
   line-height: 1.25 !important;
   text-align: center;
   font-variant-numeric: tabular-nums;
+  box-sizing: border-box;
 }
 
 .direction-streams-num:disabled {
@@ -3008,9 +3061,13 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 
 @media (min-width: 640px) {
   .direction-streams-num {
-    padding: 0.4rem 0.45rem !important;
+    padding: 0.4rem 0.35rem !important;
     font-size: 0.875rem !important;
   }
+}
+
+.direction-streams-sheet td:nth-child(6) {
+  text-align: center;
 }
 
 .direction-streams-save {
@@ -3285,6 +3342,26 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 
 .booking-week-grid__half-stack > .booking-appt-bitrix {
   flex: 1 1 auto;
+}
+
+/* Только час (:00 без :30) — компактные карточки как у полчаса, без пустой высоты */
+.booking-week-grid__half-stack--hour-only {
+  height: auto;
+}
+
+.booking-week-grid__half-stack--hour-only > .booking-appt-bitrix {
+  flex: 0 0 auto;
+  height: auto;
+  min-height: 0;
+}
+
+.booking-week-grid__half-stack--hour-only .booking-appt-card-body {
+  height: auto;
+  flex: 0 0 auto;
+}
+
+.booking-week-grid__half-stack--hour-only .booking-appt-foot {
+  margin-top: 0.2rem;
 }
 
 /* Край карточки часа → ужать до 30 мин (услуга 60). */

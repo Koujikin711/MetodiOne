@@ -72,7 +72,7 @@ export function BookingAppointmentCardBody({
         </span>
       </div>
       {showFoot ? (
-        <div className="booking-appt-foot mt-0.5 flex items-center justify-between gap-1">
+        <div className="booking-appt-foot flex items-center justify-between gap-1">
           {timeLabel ? (
             <span className="text-[9px] font-semibold tabular-nums leading-none opacity-90 sm:text-[10px]">
               {timeLabel}

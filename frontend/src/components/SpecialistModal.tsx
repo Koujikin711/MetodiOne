@@ -353,8 +353,8 @@ export function SpecialistModal({
               </span>
             </label>
             {courseStreamsEnabled && (
-              <div className="mt-3 grid grid-cols-3 gap-2">
-                <label className="text-center text-xs mo-muted" title="Длина потока в днях">
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <label className="text-center text-xs mo-muted" title="Количество приёмов в одном потоке">
                   <span className="block leading-4">День</span>
                   <input
                     type="number"
@@ -365,18 +365,7 @@ export function SpecialistModal({
                     className="mo-input mt-1 w-full text-center tabular-nums"
                   />
                 </label>
-                <label className="text-center text-xs mo-muted" title="Мин. день, с которого можно открыть следующий поток">
-                  <span className="block leading-4">Мин</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={60}
-                    value={courseStreamMinDay}
-                    onChange={(e) => setCourseStreamMinDay(Number(e.target.value))}
-                    className="mo-input mt-1 w-full text-center tabular-nums"
-                  />
-                </label>
-                <label className="text-center text-xs mo-muted" title="Пауза без визита, дней">
+                <label className="text-center text-xs mo-muted" title="Через сколько дней без визита снова начинать процедуру">
                   <span className="block leading-4">Пауза</span>
                   <input
                     type="number"
@@ -391,8 +380,8 @@ export function SpecialistModal({
             )}
             {courseStreamsEnabled && (
               <p className="mt-2 text-[10px] leading-snug mo-muted">
-                Новый поток: после {courseStreamMaxDays} дн. с начала потока или если достигнут день {courseStreamMinDay}+
-                и нет визитов {courseStreamGapDays} дн. подряд.
+                День — число приёмов в потоке. Длительность сеанса — в «Длительность записи» выше. Пауза — через
+                сколько дней без визита снова начинать ({courseStreamGapDays} дн.).
               </p>
             )}
           </div>

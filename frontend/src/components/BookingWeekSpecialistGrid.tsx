@@ -599,11 +599,11 @@ function SortableSpecialistRow({
                     };
 
                     if (row.kind === "hourOnly") {
-                      // Только час: каждая запись — одна сетка на всю ширину (не :00|:30).
+                      // Только час: компактные карточки на всю ширину (не :00|:30, без растягивания).
                       return (
                         <div
                           key={`hour-only-${key}-${row.hourStart}`}
-                          className="booking-week-grid__half-stack min-w-0"
+                          className="booking-week-grid__half-stack booking-week-grid__half-stack--hour-only min-w-0"
                         >
                           {row.appointments.map((a) => renderApptCard(a, row.hourStart))}
                         </div>
