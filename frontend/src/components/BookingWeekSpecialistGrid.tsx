@@ -452,6 +452,7 @@ function SortableSpecialistRow({
                     const renderApptCard = (a: BookingAppointment, dropMinute: number) => {
                       const timeLabel = showSessionInsteadOfTime ? null : formatTimeInBookingTz(a.start_at);
                       const durMin = appointmentDurationMinutes(a);
+                      const isShortSlot = durMin > 0 && durMin <= 21;
                       const canShrinkToHalf =
                         Boolean(onMoveAppointment) && a.status === "booked" && durMin >= 55;
                       return (
@@ -502,11 +503,13 @@ function SortableSpecialistRow({
                           }}
                           className={[
                             "booking-appt-bitrix relative w-full overflow-visible rounded-md px-1.5 py-1 text-left",
+                            isShortSlot ? "booking-appt-bitrix--short" : "",
                             onMoveAppointment && a.status === "booked"
                               ? "cursor-grab active:cursor-grabbing"
                               : "",
                             appointmentVisualClass(a),
                           ].join(" ")}
+                          title={isShortSlot ? `${durMin} мин` : undefined}
                         >
                           <BookingAppointmentCardBody
                             appointment={a}
@@ -515,6 +518,7 @@ function SortableSpecialistRow({
                             onNoteClick={onAppointmentNoteClick}
                             canToggleComplete={canToggleComplete}
                             onCompleteToggle={onAppointmentCompleteToggle}
+                            compact={isShortSlot}
                           />
                           {canShrinkToHalf ? (
                             <button

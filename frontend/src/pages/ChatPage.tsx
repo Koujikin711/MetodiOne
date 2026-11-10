@@ -19,6 +19,7 @@ import {
   writeChatDraft,
 } from "@/lib/chatDrafts";
 import { isRefusalStageName } from "@/lib/leadStageChips";
+import { openLeadCard } from "@/lib/leadReturn";
 import { formatMoney, formatCompactCount } from "@/lib/money";
 import type {
   ChatMessage,
@@ -1751,9 +1752,20 @@ export function ChatPage() {
                   <span className="max-lg:hidden">Назад</span>
                 </button>
                 <div className="min-w-0 flex-1">
-                  <div className="lux-subheading truncate text-sm sm:text-base max-lg:text-[13px]">
-                    {activeThread ? threadDisplayTitle(activeThread) : `Диалог #${threadId}`}
-                  </div>
+                  {activeThread?.lead_id ? (
+                    <button
+                      type="button"
+                      className="lux-subheading block max-w-full truncate text-left text-sm text-sky-300 underline decoration-sky-400/35 underline-offset-4 transition hover:text-sky-200 sm:text-base max-lg:text-[13px]"
+                      title="Открыть карточку клиента"
+                      onClick={() => openLeadCard(navigate, Number(activeThread.lead_id))}
+                    >
+                      {threadDisplayTitle(activeThread)}
+                    </button>
+                  ) : (
+                    <div className="lux-subheading truncate text-sm sm:text-base max-lg:text-[13px]">
+                      {activeThread ? threadDisplayTitle(activeThread) : `Диалог #${threadId}`}
+                    </div>
+                  )}
                   {activeThread ? (
                     <>
                       <div className="mt-0.5 text-sm font-semibold tracking-wide text-[var(--mo-text)] tabular-nums max-lg:text-xs">

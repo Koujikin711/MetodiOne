@@ -373,18 +373,18 @@ def _appointment_duration_minutes(
 ) -> int:
     """Длительность приёма: явный override → услуга (direction) → fallback → слот специалиста.
 
-    Для услуг 30 / 60 мин берём duration_min направления; слот специалиста — запасной вариант.
+    У услуги (direction.duration_min) приоритет; если нет — слот эксперта. Минимум 10 мин.
     """
-    if override_min is not None and int(override_min) >= 15:
+    if override_min is not None and int(override_min) >= 10:
         return int(override_min)
     if direction is not None:
         dir_slot = int(direction.duration_min or 0)
-        if dir_slot >= 15:
+        if dir_slot >= 10:
             return dir_slot
-    if fallback_min is not None and int(fallback_min) >= 15:
+    if fallback_min is not None and int(fallback_min) >= 10:
         return int(fallback_min)
     spec_slot = int(specialist.slot_duration_min or 0)
-    return spec_slot if spec_slot >= 15 else 30
+    return spec_slot if spec_slot >= 10 else 30
 
 
 def _visit_group_key(phone: str | None, specialist_id: int) -> tuple[str, int]:
@@ -2328,7 +2328,11 @@ async def create_appointment(
             )
 
     start_at = _from_payload_to_utc(body.start_at)
-    duration_min = _appointment_duration_minutes(specialist, direction)
+    duration_min = _appointment_duration_minutes(
+        specialist,
+        direction,
+        override_min=body.duration_min,
+    )
     consecutive_days = int(body.consecutive_days or 1)
     session_billing = _course_streams_enabled_for_booking(specialist, direction)
     # Сеансы (массаж/логопед): каждый день = отдельная оплата.
@@ -2717,7 +2721,7 @@ async def move_appointment(
     _assert_slot_in_specialist_schedule(specialist, start_at)
     prev_start = _ensure_utc(appt.start_at)
     prev_end = _ensure_utc(appt.end_at)
-    existing_min = max(15, int((prev_end - prev_start).total_seconds() // 60))
+    existing_min = max(10, int((prev_end - prev_start).total_seconds() // 60))
     duration_min = _appointment_duration_minutes(
         specialist,
         direction,

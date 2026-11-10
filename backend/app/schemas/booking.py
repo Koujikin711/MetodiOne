@@ -87,7 +87,7 @@ class BookingSpecialistCreate(BaseModel):
     )
     phone: str | None = Field(None, max_length=64)
     specialization: str | None = Field(None, max_length=255)
-    slot_duration_min: int = Field(30, ge=15, le=240)
+    slot_duration_min: int = Field(30, ge=10, le=240)
     work_start_hour: int = Field(9, ge=BOOKING_GRID_START_HOUR, le=BOOKING_GRID_END_HOUR - 1)
     work_end_hour: int = Field(18, ge=BOOKING_GRID_START_HOUR + 1, le=BOOKING_GRID_END_HOUR)
     work_weekdays: list[int] = Field(
@@ -125,7 +125,7 @@ class BookingSpecialistUpdate(BaseModel):
     )
     phone: str | None = Field(None, max_length=64)
     specialization: str | None = Field(None, max_length=255)
-    slot_duration_min: int | None = Field(None, ge=15, le=240)
+    slot_duration_min: int | None = Field(None, ge=10, le=240)
     work_start_hour: int | None = Field(None, ge=BOOKING_GRID_START_HOUR, le=BOOKING_GRID_END_HOUR - 1)
     work_end_hour: int | None = Field(None, ge=BOOKING_GRID_START_HOUR + 1, le=BOOKING_GRID_END_HOUR)
     work_weekdays: list[int] | None = None
@@ -234,6 +234,12 @@ class BookingAppointmentCreate(BaseModel):
         le=15,
         description="Число календарных дней подряд (только для направлений с потоками)",
     )
+    duration_min: int | None = Field(
+        None,
+        ge=10,
+        le=240,
+        description="Длительность этой записи. Если не указано — из услуги, иначе слот специалиста.",
+    )
 
     @field_validator("extra_phones")
     @classmethod
@@ -310,7 +316,7 @@ class BookingAppointmentMove(BaseModel):
     start_at: datetime
     duration_min: int | None = Field(
         None,
-        ge=15,
+        ge=10,
         le=240,
         description="Явная длительность (напр. ужать час до 30). Иначе сохраняется текущая длина записи.",
     )

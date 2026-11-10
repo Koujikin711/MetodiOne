@@ -31,6 +31,7 @@ import {
   canBookCourseLike,
   isAdminOnlyBookingDirectionName,
   isConsultationDirectionName,
+  isEegDurationOverrideService,
   isGanchinaSpecialistName,
   isHiddenBookingDirectionName,
 } from "@/lib/bookingDirectionKinds";
@@ -235,6 +236,8 @@ export function OnlineBookingPage() {
   const [comment, setComment] = useState("");
   const [seriesBookingEnabled, setSeriesBookingEnabled] = useState(false);
   const [consecutiveDays, setConsecutiveDays] = useState(5);
+  /** Длительность этой записи; по умолчанию из услуги / эксперта, можно сменить. */
+  const [bookingDurationMin, setBookingDurationMin] = useState<number>(30);
   const [patientSuggestOpen, setPatientSuggestOpen] = useState(false);
   const [patientSuggestDebounced, setPatientSuggestDebounced] = useState("");
   const [patientFieldFocus, setPatientFieldFocus] = useState<"name" | "phone" | null>(null);
@@ -687,8 +690,9 @@ export function OnlineBookingPage() {
       const dirId = Number(variables.direction_id);
       const dir = (directionsQuery.data ?? []).find((d) => d.id === dirId);
       const durMin = Math.max(
-        15,
-        dir?.duration_min ??
+        10,
+        Number(variables.duration_min) ||
+          dir?.duration_min ||
           Math.round(
             (new Date(created.end_at).getTime() - new Date(created.start_at).getTime()) / 60000,
           ),
@@ -1239,18 +1243,31 @@ export function OnlineBookingPage() {
     });
   }
 
+  function resolveBookingDurationMin(opts?: {
+    directionId?: number | "";
+    specialistId?: number;
+  }): number {
+    const dirId = opts?.directionId !== undefined ? opts.directionId : serviceDirectionId;
+    const specId = opts?.specialistId !== undefined ? opts.specialistId : specialistId;
+    const dir =
+      dirId !== ""
+        ? (directionsQuery.data ?? []).find((d) => d.id === dirId)
+        : undefined;
+    const spec = specialistsQuery.data?.find((s) => s.id === specId);
+    return Math.max(10, dir?.duration_min ?? spec?.slot_duration_min ?? 30);
+  }
+
   function handleSlotClick(payload: { specialistId: number; directionId: number; dateYmd: string; minuteOfDay: number }) {
     setSpecialistId(payload.specialistId);
     setFilterDate(payload.dateYmd);
     const hh = Math.floor(payload.minuteOfDay / 60);
     const mm = payload.minuteOfDay % 60;
     setStartAt(`${payload.dateYmd}T${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`);
-    const dir =
-      serviceDirectionId !== ""
-        ? (directionsQuery.data ?? []).find((d) => d.id === serviceDirectionId)
-        : undefined;
-    const spec = specialistsQuery.data?.find((s) => s.id === payload.specialistId);
-    const dur = Math.max(15, dir?.duration_min ?? spec?.slot_duration_min ?? 30);
+    const dur = resolveBookingDurationMin({
+      directionId: serviceDirectionId !== "" ? serviceDirectionId : payload.directionId,
+      specialistId: payload.specialistId,
+    });
+    setBookingDurationMin(dur);
     const durLabel = dur === 60 ? "1 час" : dur === 30 ? "полчаса" : `${dur} мин`;
     toast.success(`Слот ${hh}:${String(mm).padStart(2, "0")} · ${durLabel}`);
     window.setTimeout(() => {
@@ -1267,6 +1284,7 @@ export function OnlineBookingPage() {
     }
     setServiceDirectionId(dir.id);
     setServiceTitle(dir.name);
+    setBookingDurationMin(resolveBookingDurationMin({ directionId: dir.id }));
     if (!isReferralService(dir.name, dir.name)) setReferredByUserId("");
   }
 
@@ -1446,6 +1464,14 @@ export function OnlineBookingPage() {
     }
     if (typeof referredByUserId === "number") {
       payload.referred_by_user_id = referredByUserId;
+    }
+    // Длительность вручную — только ЭЭГ (шаблон 10 мин → иногда 1–2 часа).
+    if (
+      isEegDurationOverrideService(selectedDir?.name, serviceTitle) &&
+      Number.isFinite(bookingDurationMin) &&
+      bookingDurationMin >= 10
+    ) {
+      payload.duration_min = Math.max(10, Number(bookingDurationMin) || 30);
     }
     createMutation.mutate(payload);
   }
@@ -1860,7 +1886,11 @@ export function OnlineBookingPage() {
                   <select
                     required
                     value={specialistId || ""}
-                    onChange={(e) => setSpecialistId(Number(e.target.value))}
+                    onChange={(e) => {
+                      const id = Number(e.target.value);
+                      setSpecialistId(id);
+                      setBookingDurationMin(resolveBookingDurationMin({ specialistId: id }));
+                    }}
                     className="mt-1 w-full mo-input"
                   >
                     {specialistsForFormSelect.map((s) => (
@@ -1882,6 +1912,44 @@ export function OnlineBookingPage() {
                     aria-label="Дата и время записи"
                   />
                 </label>
+                {isEegDurationOverrideService(
+                  (directionsQuery.data ?? []).find((d) => d.id === serviceDirectionId)?.name,
+                  serviceTitle,
+                ) ? (
+                  <label className="block text-sm mo-muted">
+                    Длительность ЭЭГ
+                    <select
+                      value={bookingDurationMin}
+                      onChange={(e) => setBookingDurationMin(Number(e.target.value))}
+                      className="mt-1 w-full mo-input"
+                      aria-label="Длительность ЭЭГ"
+                    >
+                      {(() => {
+                        const fromService = resolveBookingDurationMin();
+                        const base = [10, 60, 90, 120];
+                        const opts = [...base, bookingDurationMin, fromService]
+                          .filter((n) => Number.isFinite(n) && n >= 10)
+                          .filter((n, i, arr) => arr.indexOf(n) === i)
+                          .sort((a, b) => a - b);
+                        const labelFor = (n: number) => {
+                          if (n === 60) return "1 час";
+                          if (n === 90) return "1.5 часа";
+                          if (n === 120) return "2 часа";
+                          return `${n} мин`;
+                        };
+                        return opts.map((n) => (
+                          <option key={n} value={n}>
+                            {labelFor(n)}
+                            {n === fromService ? " · по услуге" : ""}
+                          </option>
+                        ));
+                      })()}
+                    </select>
+                    <span className="mt-1 block text-[11px] mo-muted">
+                      Только для ЭЭГ: обычно 10 мин, длинный мониторинг — 1 или 2 часа.
+                    </span>
+                  </label>
+                ) : null}
                 <div className="space-y-2 rounded-lg border border-[var(--mo-border)] bg-[var(--mo-surface-soft)] p-3">
                   <label className="flex cursor-pointer items-start gap-2 text-sm text-[var(--mo-text)]">
                     <input

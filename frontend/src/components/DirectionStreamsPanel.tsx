@@ -85,7 +85,7 @@ export function DirectionStreamsPanel() {
       <div className="direction-streams-legend rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-2 text-[11px] leading-relaxed mo-muted">
         <p>
           <b className="text-[var(--mo-text)]">День</b> — сколько приёмов в одном потоке (15 → после 1:15 будет 2:1).{" "}
-          <b className="text-[var(--mo-text)]">Мин</b> — длительность одного сеанса (30 или 60).{" "}
+          <b className="text-[var(--mo-text)]">Мин</b> — длительность сеанса у услуги (10, 15, 21, 30, 60…).{" "}
           <b className="text-[var(--mo-text)]">Пауза</b> — через сколько дней без визита снова начинать процедуру (
           <b className="text-[var(--mo-text)]">2:1</b>).
         </p>
@@ -217,8 +217,8 @@ function DirectionRow({
           className="mo-input direction-streams-num"
           type="number"
           min={10}
-          max={180}
-          step={5}
+          max={480}
+          step={1}
           value={durationMin}
           onChange={(e) => setDurationMin(e.target.value)}
           aria-label="Мин — длительность сеанса"

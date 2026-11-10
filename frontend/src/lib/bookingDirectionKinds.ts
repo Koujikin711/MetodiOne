@@ -45,6 +45,23 @@ export function isConsultationDirectionName(name: string | null | undefined): bo
   return k.includes("консульт") || k.includes("консулт") || k.startsWith("консульт");
 }
 
+/**
+ * ЭЭГ: шаблон часто 10 мин, но иногда пишут на 1–2 часа.
+ * Только для этой услуги в форме записи показываем выбор длительности.
+ */
+export function isEegDurationOverrideService(
+  ...names: Array<string | null | undefined>
+): boolean {
+  return names.some((name) => {
+    const k = normalizeName(name);
+    if (!k) return false;
+    // ЭЭГ / EEG / Q-ЭЭГ — не КЭЭГ и не «тмс»
+    if (k === "ээг" || k === "eeg" || k === "q-ээг" || k === "qeeg" || k === "q ээг") return true;
+    if (k.startsWith("ээг ") || k.startsWith("eeg ") || k.startsWith("q-ээг")) return true;
+    return false;
+  });
+}
+
 export function isGanchinaSpecialistName(name: string | null | undefined): boolean {
   const k = normalizeName(name);
   return k.includes("ганчин") || (k.includes("замири") && k.includes("ганч"));

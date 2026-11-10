@@ -1760,6 +1760,42 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   display: flex;
   flex-direction: column;
 }
+
+/* Короткие сеансы 10 / 15 / 21 мин — компактная карточка в сетке */
+.booking-appt-bitrix--short {
+  padding: 0.12rem 0.35rem !important;
+  min-height: 0;
+  line-height: 1.15;
+}
+.booking-appt-bitrix--short .booking-appt-card-body {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  height: auto;
+  flex: 0 0 auto;
+}
+.booking-appt-bitrix--short .booking-appt-head {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.booking-appt-bitrix--short .booking-appt-foot {
+  margin-top: 0;
+  flex-shrink: 0;
+  gap: 0.35rem;
+}
+.booking-appt-bitrix--short .booking-appt-note-btn {
+  padding: 0;
+}
+.booking-appt-bitrix--short .booking-appt-foot > span:first-child {
+  /* время рядом со счётчиком в одной полосе */
+  opacity: 0.85;
+}
+.booking-week-grid__half-stack--hour-only > .booking-appt-bitrix--short,
+.booking-week-grid__half-stack > .booking-appt-bitrix--short {
+  flex: 0 0 auto;
+}
 .booking-appt-done-badge {
   color: #16a34a;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));

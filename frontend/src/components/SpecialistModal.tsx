@@ -278,6 +278,9 @@ export function SpecialistModal({
                   onChange={(e) => setSlotDurationMin(Number(e.target.value))}
                   className="mo-input mt-1 w-full text-sm"
                 >
+                  <option value={10}>10 минут</option>
+                  <option value={15}>15 минут</option>
+                  <option value={21}>21 минута</option>
                   <option value={30}>30 минут</option>
                   <option value={60}>1 час</option>
                   <option value={90}>1.5 часа</option>
