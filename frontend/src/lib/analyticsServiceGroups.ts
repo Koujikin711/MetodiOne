@@ -1,4 +1,7 @@
-import { isCourseLikeDirectionName } from "@/lib/bookingDirectionKinds";
+import {
+  isConsultationDirectionName,
+  isCourseLikeDirectionName,
+} from "@/lib/bookingDirectionKinds";
 
 export type AnalyticsServiceGroup = "sales" | "clinic" | "extra";
 
@@ -11,7 +14,7 @@ export const ANALYTICS_SERVICE_GROUP_LABELS: Record<AnalyticsServiceGroup, strin
 };
 
 export const ANALYTICS_SERVICE_GROUP_HINTS: Record<AnalyticsServiceGroup, string> = {
-  sales: "Курс 15, Курс и Протокол",
+  sales: "Курс 15, Курс, Протокол и Консультация",
   clinic: "Визиты и процедуры клиники",
   extra: "Анализы и УЗИ",
 };
@@ -30,7 +33,13 @@ export function analyticsServiceGroup(row: {
     if (k.startsWith("стол") || k.includes("продажи стола")) return "clinic";
     return "extra";
   }
-  if (src === "kpi" || isCourseLikeDirectionName(name)) return "sales";
+  if (
+    src === "kpi" ||
+    isCourseLikeDirectionName(name) ||
+    isConsultationDirectionName(name)
+  ) {
+    return "sales";
+  }
   return "clinic";
 }
 

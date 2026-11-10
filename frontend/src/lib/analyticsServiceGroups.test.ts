@@ -3,10 +3,11 @@ import { describe, expect, it } from "vitest";
 import { analyticsServiceGroup, partitionAnalyticsServices } from "./analyticsServiceGroups";
 
 describe("analyticsServiceGroup", () => {
-  it("puts course-like and KPI into sales", () => {
+  it("puts course-like, consultation and KPI into sales", () => {
     expect(analyticsServiceGroup({ direction_name: "Курс 15" })).toBe("sales");
     expect(analyticsServiceGroup({ direction_name: "Курс", money_source: "kpi" })).toBe("sales");
     expect(analyticsServiceGroup({ direction_name: "Протокол", money_source: "kpi" })).toBe("sales");
+    expect(analyticsServiceGroup({ direction_name: "Консультация" })).toBe("sales");
     expect(analyticsServiceGroup({ direction_name: "Долг прошлых месяцев" })).toBe("sales");
   });
 
