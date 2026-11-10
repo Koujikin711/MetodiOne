@@ -148,9 +148,16 @@ function appointmentStartMinute(a: BookingAppointment): number {
 
 type DayRow =
   | { kind: "slot"; minute: number; closed?: boolean }
-  | { kind: "appts"; appointments: BookingAppointment[] };
+  /** Только записи на :00 — одна сетка на весь час (без колонки :30). */
+  | { kind: "hourOnly"; hourStart: number; appointments: BookingAppointment[] }
+  /** Есть :30 или обе половины — слева :00, справа :30. */
+  | {
+      kind: "hourSplit";
+      hourStart: number;
+      left: BookingAppointment[];
+      right: BookingAppointment[];
+    };
 
-/** Один ряд на :00 или на :30 — в ряду до двух карточек рядом. */
 function appointmentPairBucket(a: BookingAppointment): number {
   return Math.floor(appointmentStartMinute(a) / 30) * 30;
 }
@@ -160,8 +167,8 @@ function buildDayRows(
   dateYmd: string,
   dayAppts: BookingAppointment[],
 ): DayRow[] | null {
-  // Пустые пунктиры — только :00 без записей в часе.
-  // Две записи на 15:00 или на 15:30 — рядом в одном ряду (как на скрине).
+  // Запись только на час (:00) → одна сетка на час.
+  // Если есть :30 → ряд :00 | :30 (свободно / карточка).
   if (!isSpecWorkingDay(spec, dateYmd)) return null;
   const startMin = (spec.work_start_hour ?? 9) * 60;
   const endMin = (spec.work_end_hour ?? 18) * 60;
@@ -178,44 +185,23 @@ function buildDayRows(
     list.sort((a, b) => appointmentStartMinute(a) - appointmentStartMinute(b) || a.id - b.id);
   }
 
-  const hoursWithAppt = new Set<number>();
-  for (const a of dayAppts) {
-    hoursWithAppt.add(Math.floor(appointmentStartMinute(a) / 60));
-  }
-
   const out: DayRow[] = [];
-  const emitted = new Set<number>();
-
   for (let hour = Math.floor(startMin / 60); hour < Math.ceil(endMin / 60); hour += 1) {
     const hourStart = hour * 60;
     if (hourStart < startMin || hourStart >= endMin) continue;
-
-    for (const bucket of [hourStart, hourStart + 30]) {
-      if (bucket < startMin || bucket >= endMin) continue;
-      const group = byBucket.get(bucket);
-      if (!group?.length) continue;
-      for (let j = 0; j < group.length; j += 2) {
-        const pair = group.slice(j, j + 2);
-        for (const a of pair) emitted.add(a.id);
-        out.push({ kind: "appts", appointments: pair });
-      }
-    }
-
-    if (!hoursWithAppt.has(hour)) {
+    const left = byBucket.get(hourStart) ?? [];
+    const right = hourStart + 30 < endMin ? (byBucket.get(hourStart + 30) ?? []) : [];
+    if (left.length === 0 && right.length === 0) {
       out.push({ kind: "slot", minute: hourStart });
+      continue;
     }
-  }
-
-  const orphanBuckets = [...byBucket.entries()]
-    .filter(([, list]) => list.some((a) => !emitted.has(a.id)))
-    .sort(([a], [b]) => a - b);
-  for (const [, list] of orphanBuckets) {
-    const rest = list.filter((a) => !emitted.has(a.id));
-    for (let j = 0; j < rest.length; j += 2) {
-      out.push({ kind: "appts", appointments: rest.slice(j, j + 2) });
+    if (right.length === 0) {
+      // Только час — без второй колонки «:30 свободно».
+      out.push({ kind: "hourOnly", hourStart, appointments: left });
+      continue;
     }
+    out.push({ kind: "hourSplit", hourStart, left, right });
   }
-
   return out;
 }
 
@@ -456,12 +442,25 @@ function SortableSpecialistRow({
                   </div>
                 ) : (
                   (dayRows ?? []).map((row) => {
-                    if (row.kind === "appts") {
-                      const sideBySide = row.appointments.length > 1;
+                    const renderApptCard = (a: BookingAppointment, dropMinute: number) => {
+                      const timeLabel = showSessionInsteadOfTime ? null : formatTimeInBookingTz(a.start_at);
                       return (
                         <div
-                          key={row.appointments.map((a) => a.id).join("-")}
-                          className={sideBySide ? "booking-week-grid__pair" : "min-w-0"}
+                          key={a.id}
+                          role="button"
+                          tabIndex={0}
+                          draggable={Boolean(onMoveAppointment) && a.status === "booked"}
+                          onDragStart={(e: ReactDragEvent) => {
+                            e.stopPropagation();
+                            e.dataTransfer.setData("text/appointment-id", String(a.id));
+                            e.dataTransfer.effectAllowed = "move";
+                            e.currentTarget.classList.add("is-dragging");
+                            document.documentElement.classList.add("booking-appt-moving");
+                          }}
+                          onDragEnd={(e) => {
+                            e.currentTarget.classList.remove("is-dragging");
+                            document.documentElement.classList.remove("booking-appt-moving");
+                          }}
                           onDragOver={(e) => {
                             if (!onMoveAppointment) return;
                             e.preventDefault();
@@ -473,51 +472,126 @@ function SortableSpecialistRow({
                             e.stopPropagation();
                             const id = Number(e.dataTransfer.getData("text/appointment-id"));
                             if (!Number.isFinite(id)) return;
+                            document.documentElement.classList.remove("booking-appt-moving");
                             onMoveAppointment({
                               appointmentId: id,
                               specialistId: spec.id,
                               dateYmd,
-                              minuteOfDay: appointmentStartMinute(row.appointments[0]),
+                              minuteOfDay: dropMinute,
+                            });
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onAppointmentClick(a);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key !== "Enter" && e.key !== " ") return;
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onAppointmentClick(a);
+                          }}
+                          className={[
+                            "booking-appt-bitrix relative w-full overflow-visible rounded-md px-1.5 py-1 text-left",
+                            onMoveAppointment && a.status === "booked"
+                              ? "cursor-grab active:cursor-grabbing"
+                              : "",
+                            appointmentVisualClass(a),
+                          ].join(" ")}
+                        >
+                          <BookingAppointmentCardBody
+                            appointment={a}
+                            timeLabel={timeLabel}
+                            canEditNotes={canEditNotes}
+                            onNoteClick={onAppointmentNoteClick}
+                            canToggleComplete={canToggleComplete}
+                            onCompleteToggle={onAppointmentCompleteToggle}
+                          />
+                        </div>
+                      );
+                    };
+
+                    const renderHalfFree = (minute: number) => {
+                      const slotCanAdd = Boolean(onSlotClick);
+                      const slotCanDrop = Boolean(onMoveAppointment);
+                      return (
+                        <button
+                          key={`half-free-${minute}`}
+                          type="button"
+                          className={[
+                            "booking-week-grid__empty-slot booking-week-grid__half-free w-full rounded-md border border-dashed px-1.5 py-1 text-left",
+                            slotCanAdd || slotCanDrop
+                              ? "cursor-pointer border-[var(--mo-border-strong)]/55 transition hover:border-indigo-500/40 hover:bg-indigo-500/[0.06]"
+                              : "cursor-default border-[var(--mo-border)]/40 opacity-60",
+                          ].join(" ")}
+                          title={
+                            slotCanAdd
+                              ? `Записать на ${formatMinuteLabel(minute)}`
+                              : `Свободно ${formatMinuteLabel(minute)}`
+                          }
+                          onDragOver={(e) => {
+                            if (!slotCanDrop) return;
+                            e.preventDefault();
+                            e.stopPropagation();
+                            e.currentTarget.classList.add("is-drop-target");
+                          }}
+                          onDragLeave={(e) => e.currentTarget.classList.remove("is-drop-target")}
+                          onDrop={(e) => {
+                            if (!onMoveAppointment) return;
+                            e.preventDefault();
+                            e.stopPropagation();
+                            e.currentTarget.classList.remove("is-drop-target");
+                            const id = Number(e.dataTransfer.getData("text/appointment-id"));
+                            if (!Number.isFinite(id)) return;
+                            document.documentElement.classList.remove("booking-appt-moving");
+                            onMoveAppointment({
+                              appointmentId: id,
+                              specialistId: spec.id,
+                              dateYmd,
+                              minuteOfDay: minute,
+                            });
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!slotCanAdd) return;
+                            onSlotClick?.({
+                              specialistId: spec.id,
+                              directionId: spec.direction_id,
+                              dateYmd,
+                              minuteOfDay: minute,
                             });
                           }}
                         >
-                          {row.appointments.map((a) => {
-                            const timeLabel = showSessionInsteadOfTime ? null : formatTimeInBookingTz(a.start_at);
+                          <span className="text-[10px] font-semibold tabular-nums leading-none text-[var(--mo-text-muted)]">
+                            {formatMinuteLabel(minute)} свободно
+                          </span>
+                        </button>
+                      );
+                    };
+
+                    if (row.kind === "hourOnly") {
+                      // Только час: каждая запись — одна сетка на всю ширину (не :00|:30).
+                      return (
+                        <div
+                          key={`hour-only-${key}-${row.hourStart}`}
+                          className="booking-week-grid__half-stack min-w-0"
+                        >
+                          {row.appointments.map((a) => renderApptCard(a, row.hourStart))}
+                        </div>
+                      );
+                    }
+
+                    if (row.kind === "hourSplit") {
+                      const halves: { minute: number; appts: BookingAppointment[] }[] = [
+                        { minute: row.hourStart, appts: row.left },
+                        { minute: row.hourStart + 30, appts: row.right },
+                      ];
+                      return (
+                        <div key={`hour-split-${key}-${row.hourStart}`} className="booking-week-grid__pair">
+                          {halves.map(({ minute, appts }) => {
+                            if (appts.length === 0) return renderHalfFree(minute);
                             return (
-                              <div
-                                key={a.id}
-                                role="button"
-                                tabIndex={0}
-                                draggable={Boolean(onMoveAppointment) && a.status === "booked"}
-                                onDragStart={(e: ReactDragEvent) => {
-                                  e.stopPropagation();
-                                  e.dataTransfer.setData("text/appointment-id", String(a.id));
-                                  e.dataTransfer.effectAllowed = "move";
-                                }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onAppointmentClick(a);
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key !== "Enter" && e.key !== " ") return;
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  onAppointmentClick(a);
-                                }}
-                                className={[
-                                  "booking-appt-bitrix relative w-full overflow-visible rounded-md px-1.5 py-1 text-left",
-                                  onMoveAppointment && a.status === "booked" ? "cursor-grab active:cursor-grabbing" : "",
-                                  appointmentVisualClass(a),
-                                ].join(" ")}
-                              >
-                                <BookingAppointmentCardBody
-                                  appointment={a}
-                                  timeLabel={timeLabel}
-                                  canEditNotes={canEditNotes}
-                                  onNoteClick={onAppointmentNoteClick}
-                                  canToggleComplete={canToggleComplete}
-                                  onCompleteToggle={onAppointmentCompleteToggle}
-                                />
+                              <div key={`half-${minute}`} className="booking-week-grid__half-stack min-w-0">
+                                {appts.map((a) => renderApptCard(a, minute))}
                               </div>
                             );
                           })}
@@ -546,6 +620,7 @@ function SortableSpecialistRow({
                           e.currentTarget.classList.remove("is-drop-target");
                           const id = Number(e.dataTransfer.getData("text/appointment-id"));
                           if (!Number.isFinite(id)) return;
+                          document.documentElement.classList.remove("booking-appt-moving");
                           onMoveAppointment({
                             appointmentId: id,
                             specialistId: spec.id,
@@ -616,6 +691,12 @@ export function BookingWeekSpecialistGrid({
   const todayYmd = ymdInBookingTz(Date.now());
   const sortedSpecs = useMemo(() => sortSpecs(specialists), [specialists]);
   const [expandedSpecId, setExpandedSpecId] = useState<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      document.documentElement.classList.remove("booking-appt-moving");
+    };
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 10 } }),

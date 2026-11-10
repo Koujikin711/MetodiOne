@@ -3221,6 +3221,23 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   min-height: 1.35rem;
 }
 
+/* Ряд часа: слева :00, справа :30. Несколько записей в одной половине — столбиком. */
+.booking-week-grid__half-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+html.booking-appt-moving .booking-week-grid__half-stack .booking-appt-bitrix.is-dragging {
+  opacity: 0.35;
+}
+
+html.booking-appt-moving .booking-week-grid__half-free.is-drop-target {
+  border-color: color-mix(in srgb, var(--mo-accent) 70%, transparent);
+  background: color-mix(in srgb, var(--mo-accent) 16%, transparent);
+}
+
 .booking-week-grid__empty-slot.is-drop-target {
   border-color: color-mix(in srgb, var(--mo-accent) 70%, transparent);
   background: color-mix(in srgb, var(--mo-accent) 16%, transparent);
