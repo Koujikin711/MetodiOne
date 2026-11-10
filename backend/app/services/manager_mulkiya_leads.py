@@ -1,8 +1,7 @@
 """Хайдарзода Мулкия — в общей очереди новых лидов.
 
-До вторника 10.11.2026 (Душанбе) ей можно отдать только 1 новый лид,
-созданный с 6.11. Дальше до этой даты новые лиды её пропускают.
-С 10.11 снова без этого потолка. Архив сюда не входит.
+До понедельника 16.11.2026 (00:00 Душанбе) новые лиды ей не назначаются.
+Архивная дневная раздача сюда не входит (её режет accepts_new_leads / квота).
 """
 
 from __future__ import annotations
@@ -10,13 +9,13 @@ from __future__ import annotations
 import logging
 import re
 import unicodedata
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Lead, Pipeline, User, UserPipelineAssignment, UserRole
+from app.models import Pipeline, User, UserPipelineAssignment, UserRole
 
 logger = logging.getLogger(__name__)
 
@@ -27,23 +26,25 @@ def _norm_name(value: str | None) -> str:
     return re.sub(r"\s+", " ", raw).strip()
 
 
-# До этой даты (не включая) у Мулкии потолок на новые лиды.
-MULKIYA_ONLY_NEW_LEADS_UNTIL = date(2026, 11, 10)
-# Считаем новые карточки, созданные с этой даты по Душанбе.
-MULKIYA_NEW_LEAD_CAP_FROM = date(2026, 11, 6)
-MULKIYA_NEW_LEAD_CAP = 1
+# До этой даты (не включая) Мулкия не получает новые лиды (Meta/WA/форма).
+MULKIYA_NO_NEW_LEADS_UNTIL = date(2026, 11, 16)  # понедельник
 
 
 def _dushanbe_tz() -> ZoneInfo:
     return ZoneInfo("Asia/Dushanbe")
 
 
-def new_leads_only_mulkiya(now: datetime | None = None) -> bool:
-    """True, пока действует потолок «1 новый лид» (до 10.11.2026 00:00 Душанбе)."""
+def mulkiya_blocked_from_new_leads(now: datetime | None = None) -> bool:
+    """True, пока Мулкии нельзя давать новые лиды (до пн 16.11.2026 00:00 Душанбе)."""
     clock = now or datetime.now(UTC)
     if clock.tzinfo is None:
         clock = clock.replace(tzinfo=UTC)
-    return clock.astimezone(_dushanbe_tz()).date() < MULKIYA_ONLY_NEW_LEADS_UNTIL
+    return clock.astimezone(_dushanbe_tz()).date() < MULKIYA_NO_NEW_LEADS_UNTIL
+
+
+# Совместимость со старым именем в тестах / импортах.
+def new_leads_only_mulkiya(now: datetime | None = None) -> bool:
+    return mulkiya_blocked_from_new_leads(now)
 
 
 def is_mulkiya_haidarzoda(full_name: str | None) -> bool:
@@ -53,32 +54,11 @@ def is_mulkiya_haidarzoda(full_name: str | None) -> bool:
         return False
     has_mulkiya = "мулки" in n or "mulkiy" in n or "mulkia" in n
     has_haidar = "хайдар" in n or "haidar" in n or "haydar" in n
-    # ФИО в аналитике: «Хайдарзода Мулкия»
     if has_mulkiya and has_haidar:
         return True
-    # Иногда только «Мулкия» как единственное слово-имя среди менеджеров
     if n in {"мулкия", "mulkiya", "mulkia"}:
         return True
     return False
-
-
-async def mulkiya_new_lead_cap_reached(
-    db: AsyncSession,
-    *,
-    company_id: int,
-    user_id: int,
-) -> bool:
-    """Уже есть 1 новый лид с 6.11 по Душанбе. Архивные реактивации не считаются: у них старый created_at."""
-    start = datetime.combine(MULKIYA_NEW_LEAD_CAP_FROM, time.min, tzinfo=_dushanbe_tz()).astimezone(UTC)
-    cnt = await db.scalar(
-        select(func.count(Lead.id)).where(
-            Lead.company_id == company_id,
-            Lead.manager_id == user_id,
-            Lead.created_at.is_not(None),
-            Lead.created_at >= start,
-        ),
-    )
-    return int(cnt or 0) >= MULKIYA_NEW_LEAD_CAP
 
 
 async def mulkiya_manager_id(db: AsyncSession, *, company_id: int) -> int | None:
@@ -113,7 +93,6 @@ async def apply_mulkiya_receives_new_leads(db: AsyncSession) -> dict[str, int | 
 
     target = next((u for u in managers if is_mulkiya_haidarzoda(u.full_name)), None)
     if target is None:
-        # Иногда роль admin — тогда в RR её нет, но в Analytics она видна с 0.
         admins = (
             await db.execute(
                 select(User).where(
@@ -141,7 +120,6 @@ async def apply_mulkiya_receives_new_leads(db: AsyncSession) -> dict[str, int | 
 
     changed = 0
 
-    # Снять с intake — иначе lead_assignment исключает её из round-robin.
     intake_pipes = (
         await db.execute(
             select(Pipeline).where(
@@ -171,7 +149,6 @@ async def apply_mulkiya_receives_new_leads(db: AsyncSession) -> dict[str, int | 
         ).scalars().all()
     }
 
-    # Воронки, куда уже назначены другие менеджеры компании (те же, что получают лиды).
     peer_pipe_ids = {
         int(r)
         for r in (
@@ -224,4 +201,5 @@ async def apply_mulkiya_receives_new_leads(db: AsyncSession) -> dict[str, int | 
         "updated": changed,
         "user_id": int(target.id),
         "added_pipelines": added_assignments,
+        "blocked_new_until": MULKIYA_NO_NEW_LEADS_UNTIL.isoformat(),
     }

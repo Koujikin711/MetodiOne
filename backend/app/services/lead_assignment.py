@@ -11,9 +11,8 @@ from app.core.rbac import is_lead_assignee_role
 from app.models import Lead, Pipeline, PipelineStage, User, UserPipelineAssignment, UserRole
 from app.services.manager_daily_lead_quotas import filter_managers_by_new_leads_quota
 from app.services.manager_mulkiya_leads import (
+    mulkiya_blocked_from_new_leads,
     mulkiya_manager_id,
-    mulkiya_new_lead_cap_reached,
-    new_leads_only_mulkiya,
 )
 
 logger = logging.getLogger(__name__)
@@ -135,11 +134,10 @@ async def assign_manager_for_new_lead(
         if not user_ids:
             return None
 
-    if new_leads_only_mulkiya():
+    # Мулкия: до пн 16.11 — без новых лидов (архив не трогаем).
+    if mulkiya_blocked_from_new_leads():
         mulkiya_id = await mulkiya_manager_id(db, company_id=company_id)
-        if mulkiya_id is not None and await mulkiya_new_lead_cap_reached(
-            db, company_id=company_id, user_id=mulkiya_id,
-        ):
+        if mulkiya_id is not None:
             user_ids = [uid for uid in user_ids if uid != mulkiya_id]
             if not user_ids:
                 return None
