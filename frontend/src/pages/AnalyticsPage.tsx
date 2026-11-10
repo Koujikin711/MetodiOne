@@ -2,6 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
+import {
+  ANALYTICS_SERVICE_GROUP_HINTS,
+  ANALYTICS_SERVICE_GROUP_LABELS,
+  ANALYTICS_SERVICE_GROUP_ORDER,
+  partitionAnalyticsServices,
+} from "@/lib/analyticsServiceGroups";
 import { appLexicon } from "@/lib/appLexicon";
 import { formatMoney } from "@/lib/money";
 import { AnalyticsServicesCharts } from "@/components/analytics/AnalyticsServicesCharts";
@@ -296,6 +302,7 @@ export function AnalyticsPage() {
     !servicesLiveEmpty && servicesQuery.data
       ? (servicesQuery.data.service_stats ?? [])
       : (snapshotQuery.data?.service_stats ?? []);
+  const serviceGroups = useMemo(() => partitionAnalyticsServices(serviceRows), [serviceRows]);
   const chartServices = serviceRows.filter((row) => row.direction_name !== "Долг прошлых месяцев");
   const chartExperts =
     !servicesLiveEmpty && servicesQuery.data
@@ -456,9 +463,11 @@ export function AnalyticsPage() {
                     servicesQuery.data?.date_from && servicesQuery.data?.date_to
                       ? `${servicesQuery.data.date_from}_${servicesQuery.data.date_to}`
                       : period;
+                  const grouped = partitionAnalyticsServices(serviceRows);
                   downloadCsv(
                     `analytics_services_${stamp}.csv`,
                     [
+                      "Группа",
                       "Услуга",
                       "Записей",
                       "Явились",
@@ -468,16 +477,19 @@ export function AnalyticsPage() {
                       "Всего оплат",
                       "Дебиторка",
                     ],
-                    serviceRows.map((s) => [
-                      s.direction_name,
-                      s.appointments_total,
-                      s.appeared_count,
-                      s.no_show_count,
-                      s.booked_count ?? 0,
-                      Number(s.paid_full_amount ?? 0),
-                      Number(s.revenue_paid),
-                      Number(s.debtor_amount ?? 0),
-                    ]),
+                    ANALYTICS_SERVICE_GROUP_ORDER.flatMap((g) =>
+                      grouped[g].map((s) => [
+                        ANALYTICS_SERVICE_GROUP_LABELS[g],
+                        s.direction_name,
+                        s.appointments_total,
+                        s.appeared_count,
+                        s.no_show_count,
+                        s.booked_count ?? 0,
+                        Number(s.paid_full_amount ?? 0),
+                        Number(s.revenue_paid),
+                        Number(s.debtor_amount ?? 0),
+                      ]),
+                    ),
                   );
                   return;
                 }
@@ -629,57 +641,68 @@ export function AnalyticsPage() {
 
               <AnalyticsServicesCharts services={chartServices} experts={chartExperts} />
 
-              <AnalyticsPanel title="По услугам">
-                <AnalyticsTable minWidth={1100}>
-                  <thead>
-                    <tr>
-                      <th className="py-2 pr-3">Услуга</th>
-                      <th className="py-2 pr-3">Записей</th>
-                      <th className="py-2 pr-3">Явились</th>
-                      <th className="py-2 pr-3">Не явились</th>
-                      <th className="py-2 pr-3">Ещё booked</th>
-                      <th className="py-2 pr-3">Оплачено полностью</th>
-                      <th className="py-2 pr-3">Всего оплат</th>
-                      <th className="py-2 pr-3">Дебиторка</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {serviceRows.length === 0 ? (
-                      <tr>
-                        <td colSpan={8} className="analytics-empty-cell">
-                          Нет записей за месяц
-                        </td>
-                      </tr>
-                    ) : (
-                      serviceRows.map((s) => (
-                        <tr key={`${s.money_source ?? "booking"}-${s.direction_id ?? s.direction_name}`}>
-                          <td className="py-2.5 pr-3 font-medium">
-                            {s.direction_name}
-                            {s.money_source === "kpi" ? (
-                              <span className="ml-1.5 text-xs font-normal mo-muted">KPI</span>
-                            ) : s.money_source === "mixed" ? (
-                              <span className="ml-1.5 text-xs font-normal mo-muted">запись+KPI</span>
-                            ) : s.money_source === "extra" ? (
-                              <span className="ml-1.5 text-xs font-normal mo-muted">доп.</span>
-                            ) : null}
-                          </td>
-                          <td className="py-2.5 pr-3 tabular-nums">{s.appointments_total}</td>
-                          <td className="py-2.5 pr-3 tabular-nums">{s.appeared_count}</td>
-                          <td className="py-2.5 pr-3 tabular-nums">{s.no_show_count}</td>
-                          <td className="py-2.5 pr-3 tabular-nums">{s.booked_count ?? 0}</td>
-                          <td className="py-2.5 pr-3 tabular-nums">
-                            {moneyFmt.format(Number(s.paid_full_amount ?? 0))}
-                          </td>
-                          <td className="py-2.5 pr-3 tabular-nums">{moneyFmt.format(Number(s.revenue_paid))}</td>
-                          <td className="py-2.5 pr-3 tabular-nums">
-                            {moneyFmt.format(Number(s.debtor_amount ?? 0))}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </AnalyticsTable>
-              </AnalyticsPanel>
+              {serviceRows.length === 0 ? (
+                <AnalyticsPanel title="По услугам">
+                  <p className="analytics-empty-cell px-1 py-3">Нет записей за месяц</p>
+                </AnalyticsPanel>
+              ) : (
+                ANALYTICS_SERVICE_GROUP_ORDER.map((groupKey) => {
+                  const rows = serviceGroups[groupKey];
+                  if (rows.length === 0) return null;
+                  return (
+                    <AnalyticsPanel
+                      key={groupKey}
+                      title={`${ANALYTICS_SERVICE_GROUP_LABELS[groupKey]} · ${ANALYTICS_SERVICE_GROUP_HINTS[groupKey]}`}
+                    >
+                      <AnalyticsTable minWidth={1100}>
+                        <thead>
+                          <tr>
+                            <th className="py-2 pr-3">Услуга</th>
+                            <th className="py-2 pr-3">Записей</th>
+                            <th className="py-2 pr-3">Явились</th>
+                            <th className="py-2 pr-3">Не явились</th>
+                            <th className="py-2 pr-3">Ещё booked</th>
+                            <th className="py-2 pr-3">Оплачено полностью</th>
+                            <th className="py-2 pr-3">Всего оплат</th>
+                            <th className="py-2 pr-3">Дебиторка</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map((s) => (
+                            <tr
+                              key={`${groupKey}-${s.money_source ?? "booking"}-${s.direction_id ?? s.direction_name}`}
+                            >
+                              <td className="py-2.5 pr-3 font-medium">
+                                {s.direction_name}
+                                {s.money_source === "kpi" ? (
+                                  <span className="ml-1.5 text-xs font-normal mo-muted">KPI</span>
+                                ) : s.money_source === "mixed" ? (
+                                  <span className="ml-1.5 text-xs font-normal mo-muted">запись+KPI</span>
+                                ) : s.money_source === "extra" ? (
+                                  <span className="ml-1.5 text-xs font-normal mo-muted">доп.</span>
+                                ) : null}
+                              </td>
+                              <td className="py-2.5 pr-3 tabular-nums">{s.appointments_total}</td>
+                              <td className="py-2.5 pr-3 tabular-nums">{s.appeared_count}</td>
+                              <td className="py-2.5 pr-3 tabular-nums">{s.no_show_count}</td>
+                              <td className="py-2.5 pr-3 tabular-nums">{s.booked_count ?? 0}</td>
+                              <td className="py-2.5 pr-3 tabular-nums">
+                                {moneyFmt.format(Number(s.paid_full_amount ?? 0))}
+                              </td>
+                              <td className="py-2.5 pr-3 tabular-nums">
+                                {moneyFmt.format(Number(s.revenue_paid))}
+                              </td>
+                              <td className="py-2.5 pr-3 tabular-nums">
+                                {moneyFmt.format(Number(s.debtor_amount ?? 0))}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </AnalyticsTable>
+                    </AnalyticsPanel>
+                  );
+                })
+              )}
 
               <AnalyticsPanel title="По экспертам">
                 <AnalyticsTable minWidth={1000}>
