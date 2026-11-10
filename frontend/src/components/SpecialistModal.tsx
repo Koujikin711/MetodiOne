@@ -354,8 +354,8 @@ export function SpecialistModal({
             </label>
             {courseStreamsEnabled && (
               <div className="mt-3 grid grid-cols-3 gap-2">
-                <label className="text-center text-xs mo-muted">
-                  <span className="block min-h-8 leading-4">Длина, дни</span>
+                <label className="text-center text-xs mo-muted" title="Длина потока в днях">
+                  <span className="block leading-4">День</span>
                   <input
                     type="number"
                     min={5}
@@ -365,8 +365,8 @@ export function SpecialistModal({
                     className="mo-input mt-1 w-full text-center tabular-nums"
                   />
                 </label>
-                <label className="text-center text-xs mo-muted">
-                  <span className="block min-h-8 leading-4">Мин. день</span>
+                <label className="text-center text-xs mo-muted" title="Мин. день, с которого можно открыть следующий поток">
+                  <span className="block leading-4">Мин</span>
                   <input
                     type="number"
                     min={1}
@@ -376,8 +376,8 @@ export function SpecialistModal({
                     className="mo-input mt-1 w-full text-center tabular-nums"
                   />
                 </label>
-                <label className="text-center text-xs mo-muted">
-                  <span className="block min-h-8 leading-4">Перерыв, дни</span>
+                <label className="text-center text-xs mo-muted" title="Пауза без визита, дней">
+                  <span className="block leading-4">Пауза</span>
                   <input
                     type="number"
                     min={1}

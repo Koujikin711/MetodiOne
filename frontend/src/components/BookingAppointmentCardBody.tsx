@@ -47,7 +47,7 @@ export function BookingAppointmentCardBody({
   ) : null;
 
   const noteWithTooltip = noteControl ? (
-    <div className="booking-appt-note-wrap">
+    <div className="booking-appt-note-wrap booking-appt-note-wrap--inline">
       {noteControl}
       <div role="tooltip" className="booking-appt-note-tooltip">
         {noteTitle}
@@ -55,14 +55,11 @@ export function BookingAppointmentCardBody({
     </div>
   ) : null;
 
-  const showFoot = Boolean(timeLabel || showVisitCounter);
+  const showFoot = Boolean(timeLabel || showVisitCounter || noteWithTooltip);
 
   return (
     <div className="booking-appt-card-body relative">
-      {!compact && noteWithTooltip ? (
-        <div className="booking-appt-note-corner absolute right-0 top-0 z-[1]">{noteWithTooltip}</div>
-      ) : null}
-      <div className={["booking-appt-head min-h-0", !compact && noteWithTooltip ? "pr-4" : ""].filter(Boolean).join(" ")}>
+      <div className="booking-appt-head min-h-0">
         <span
           className={[
             "min-w-0 font-bold leading-tight",
@@ -75,14 +72,7 @@ export function BookingAppointmentCardBody({
         </span>
       </div>
       {showFoot ? (
-        <div
-          className={[
-            "booking-appt-foot mt-0.5 flex items-center justify-between gap-1",
-            !compact && noteWithTooltip ? "pr-4" : "",
-          ]
-            .filter(Boolean)
-            .join(" ")}
-        >
+        <div className="booking-appt-foot mt-0.5 flex items-center justify-between gap-1">
           {timeLabel ? (
             <span className="text-[9px] font-semibold tabular-nums leading-none opacity-90 sm:text-[10px]">
               {timeLabel}
@@ -90,14 +80,17 @@ export function BookingAppointmentCardBody({
           ) : (
             <span />
           )}
-          {showVisitCounter ? (
-            <span
-              className="booking-appt-visit shrink-0 text-[9px] font-bold tabular-nums leading-none sm:text-[10px]"
-              title={visitDisplayTitle(a)}
-            >
-              {visitLabel}
-            </span>
-          ) : null}
+          <div className="booking-appt-foot-right flex shrink-0 items-center gap-0.5">
+            {showVisitCounter ? (
+              <span
+                className="booking-appt-visit shrink-0 text-[9px] font-bold tabular-nums leading-none sm:text-[10px]"
+                title={visitDisplayTitle(a)}
+              >
+                {visitLabel}
+              </span>
+            ) : null}
+            {noteWithTooltip}
+          </div>
         </div>
       ) : null}
     </div>

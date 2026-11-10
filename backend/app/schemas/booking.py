@@ -308,6 +308,12 @@ class BookingAppointmentStatusUpdate(BaseModel):
 class BookingAppointmentMove(BaseModel):
     specialist_id: int = Field(..., ge=1)
     start_at: datetime
+    duration_min: int | None = Field(
+        None,
+        ge=15,
+        le=240,
+        description="Явная длительность (напр. ужать час до 30). Иначе сохраняется текущая длина записи.",
+    )
 
 
 class ReferringDoctorRead(BaseModel):

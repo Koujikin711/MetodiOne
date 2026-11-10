@@ -364,8 +364,25 @@ async def _assert_expert_readonly_for_booking(db: AsyncSession, current_user: Us
     )
 
 
-def _appointment_duration_minutes(specialist: BookingSpecialist, _direction: BookingDirection | None = None) -> int:
-    """Длительность приёма — по настройке специалиста (слот), без справочника услуг."""
+def _appointment_duration_minutes(
+    specialist: BookingSpecialist,
+    direction: BookingDirection | None = None,
+    *,
+    override_min: int | None = None,
+    fallback_min: int | None = None,
+) -> int:
+    """Длительность приёма: явный override → услуга (direction) → fallback → слот специалиста.
+
+    Для услуг 30 / 60 мин берём duration_min направления; слот специалиста — запасной вариант.
+    """
+    if override_min is not None and int(override_min) >= 15:
+        return int(override_min)
+    if direction is not None:
+        dir_slot = int(direction.duration_min or 0)
+        if dir_slot >= 15:
+            return dir_slot
+    if fallback_min is not None and int(fallback_min) >= 15:
+        return int(fallback_min)
     spec_slot = int(specialist.slot_duration_min or 0)
     return spec_slot if spec_slot >= 15 else 30
 
@@ -2698,7 +2715,15 @@ async def move_appointment(
 
     start_at = _from_payload_to_utc(body.start_at)
     _assert_slot_in_specialist_schedule(specialist, start_at)
-    duration_min = _appointment_duration_minutes(specialist, direction)
+    prev_start = _ensure_utc(appt.start_at)
+    prev_end = _ensure_utc(appt.end_at)
+    existing_min = max(15, int((prev_end - prev_start).total_seconds() // 60))
+    duration_min = _appointment_duration_minutes(
+        specialist,
+        direction,
+        override_min=body.duration_min,
+        fallback_min=existing_min,
+    )
     end_at = start_at + timedelta(minutes=duration_min)
     await _assert_hour_has_room(
         db,

@@ -684,8 +684,15 @@ export function OnlineBookingPage() {
       }),
     onSuccess: (created, variables) => {
       const days = Math.max(1, Number(variables.consecutive_days ?? 1));
-      const spec = specialistsQuery.data?.find((s) => s.id === Number(variables.specialist_id));
-      const durMin = Math.max(15, spec?.slot_duration_min ?? 30);
+      const dirId = Number(variables.direction_id);
+      const dir = (directionsQuery.data ?? []).find((d) => d.id === dirId);
+      const durMin = Math.max(
+        15,
+        dir?.duration_min ??
+          Math.round(
+            (new Date(created.end_at).getTime() - new Date(created.start_at).getTime()) / 60000,
+          ),
+      );
       const durLabel = durMin === 60 ? "1 час" : durMin === 30 ? "полчаса" : `${durMin} мин`;
       const seriesMsg =
         days > 1
@@ -778,19 +785,33 @@ export function OnlineBookingPage() {
   });
 
   const moveAppointmentMutation = useMutation({
-    mutationFn: (body: { appointmentId: number; specialist_id: number; start_at: string }) =>
+    mutationFn: (body: {
+      appointmentId: number;
+      specialist_id: number;
+      start_at: string;
+      duration_min?: number;
+    }) =>
       apiFetch<BookingAppointment>(`/api/booking/appointments/${body.appointmentId}/move`, {
         method: "PATCH",
         body: JSON.stringify({
           specialist_id: body.specialist_id,
           start_at: body.start_at,
+          ...(body.duration_min != null ? { duration_min: body.duration_min } : {}),
         }),
       }),
-    onSuccess: (_row, vars) => {
-      const spec = specialistsQuery.data?.find((s) => s.id === vars.specialist_id);
-      const durMin = Math.max(15, spec?.slot_duration_min ?? 30);
+    onSuccess: (row, vars) => {
+      const durMin =
+        vars.duration_min ??
+        Math.max(
+          15,
+          Math.round(
+            (new Date(row.end_at).getTime() - new Date(row.start_at).getTime()) / 60000,
+          ),
+        );
       const durLabel = durMin === 60 ? "1 час" : durMin === 30 ? "полчаса" : `${durMin} мин`;
-      toast.success(`Запись перенесена · ${durLabel}`);
+      toast.success(
+        vars.duration_min != null ? `Длительность · ${durLabel}` : `Запись перенесена · ${durLabel}`,
+      );
       void queryClient.invalidateQueries({ queryKey: ["booking-appointments-grid"] });
       void queryClient.invalidateQueries({ queryKey: ["booking-journal"] });
     },
@@ -1224,8 +1245,12 @@ export function OnlineBookingPage() {
     const hh = Math.floor(payload.minuteOfDay / 60);
     const mm = payload.minuteOfDay % 60;
     setStartAt(`${payload.dateYmd}T${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`);
+    const dir =
+      serviceDirectionId !== ""
+        ? (directionsQuery.data ?? []).find((d) => d.id === serviceDirectionId)
+        : undefined;
     const spec = specialistsQuery.data?.find((s) => s.id === payload.specialistId);
-    const dur = Math.max(15, spec?.slot_duration_min ?? 30);
+    const dur = Math.max(15, dir?.duration_min ?? spec?.slot_duration_min ?? 30);
     const durLabel = dur === 60 ? "1 час" : dur === 30 ? "полчаса" : `${dur} мин`;
     toast.success(`Слот ${hh}:${String(mm).padStart(2, "0")} · ${durLabel}`);
     window.setTimeout(() => {
@@ -1250,6 +1275,7 @@ export function OnlineBookingPage() {
     specialistId: number;
     minuteOfDay: number;
     dateYmd?: string;
+    durationMin?: number;
   }) {
     const hh = Math.floor(payload.minuteOfDay / 60);
     const mm = payload.minuteOfDay % 60;
@@ -1266,6 +1292,7 @@ export function OnlineBookingPage() {
       appointmentId: payload.appointmentId,
       specialist_id: payload.specialistId,
       start_at: startIso,
+      ...(payload.durationMin != null ? { duration_min: payload.durationMin } : {}),
     });
   }
 

@@ -61,6 +61,8 @@ export type WeekMovePayload = {
   specialistId: number;
   dateYmd: string;
   minuteOfDay: number;
+  /** Ужать/задать длительность (мин), напр. час → 30. */
+  durationMin?: number;
 };
 
 type Props = {
@@ -144,6 +146,11 @@ function formatMinuteLabel(minuteOfDay: number): string {
 function appointmentStartMinute(a: BookingAppointment): number {
   const { h, min } = utcMsToHourMinuteInBookingTz(new Date(a.start_at).getTime());
   return h * 60 + min;
+}
+
+function appointmentDurationMinutes(a: BookingAppointment): number {
+  const ms = new Date(a.end_at).getTime() - new Date(a.start_at).getTime();
+  return Math.max(15, Math.round(ms / 60000));
 }
 
 type DayRow =
@@ -444,6 +451,9 @@ function SortableSpecialistRow({
                   (dayRows ?? []).map((row) => {
                     const renderApptCard = (a: BookingAppointment, dropMinute: number) => {
                       const timeLabel = showSessionInsteadOfTime ? null : formatTimeInBookingTz(a.start_at);
+                      const durMin = appointmentDurationMinutes(a);
+                      const canShrinkToHalf =
+                        Boolean(onMoveAppointment) && a.status === "booked" && durMin >= 55;
                       return (
                         <div
                           key={a.id}
@@ -506,6 +516,26 @@ function SortableSpecialistRow({
                             canToggleComplete={canToggleComplete}
                             onCompleteToggle={onAppointmentCompleteToggle}
                           />
+                          {canShrinkToHalf ? (
+                            <button
+                              type="button"
+                              className="booking-appt-resize-handle"
+                              title="Ужать до полчаса (тянуть за край)"
+                              aria-label="Ужать до полчаса"
+                              draggable={false}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onMoveAppointment?.({
+                                  appointmentId: a.id,
+                                  specialistId: spec.id,
+                                  dateYmd,
+                                  minuteOfDay: appointmentStartMinute(a),
+                                  durationMin: 30,
+                                });
+                              }}
+                            />
+                          ) : null}
                         </div>
                       );
                     };

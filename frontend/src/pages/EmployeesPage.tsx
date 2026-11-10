@@ -1360,8 +1360,8 @@ export function EmployeesPage() {
                     </label>
                     {courseStreamsEnabled && (
                       <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                        <label className="text-xs mo-muted">
-                          Поток, дн.
+                        <label className="text-xs mo-muted" title="Длина потока в днях">
+                          День
                           <input
                             type="number"
                             min={5}
@@ -1371,8 +1371,8 @@ export function EmployeesPage() {
                             className="mo-input mt-1 w-full tabular-nums"
                           />
                         </label>
-                        <label className="text-xs mo-muted">
-                          Мин. день
+                        <label className="text-xs mo-muted" title="Мин. день, с которого можно открыть следующий поток">
+                          Мин
                           <input
                             type="number"
                             min={1}
@@ -1382,8 +1382,8 @@ export function EmployeesPage() {
                             className="mo-input mt-1 w-full tabular-nums"
                           />
                         </label>
-                        <label className="text-xs mo-muted">
-                          Перерыв
+                        <label className="text-xs mo-muted" title="Пауза без визита, дней">
+                          Пауза
                           <input
                             type="number"
                             min={1}

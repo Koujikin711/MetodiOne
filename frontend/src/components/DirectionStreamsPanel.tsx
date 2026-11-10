@@ -55,10 +55,12 @@ export function DirectionStreamsPanel() {
   return (
     <section className="mo-section space-y-3 p-3 sm:p-4">
       <div className="flex flex-wrap items-end justify-between gap-2">
-        <div className="min-w-0">
+        <div className="min-w-0 max-w-2xl">
           <h2 className="text-sm font-semibold text-[var(--mo-text)] sm:text-base">Потоки курсов</h2>
           <p className="mt-0.5 text-[11px] leading-snug mo-muted">
-            Нумерация визитов 1:1, 1:10, 2:1 — для курсов и протоколов.
+            Нумерация визитов курса: <b className="text-[var(--mo-text)]">1:1</b> …{" "}
+            <b className="text-[var(--mo-text)]">1:15</b>. Если пациент долго не ходит — начинается{" "}
+            <b className="text-[var(--mo-text)]">2:1</b>. Это не длительность приёма.
           </p>
         </div>
         <label className="flex items-center gap-2 text-[11px] mo-muted">
@@ -78,6 +80,20 @@ export function DirectionStreamsPanel() {
         </label>
       </div>
 
+      <div className="direction-streams-legend rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-2 text-[11px] leading-relaxed mo-muted">
+        <p>
+          <b className="text-[var(--mo-text)]">Вкл</b> — нумеровать визиты потоками.{" "}
+          <b className="text-[var(--mo-text)]">День</b> — длина потока в днях (15 → после 1:15 будет 2:1).{" "}
+          <b className="text-[var(--mo-text)]">Мин</b> — с какого дня потока можно открыть следующий (например с 10-го).
+        </p>
+        <p className="mt-1.5">
+          <b className="text-[var(--mo-text)]">Пауза</b> — если уже дошли до «Мин» и столько{" "}
+          <b className="text-[var(--mo-text)]">календарных дней</b> не приходил, следующий визит ={" "}
+          <b className="text-[var(--mo-text)]">2:1</b>. Пример: Мин = 10, Пауза = 10 → был 1:12, не ходил 10+ дней →
+          снова пришёл = <b className="text-[var(--mo-text)]">2:1</b>.
+        </p>
+      </div>
+
       {directionsQ.isLoading && <p className="text-sm lux-caption">Загрузка…</p>}
 
       {!directionsQ.isLoading && directions.length === 0 && pipelineId !== "" && (
@@ -87,11 +103,11 @@ export function DirectionStreamsPanel() {
       {directions.length > 0 ? (
         <div className="direction-streams-table overflow-x-auto rounded-xl border border-[var(--mo-border)]">
           <div className="direction-streams-grid direction-streams-head">
-            <span>Направление</span>
-            <span title="Включить потоки">Поток</span>
-            <span title="Длина потока, дней">Длина</span>
-            <span title="Мин. день для нового потока">Мин.</span>
-            <span title="Перерыв, дней">Пауза</span>
+            <span>Услуга</span>
+            <span title="Включить нумерацию потоков">Вкл</span>
+            <span title="Длина потока в днях">День</span>
+            <span title="Мин. день потока, с которого можно открыть следующий">Мин</span>
+            <span title="Пауза без визита, дней — после «Мин» открывает поток 2">Пауза</span>
             <span />
           </div>
           <ul className="divide-y divide-[var(--mo-border)]">
@@ -142,6 +158,8 @@ function DirectionRow({
     Number(minDay) !== (direction.course_stream_min_day_for_next ?? 10) ||
     Number(gapDays) !== (direction.course_stream_gap_days ?? 10);
 
+  const visitMin = Math.max(10, Number(direction.duration_min) || 30);
+
   function handleSave() {
     onSave({
       course_streams_enabled: enabled,
@@ -153,12 +171,14 @@ function DirectionRow({
 
   return (
     <li
-      className={[
-        "direction-streams-grid direction-streams-row",
-        enabled ? "is-enabled" : "",
-      ].join(" ")}
+      className={["direction-streams-grid direction-streams-row", enabled ? "is-enabled" : ""].join(" ")}
     >
-      <p className="direction-streams-name truncate">{direction.name}</p>
+      <div className="direction-streams-name min-w-0">
+        <p className="truncate">{direction.name}</p>
+        <p className="direction-streams-visit-dur">
+          Приём: {visitMin === 60 ? "1 час" : `${visitMin} мин`}
+        </p>
+      </div>
 
       <label className="direction-streams-check">
         <input
@@ -166,7 +186,7 @@ function DirectionRow({
           checked={enabled}
           onChange={(e) => setEnabled(e.target.checked)}
           className="rounded border-[var(--mo-border-strong)]"
-          aria-label={`Потоки: ${direction.name}`}
+          aria-label={`Включить потоки: ${direction.name}`}
         />
       </label>
 
@@ -178,7 +198,8 @@ function DirectionRow({
         value={maxDays}
         disabled={!enabled}
         onChange={(e) => setMaxDays(e.target.value)}
-        aria-label="Длина потока, дней"
+        aria-label="День — длина потока"
+        title="День — длина потока"
       />
       <input
         className="mo-input direction-streams-num"
@@ -188,7 +209,8 @@ function DirectionRow({
         value={minDay}
         disabled={!enabled}
         onChange={(e) => setMinDay(e.target.value)}
-        aria-label="Мин. день для нового потока"
+        aria-label="Мин — с какого дня можно новый поток"
+        title="Мин — с какого дня можно открыть 2-й поток"
       />
       <input
         className="mo-input direction-streams-num"
@@ -198,19 +220,17 @@ function DirectionRow({
         value={gapDays}
         disabled={!enabled}
         onChange={(e) => setGapDays(e.target.value)}
-        aria-label="Перерыв, дней"
+        aria-label="Пауза без визита, дней"
+        title="Пауза — дней без визита → новый поток (2:1)"
       />
 
       <button
         type="button"
-        className={[
-          "direction-streams-save",
-          dirty ? "is-dirty" : "",
-        ].join(" ")}
+        className={["direction-streams-save", dirty ? "is-dirty" : ""].join(" ")}
         disabled={saving || !dirty}
         onClick={handleSave}
       >
-        {dirty ? "Сохр." : "Ок"}
+        {dirty ? "Сохранить" : "Ок"}
       </button>
     </li>
   );
