@@ -156,6 +156,14 @@ function appointmentStartMinute(a: BookingAppointment): number {
   return h * 60 + min;
 }
 
+function hourHasVisibleAppointment(dayAppts: BookingAppointment[], hour: number): boolean {
+  for (const appointment of dayAppts) {
+    const { h } = utcMsToHourMinuteInBookingTz(new Date(appointment.start_at).getTime());
+    if (h === hour) return true;
+  }
+  return false;
+}
+
 type FlatDayRow =
   | { kind: "slot"; minute: number; closed?: boolean }
   | { kind: "appt"; appointment: BookingAppointment };
@@ -195,10 +203,9 @@ function buildDayRows(
   dateYmd: string,
   dayAppts: BookingAppointment[],
 ): DayRow[] | null {
-  // Сетка всегда с шагом ≤30 мин: пустые :00 и :30 видны одинаково
-  // (клик / перенос), даже если у специалиста slot_duration_min = 60.
-  const nativeStep = Math.max(15, spec.slot_duration_min ?? 30);
-  const step = Math.min(30, nativeStep);
+  // Пустые пунктиры — только :00 (если в часе нет записей).
+  // :30 в сетке только если есть реальная запись на это время.
+  const step = Math.max(15, spec.slot_duration_min ?? 30);
   const slots = dayTimeSlots(spec, dateYmd, step);
   if (slots.length === 0) return null;
   const usedApptIds = new Set<number>();
@@ -214,7 +221,10 @@ function buildDayRows(
       rows.push({ kind: "appt", appointment: match });
     }
     if (matches.length > 0) continue;
-    rows.push({ kind: "slot", minute });
+    if (minute % 60 !== 0) continue;
+    if (!hourHasVisibleAppointment(dayAppts, Math.floor(minute / 60))) {
+      rows.push({ kind: "slot", minute });
+    }
   }
   for (const a of dayAppts) {
     if (!usedApptIds.has(a.id)) rows.push({ kind: "appt", appointment: a });

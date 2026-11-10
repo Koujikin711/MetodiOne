@@ -684,8 +684,13 @@ export function OnlineBookingPage() {
       }),
     onSuccess: (created, variables) => {
       const days = Math.max(1, Number(variables.consecutive_days ?? 1));
+      const spec = specialistsQuery.data?.find((s) => s.id === Number(variables.specialist_id));
+      const durMin = Math.max(15, spec?.slot_duration_min ?? 30);
+      const durLabel = durMin === 60 ? "1 час" : durMin === 30 ? "полчаса" : `${durMin} мин`;
       const seriesMsg =
-        days > 1 ? `Создано ${days} записей на ${days} дней подряд.` : "Запись создана.";
+        days > 1
+          ? `Создано ${days} записей на ${days} дней подряд · ${durLabel}.`
+          : `Запись создана · ${durLabel}.`;
       if (created.whatsapp_confirmation_sent) {
         toast.success(`${seriesMsg} Клиенту отправлено подтверждение в WhatsApp.`);
       } else {
@@ -781,8 +786,11 @@ export function OnlineBookingPage() {
           start_at: body.start_at,
         }),
       }),
-    onSuccess: () => {
-      toast.success("Запись перенесена");
+    onSuccess: (_row, vars) => {
+      const spec = specialistsQuery.data?.find((s) => s.id === vars.specialist_id);
+      const durMin = Math.max(15, spec?.slot_duration_min ?? 30);
+      const durLabel = durMin === 60 ? "1 час" : durMin === 30 ? "полчаса" : `${durMin} мин`;
+      toast.success(`Запись перенесена · ${durLabel}`);
       void queryClient.invalidateQueries({ queryKey: ["booking-appointments-grid"] });
       void queryClient.invalidateQueries({ queryKey: ["booking-journal"] });
     },
@@ -1216,7 +1224,10 @@ export function OnlineBookingPage() {
     const hh = Math.floor(payload.minuteOfDay / 60);
     const mm = payload.minuteOfDay % 60;
     setStartAt(`${payload.dateYmd}T${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`);
-    toast.success(`Слот ${hh}:${String(mm).padStart(2, "0")} — заполните форму справа`);
+    const spec = specialistsQuery.data?.find((s) => s.id === payload.specialistId);
+    const dur = Math.max(15, spec?.slot_duration_min ?? 30);
+    const durLabel = dur === 60 ? "1 час" : dur === 30 ? "полчаса" : `${dur} мин`;
+    toast.success(`Слот ${hh}:${String(mm).padStart(2, "0")} · ${durLabel}`);
     window.setTimeout(() => {
       formPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }, 80);
