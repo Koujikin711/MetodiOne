@@ -135,9 +135,9 @@ function isSpecWorkingDay(spec: BookingSpecialist, dateYmd: string): boolean {
   return specWorkWeekdays(spec).includes(weekdayMon0InBookingTz(dateYmd));
 }
 
-function dayTimeSlots(spec: BookingSpecialist, dateYmd: string): number[] {
+function dayTimeSlots(spec: BookingSpecialist, dateYmd: string, stepMin?: number): number[] {
   if (!isSpecWorkingDay(spec, dateYmd)) return [];
-  const step = Math.max(15, spec.slot_duration_min ?? 30);
+  const step = Math.max(15, stepMin ?? spec.slot_duration_min ?? 30);
   const startMin = (spec.work_start_hour ?? 9) * 60;
   const endMin = (spec.work_end_hour ?? 18) * 60;
   const slots: number[] = [];
@@ -204,9 +204,12 @@ function buildDayRows(
   dayAppts: BookingAppointment[],
   showMoveHalfSlots = false,
 ): DayRow[] | null {
-  const slots = dayTimeSlots(spec, dateYmd);
+  // У многих специалистов slot_duration_min = 60 — без этого в сетке нет :30,
+  // и перенос «на полчаса» физически некуда бросать.
+  const nativeStep = Math.max(15, spec.slot_duration_min ?? 30);
+  const step = showMoveHalfSlots ? Math.min(30, nativeStep) : nativeStep;
+  const slots = dayTimeSlots(spec, dateYmd, step);
   if (slots.length === 0) return null;
-  const step = Math.max(15, spec.slot_duration_min ?? 30);
   const usedApptIds = new Set<number>();
   const rows: FlatDayRow[] = [];
   for (const minute of slots) {
