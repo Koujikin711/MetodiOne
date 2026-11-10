@@ -3,7 +3,6 @@ import { type ReactNode, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "@/lib/api";
 import {
-  ANALYTICS_SERVICE_GROUP_HINTS,
   ANALYTICS_SERVICE_GROUP_LABELS,
   ANALYTICS_SERVICE_GROUP_ORDER,
   partitionAnalyticsServices,
@@ -650,10 +649,7 @@ export function AnalyticsPage() {
                   const rows = serviceGroups[groupKey];
                   if (rows.length === 0) return null;
                   return (
-                    <AnalyticsPanel
-                      key={groupKey}
-                      title={`${ANALYTICS_SERVICE_GROUP_LABELS[groupKey]} · ${ANALYTICS_SERVICE_GROUP_HINTS[groupKey]}`}
-                    >
+                    <AnalyticsPanel key={groupKey} title={ANALYTICS_SERVICE_GROUP_LABELS[groupKey]}>
                       <AnalyticsTable minWidth={1100}>
                         <thead>
                           <tr>

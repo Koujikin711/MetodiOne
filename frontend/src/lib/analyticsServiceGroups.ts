@@ -13,12 +13,6 @@ export const ANALYTICS_SERVICE_GROUP_LABELS: Record<AnalyticsServiceGroup, strin
   extra: "Доп. услуги",
 };
 
-export const ANALYTICS_SERVICE_GROUP_HINTS: Record<AnalyticsServiceGroup, string> = {
-  sales: "Курс 15, Курс, Протокол и Консультация",
-  clinic: "Визиты и процедуры клиники",
-  extra: "Анализы и УЗИ",
-};
-
 /** Разбивка строк аналитики «По услугам» на продажи / клинику / доп. */
 export function analyticsServiceGroup(row: {
   direction_name: string;
