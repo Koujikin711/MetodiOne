@@ -1124,6 +1124,12 @@ app.include_router(curator_journal.router, prefix="/api")
 app.include_router(emr.router, prefix="/api")
 
 
+@app.get("/")
+async def root():
+    """Amvera/envoy часто стучится в / — без ответа реплика остаётся 0/1."""
+    return {"status": "ok", "build": settings.build_version}
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "build": settings.build_version}

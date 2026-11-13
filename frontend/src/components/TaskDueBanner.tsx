@@ -94,13 +94,20 @@ export function TaskDueBanner() {
         ) : null}
       </button>
       {open ? (
-        <div className="absolute right-0 mt-2 w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] shadow-xl">
+        <div
+          className={[
+            "z-50 overflow-hidden rounded-2xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] shadow-xl",
+            // На мобилке чат режет absolute-панель — фиксируем в экран, без обрезки «Вам… / Связа…».
+            "fixed left-3 right-3 top-[max(0.75rem,env(safe-area-inset-top))] w-auto max-w-none",
+            "sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-[min(22rem,calc(100vw-1.5rem))]",
+          ].join(" ")}
+        >
           <div className="flex items-center justify-between gap-2 border-b border-[var(--mo-border)] px-3 py-2">
             <p className="text-sm font-semibold text-[var(--mo-text)]">Уведомления</p>
             {perm === "default" ? (
               <button
                 type="button"
-                className="text-xs underline underline-offset-2"
+                className="shrink-0 text-xs underline underline-offset-2"
                 onClick={() => {
                   void enableTaskNotifications().then((next) => setPerm(next));
                 }}
@@ -112,16 +119,16 @@ export function TaskDueBanner() {
           {count === 0 ? (
             <p className="px-3 py-3 text-sm mo-muted">Нет задач на этот час</p>
           ) : (
-            <ul className="max-h-80 overflow-y-auto py-1">
+            <ul className="max-h-[min(20rem,55dvh)] overflow-y-auto py-1">
               {due.map((task) => (
                 <li key={`due-${task.id}`}>
                   <Link
                     to="/tasks"
-                    className="block px-3 py-2 text-sm text-[var(--mo-text)] hover:bg-[var(--mo-surface)]"
+                    className="block px-3 py-2.5 text-sm text-[var(--mo-text)] hover:bg-[var(--mo-surface)]"
                     onClick={() => setOpen(false)}
                   >
-                    <span className="font-medium">{stageLabel(task.warn_stage)}</span>
-                    <span className="mt-0.5 block truncate">
+                    <span className="block font-medium leading-snug">{stageLabel(task.warn_stage)}</span>
+                    <span className="mt-0.5 block break-words leading-snug text-[var(--mo-text-muted)]">
                       {task.title}
                       {clock(task.deadline) ? ` · ${clock(task.deadline)}` : ""}
                       {task.client_name || task.client_phone
@@ -135,11 +142,11 @@ export function TaskDueBanner() {
                 <li key={`new-${task.id}`}>
                   <Link
                     to="/tasks"
-                    className="block px-3 py-2 text-sm text-[var(--mo-text)] hover:bg-[var(--mo-surface)]"
+                    className="block px-3 py-2.5 text-sm text-[var(--mo-text)] hover:bg-[var(--mo-surface)]"
                     onClick={() => setOpen(false)}
                   >
-                    <span className="font-medium">Вам поставили задачу</span>
-                    <span className="mt-0.5 block truncate">
+                    <span className="block font-medium leading-snug">Вам поставили задачу</span>
+                    <span className="mt-0.5 block break-words leading-snug text-[var(--mo-text-muted)]">
                       {task.title}
                       {clock(task.deadline) ? ` · ${clock(task.deadline)}` : ""}
                     </span>
