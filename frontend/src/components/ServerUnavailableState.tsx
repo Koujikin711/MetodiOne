@@ -3,42 +3,40 @@ type Props = {
   onRetry?: () => void;
 };
 
-/** Экран 502/503/504 — робот в проводах, в стиле MetodiOne. */
+/**
+ * 503-экран: исходный робот из GIF (моргает левый глаз как в референсе).
+ * Робот / провода / фон не двигаем отдельно — анимация уже в файле.
+ */
 export function ServerUnavailableState({ message, onRetry }: Props) {
+  const retry = onRetry ?? (() => window.location.reload());
+  const label = onRetry ? "Повторить" : "Обновить страницу";
+
   return (
     <div
-      className="mx-auto flex w-full max-w-lg flex-col items-center px-4 py-10 text-center sm:py-14"
+      className="server-down relative mx-auto flex w-full max-w-xl flex-col items-center overflow-hidden px-5 py-12 text-center sm:py-16"
       role="alert"
       aria-live="polite"
     >
-      <img
-        src="/server-unavailable-robot.png"
-        alt=""
-        width={280}
-        height={280}
-        className="h-auto w-[min(17rem,72vw)] select-none object-contain"
-        draggable={false}
-      />
-      <h2 className="lux-heading mt-6 text-[1.35rem] leading-snug text-[var(--mo-text)] sm:text-[1.5rem]">
-        Сервер клиники сейчас отдыхает
-      </h2>
-      <p className="mt-2 max-w-sm text-sm leading-relaxed text-[var(--mo-text-muted)]">
+      <div className="server-down__glow" aria-hidden />
+      <div className="server-down__figure">
+          <img
+            src="/server-unavailable-robot.gif?v=2"
+            alt=""
+            width={493}
+            height={467}
+            className="server-down__robot"
+            draggable={false}
+          />
+      </div>
+      <p className="server-down__eyebrow">503 · нет связи</p>
+      <h2 className="server-down__title">Сервер клиники сейчас отдыхает</h2>
+      <p className="server-down__text">
         {message?.trim() ||
           "Связь с API временно пропала. Подождите немного и обновите — обычно это проходит само."}
       </p>
-      {onRetry ? (
-        <button type="button" className="btn-primary mt-6 min-h-11 px-5" onClick={onRetry}>
-          Повторить
-        </button>
-      ) : (
-        <button
-          type="button"
-          className="btn-primary mt-6 min-h-11 px-5"
-          onClick={() => window.location.reload()}
-        >
-          Обновить страницу
-        </button>
-      )}
+      <button type="button" className="btn-primary server-down__cta" onClick={retry}>
+        {label}
+      </button>
     </div>
   );
 }

@@ -7693,6 +7693,104 @@ fieldset.extra-services-field {
   color: var(--mo-text-muted);
 }
 
+/* 503 / API down — робот без белой подложки */
+.server-down__glow {
+  pointer-events: none;
+  position: absolute;
+  left: 50%;
+  top: 2.5rem;
+  z-index: 0;
+  height: 14rem;
+  width: 14rem;
+  translate: -50% 0;
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--mo-accent) 28%, transparent) 0%,
+    color-mix(in srgb, var(--mo-accent) 8%, transparent) 42%,
+    transparent 72%
+  );
+  filter: blur(2px);
+  animation: server-down-pulse 3.6s ease-in-out infinite;
+}
+
+.server-down__figure {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  width: min(18.5rem, 78vw);
+}
+
+.server-down__robot {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: transparent;
+  user-select: none;
+  filter: drop-shadow(0 16px 26px color-mix(in srgb, #000 40%, transparent));
+}
+
+.server-down__eyebrow {
+  position: relative;
+  z-index: 1;
+  margin-top: 1.35rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--mo-accent) 85%, var(--mo-text-muted));
+}
+
+.server-down__title {
+  position: relative;
+  z-index: 1;
+  margin-top: 0.55rem;
+  max-width: 22rem;
+  font-family: var(--mo-font-display, inherit);
+  font-size: clamp(1.35rem, 2.6vw, 1.7rem);
+  font-weight: 650;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: var(--mo-text);
+}
+
+.server-down__text {
+  position: relative;
+  z-index: 1;
+  margin-top: 0.65rem;
+  max-width: 22rem;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--mo-text-muted);
+}
+
+.server-down__cta {
+  position: relative;
+  z-index: 1;
+  margin-top: 1.5rem;
+  min-height: 2.75rem;
+  padding-inline: 1.35rem;
+}
+
+@keyframes server-down-pulse {
+  0%,
+  100% {
+    opacity: 0.75;
+    transform: translate(-50%, 0) scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1.06);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .server-down__glow {
+    animation: none;
+  }
+}
+
 /* Мессенджер — indigo-luxury, читаемые пузыри */
 .team-messenger {
   @apply relative mx-auto flex h-full w-full max-w-none flex-col gap-3 pb-28 sm:pb-4 lg:min-h-0 lg:flex-1 lg:overflow-hidden lg:pb-0;
