@@ -2722,12 +2722,12 @@ async def move_appointment(
     prev_start = _ensure_utc(appt.start_at)
     prev_end = _ensure_utc(appt.end_at)
     existing_min = max(10, int((prev_end - prev_start).total_seconds() // 60))
-    duration_min = _appointment_duration_minutes(
-        specialist,
-        direction,
-        override_min=body.duration_min,
-        fallback_min=existing_min,
-    )
+    # Перенос: явный duration_min (ужать до 30 и т.п.) или оставляем текущую длину.
+    # Не сбрасываем на duration услуги — иначе час «возвращается» после дропа на :30.
+    if body.duration_min is not None and int(body.duration_min) >= 10:
+        duration_min = int(body.duration_min)
+    else:
+        duration_min = existing_min
     end_at = start_at + timedelta(minutes=duration_min)
     await _assert_hour_has_room(
         db,

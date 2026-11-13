@@ -5,17 +5,17 @@ import toast from "react-hot-toast";
 
 import { leadBackHref } from "@/lib/leadReturn";
 import { apiFetch, getStoredToken } from "@/lib/api";
-import { bookedCountInClockHour, MAX_BOOKINGS_PER_SPECIALIST_HOUR } from "@/lib/bookingCapacity";
 import { visitDisplayValue } from "@/lib/bookingVisitDisplay";
+import { computeFreeStartMinutes, formatMinuteOfDayLabel } from "@/lib/bookingFreeSlots";
 import { decodeRoleFromToken } from "@/lib/auth";
 import { isReferralService } from "@/lib/referralService";
 import { canAccessRop } from "@/lib/clinicRoles";
 import { formatMoney } from "@/lib/money";
 import {
   BOOKING_TIME_ZONE,
+  addCalendarDaysInBookingTz,
   datetimeLocalBookingToIsoUtc,
   formatTimeRangeInBookingTz,
-  weekdayMon0InBookingTz,
   ymdInBookingTz,
   zonedWallTimeToUtcMs,
 } from "@/lib/bookingTz";
@@ -127,33 +127,6 @@ export function LeadDetailPage() {
   const [moveDateYmd, setMoveDateYmd] = useState("");
   const [moveMinuteOfDay, setMoveMinuteOfDay] = useState<number | null>(null);
   const [waitingModalOpen, setWaitingModalOpen] = useState(false);
-
-  const SLOT_STEP_MIN = 30;
-
-  function addDaysInBookingTz(ymd: string, days: number): string {
-    const noonMs = zonedWallTimeToUtcMs(ymd, 12, 0);
-    return ymdInBookingTz(noonMs + days * 24 * 60 * 60 * 1000);
-  }
-
-  function computeFreeStartMinutes(
-    dateYmd: string,
-    specialist: BookingSpecialist,
-    appointments: BookingAppointment[],
-    durationMin: number,
-    ignoreAppointmentId: number,
-  ): number[] {
-    const weekdays = specialist.work_weekdays?.length ? specialist.work_weekdays : [0, 1, 2, 3, 4];
-    if (!weekdays.includes(weekdayMon0InBookingTz(dateYmd))) return [];
-    const workStartMin = (specialist.work_start_hour ?? 9) * 60;
-    const workEndMin = (specialist.work_end_hour ?? 18) * 60;
-    const busy = appointments.filter((a) => a.status === "booked" && a.id !== ignoreAppointmentId);
-    const out: number[] = [];
-    for (let m = workStartMin; m + durationMin <= workEndMin; m += SLOT_STEP_MIN) {
-      const inHour = bookedCountInClockHour(busy, Math.floor(m / 60));
-      if (inHour < MAX_BOOKINGS_PER_SPECIALIST_HOUR) out.push(m);
-    }
-    return out;
-  }
 
   const query = useQuery({
     queryKey: ["lead", leadId],
@@ -332,7 +305,7 @@ export function LeadDetailPage() {
       const wantedDays = 30;
       const out: Array<{ dateYmd: string; slots: number[] }> = [];
       for (let delta = 0; delta < maxScanDays && out.length < wantedDays; delta += 1) {
-        const dateYmd = addDaysInBookingTz(today, delta);
+        const dateYmd = addCalendarDaysInBookingTz(today, delta);
         const dayAppointments = await apiFetch<BookingAppointment[]>(
           `/api/booking/appointments?date=${dateYmd}&specialist_id=${moveModalAppointment.specialist_id}`,
         );
@@ -1258,7 +1231,7 @@ export function LeadDetailPage() {
                   >
                     {(selectedMoveDay?.slots ?? []).map((m) => (
                       <option key={m} value={m}>
-                        {String(Math.floor(m / 60)).padStart(2, "0")}:{String(m % 60).padStart(2, "0")}
+                        {formatMinuteOfDayLabel(m)}
                       </option>
                     ))}
                   </select>

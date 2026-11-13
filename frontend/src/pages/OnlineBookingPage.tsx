@@ -38,7 +38,15 @@ import {
 import { formatMoney } from "@/lib/money";
 import { isReferralService } from "@/lib/referralService";
 import { visitDisplayValue } from "@/lib/bookingVisitDisplay";
-import { BOOKING_TIME_ZONE, addCalendarDaysInBookingTz, datetimeLocalBookingToIsoUtc, formatWeekRangeLabel, weekWorkDayYmds, ymdInBookingTz } from "@/lib/bookingTz";
+import {
+  BOOKING_TIME_ZONE,
+  addCalendarDaysInBookingTz,
+  datetimeLocalBookingToIsoUtc,
+  formatWeekRangeLabel,
+  isoUtcToDatetimeLocalBooking,
+  weekWorkDayYmds,
+  ymdInBookingTz,
+} from "@/lib/bookingTz";
 import {
   allSpecialistsSelected,
   allTypesSelected,
@@ -313,6 +321,9 @@ export function OnlineBookingPage() {
   const [apptDetail, setApptDetail] = useState<BookingAppointment | null>(null);
   const [nameEditOpen, setNameEditOpen] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
+  const [timeEditOpen, setTimeEditOpen] = useState(false);
+  const [timeEditDraft, setTimeEditDraft] = useState("");
+  const [timeEditDurationMin, setTimeEditDurationMin] = useState(30);
   const resumeApptDone = useRef(false);
 
   // После «Назад» с карточки лида — снова то же окно записи, где остановились.
@@ -816,8 +827,11 @@ export function OnlineBookingPage() {
       toast.success(
         vars.duration_min != null ? `Длительность · ${durLabel}` : `Запись перенесена · ${durLabel}`,
       );
+      setApptDetail((cur) => (cur && cur.id === row.id ? row : cur));
+      setTimeEditOpen(false);
       void queryClient.invalidateQueries({ queryKey: ["booking-appointments-grid"] });
       void queryClient.invalidateQueries({ queryKey: ["booking-journal"] });
+      void queryClient.invalidateQueries({ queryKey: ["booking-move-available-days"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -1312,6 +1326,62 @@ export function OnlineBookingPage() {
       start_at: startIso,
       ...(payload.durationMin != null ? { duration_min: payload.durationMin } : {}),
     });
+  }
+
+  function openTimeEdit(a: BookingAppointment) {
+    try {
+      setTimeEditDraft(isoUtcToDatetimeLocalBooking(a.start_at));
+    } catch {
+      toast.error("Не удалось прочитать время записи");
+      return;
+    }
+    const mins = Math.max(
+      10,
+      Math.round((new Date(a.end_at).getTime() - new Date(a.start_at).getTime()) / 60_000),
+    );
+    setTimeEditDurationMin(mins >= 55 ? 60 : mins <= 35 ? 30 : mins);
+    setNameEditOpen(false);
+    setTimeEditOpen(true);
+  }
+
+  function submitTimeEdit() {
+    if (!apptDetail) return;
+    if (apptDetail.status !== "booked") {
+      toast.error("Перенос только для активных записей");
+      return;
+    }
+    if (!timeEditDraft.trim()) {
+      toast.error("Укажите дату и время");
+      return;
+    }
+    let startIso: string;
+    try {
+      startIso = datetimeLocalBookingToIsoUtc(timeEditDraft);
+    } catch {
+      toast.error("Неверная дата или время");
+      return;
+    }
+    const durationMin = timeEditDurationMin >= 55 ? 60 : timeEditDurationMin <= 35 ? 30 : timeEditDurationMin;
+    moveAppointmentMutation.mutate(
+      {
+        appointmentId: apptDetail.id,
+        specialist_id: apptDetail.specialist_id,
+        start_at: startIso,
+        duration_min: durationMin,
+      },
+      {
+        onSuccess: (row) => {
+          setApptDetail(row);
+          setTimeEditOpen(false);
+          try {
+            const ymd = isoUtcToDatetimeLocalBooking(row.start_at).slice(0, 10);
+            if (/^\d{4}-\d{2}-\d{2}$/.test(ymd)) setFilterDate(ymd);
+          } catch {
+            /* сетка обновится invalidate */
+          }
+        },
+      },
+    );
   }
 
   function onSubmit(e: React.FormEvent) {
@@ -2627,6 +2697,7 @@ export function OnlineBookingPage() {
           aria-labelledby="booking-appt-detail-title"
           onClick={() => {
             setNameEditOpen(false);
+            setTimeEditOpen(false);
             setApptDetail(null);
           }}
         >
@@ -2693,6 +2764,7 @@ export function OnlineBookingPage() {
                       type="button"
                       className="shrink-0 text-xs underline"
                       onClick={() => {
+                        setTimeEditOpen(false);
                         setNameDraft(apptDetail.patient_name);
                         setNameEditOpen(true);
                       }}
@@ -2702,14 +2774,65 @@ export function OnlineBookingPage() {
                   ) : null}
                 </div>
               )}
-              <div className="booking-appt-detail-modal__meta-row">
-                <span>{formatDt(apptDetail.start_at)}</span>
-                {(apptDetail.service_title || "").trim() ? (
-                  <span className="booking-appt-detail-modal__service">
-                    Услуга: {(apptDetail.service_title || "").trim()}
-                  </span>
-                ) : null}
-              </div>
+              {timeEditOpen && canEditBooking && apptDetail.status === "booked" ? (
+                <div className="mt-3 space-y-2 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)]/60 p-3">
+                  <p className="text-xs font-semibold mo-muted">Дата, время и длительность</p>
+                  <DateTimeField
+                    value={timeEditDraft}
+                    onChange={setTimeEditDraft}
+                    minuteStep={30}
+                    allowClear={false}
+                    aria-label="Новые дата и время записи"
+                  />
+                  <label className="block text-sm mo-muted">
+                    Длительность
+                    <select
+                      className="mo-input mt-1 w-full"
+                      value={timeEditDurationMin >= 55 ? 60 : 30}
+                      onChange={(e) => setTimeEditDurationMin(Number(e.target.value))}
+                    >
+                      <option value={30}>30 мин</option>
+                      <option value={60}>1 час</option>
+                    </select>
+                  </label>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <button
+                      type="button"
+                      className="btn-primary px-3 py-1.5 text-xs"
+                      disabled={moveAppointmentMutation.isPending || !timeEditDraft.trim()}
+                      onClick={submitTimeEdit}
+                    >
+                      {moveAppointmentMutation.isPending ? "Сохраняем…" : "Сохранить время"}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary px-3 py-1.5 text-xs"
+                      disabled={moveAppointmentMutation.isPending}
+                      onClick={() => setTimeEditOpen(false)}
+                    >
+                      Отмена
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="booking-appt-detail-modal__meta-row mt-2">
+                  <span>{formatDt(apptDetail.start_at)}</span>
+                  {canEditBooking && apptDetail.status === "booked" ? (
+                    <button
+                      type="button"
+                      className="shrink-0 text-xs underline"
+                      onClick={() => openTimeEdit(apptDetail)}
+                    >
+                      Изменить время
+                    </button>
+                  ) : null}
+                  {(apptDetail.service_title || "").trim() ? (
+                    <span className="booking-appt-detail-modal__service">
+                      Услуга: {(apptDetail.service_title || "").trim()}
+                    </span>
+                  ) : null}
+                </div>
+              )}
               <p className="mt-3 text-sm">
                 <span className="mo-muted">Номер записи: </span>
                 <span className="font-semibold tabular-nums">{visitDisplayValue(apptDetail) ?? "—"}</span>
@@ -2826,6 +2949,7 @@ export function OnlineBookingPage() {
                 className="btn-primary px-3 py-1.5 text-xs"
                 onClick={() => {
                   setNameEditOpen(false);
+                  setTimeEditOpen(false);
                   setApptDetail(null);
                 }}
               >

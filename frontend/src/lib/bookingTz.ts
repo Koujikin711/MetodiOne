@@ -156,6 +156,15 @@ export function datetimeLocalBookingToIsoUtc(datetimeLocal: string): string {
   return new Date(ms).toISOString();
 }
 
+/** ISO UTC → datetime-local «YYYY-MM-DDTHH:mm» в TZ записи (для полей формы). */
+export function isoUtcToDatetimeLocalBooking(isoUtc: string): string {
+  const ms = new Date(isoUtc).getTime();
+  if (!Number.isFinite(ms)) throw new Error("Неверная дата");
+  const ymd = ymdInBookingTz(ms);
+  const { h, min } = utcMsToHourMinuteInBookingTz(ms);
+  return `${ymd}T${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+}
+
 function isGregorianLeapYear(y: number): boolean {
   return (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
 }
