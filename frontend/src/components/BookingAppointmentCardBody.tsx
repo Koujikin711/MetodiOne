@@ -58,11 +58,12 @@ export function BookingAppointmentCardBody({
   const showFoot = Boolean(timeLabel || showVisitCounter || noteWithTooltip);
 
   return (
-    <div className="booking-appt-card-body relative">
-      <div className="booking-appt-head min-h-0">
+    <div className="booking-appt-card-body relative min-w-0 max-w-full">
+      <div className="booking-appt-head min-h-0 min-w-0 max-w-full overflow-hidden">
         <span
+          title={a.patient_name}
           className={[
-            "min-w-0 font-bold leading-tight",
+            "min-w-0 max-w-full overflow-hidden font-bold leading-tight break-words",
             compact
               ? "block truncate text-[9px]"
               : "line-clamp-2 text-[10px] sm:text-[11px]",

@@ -1666,10 +1666,22 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 }
 .booking-appt-head {
   align-items: flex-start;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+.booking-appt-head > span {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .booking-appt-foot {
   min-height: 0.75rem;
   margin-top: auto;
+  min-width: 0;
+  max-width: 100%;
 }
 .journal-icon-btn {
   position: relative;
@@ -1746,6 +1758,7 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 .booking-appt-bitrix:has(.booking-appt-note-wrap:hover),
 .booking-appt-bitrix:has(.booking-appt-note-wrap:focus-within) {
   z-index: 30;
+  overflow: visible;
 }
 .booking-appt-card-body {
   display: flex;
@@ -1759,6 +1772,10 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 .booking-appt-bitrix {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 /* Короткие сеансы 10 / 15 / 21 мин — компактная карточка в сетке */

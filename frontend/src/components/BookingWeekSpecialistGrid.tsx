@@ -567,14 +567,18 @@ function SortableSpecialistRow({
                             onAppointmentClick(a);
                           }}
                           className={[
-                            "booking-appt-bitrix relative w-full overflow-visible rounded-md px-1.5 py-1 text-left",
+                            "booking-appt-bitrix relative w-full min-w-0 overflow-hidden rounded-md px-1.5 py-1 text-left",
                             isShortSlot ? "booking-appt-bitrix--short" : "",
                             onMoveAppointment && a.status === "booked"
                               ? "cursor-grab active:cursor-grabbing"
                               : "",
                             appointmentVisualClass(a),
                           ].join(" ")}
-                          title={isShortSlot ? `${durMin} мин` : undefined}
+                          title={
+                            isShortSlot
+                              ? `${a.patient_name} · ${durMin} мин`
+                              : a.patient_name
+                          }
                         >
                           <BookingAppointmentCardBody
                             appointment={a}
