@@ -38,6 +38,7 @@ import {
 import { formatMoney } from "@/lib/money";
 import { isReferralService } from "@/lib/referralService";
 import { visitDisplayValue } from "@/lib/bookingVisitDisplay";
+import { datetimeMinuteStepForSpecialist } from "@/lib/bookingFreeSlots";
 import {
   BOOKING_TIME_ZONE,
   addCalendarDaysInBookingTz,
@@ -1271,6 +1272,49 @@ export function OnlineBookingPage() {
     return Math.max(10, dir?.duration_min ?? spec?.slot_duration_min ?? 30);
   }
 
+  /** Варианты длительности: услуга + слот эксперта + типичные пары (10/15/21, 30/60, 1–2ч). */
+  function bookingDurationChoices(opts?: {
+    directionId?: number | "";
+    specialistId?: number;
+  }): number[] {
+    const dirId = opts?.directionId !== undefined ? opts.directionId : serviceDirectionId;
+    const specId = opts?.specialistId !== undefined ? opts.specialistId : specialistId;
+    const dir =
+      dirId !== ""
+        ? (directionsQuery.data ?? []).find((d) => d.id === dirId)
+        : undefined;
+    const spec = specialistsQuery.data?.find((s) => s.id === specId);
+    const fromService = Math.max(10, Number(dir?.duration_min) || 0);
+    const fromSpec = Math.max(10, Number(spec?.slot_duration_min) || 0);
+    const optsSet = new Set<number>();
+    if (fromService >= 10) optsSet.add(fromService);
+    if (fromSpec >= 10) optsSet.add(fromSpec);
+    const sample = [...optsSet];
+    const eeg = isEegDurationOverrideService(dir?.name, serviceTitle);
+    // Пары как в клинике: 10↔21, 30↔час, 15↔1–2ч (ЭЭГ/мониторинг).
+    const hasShort = sample.some((n) => n > 0 && n <= 21);
+    const hasHalfHour = sample.some((n) => n === 30 || n === 60 || (n >= 55 && n < 90));
+    const hasLong =
+      eeg || sample.some((n) => n === 15 || n >= 90);
+    if (hasShort) for (const n of [10, 15, 21]) optsSet.add(n);
+    if (hasHalfHour) {
+      optsSet.add(30);
+      optsSet.add(60);
+    }
+    if (hasLong) for (const n of [10, 60, 90, 120]) optsSet.add(n);
+    if (optsSet.size === 0) {
+      optsSet.add(30);
+      optsSet.add(60);
+    }
+    if (bookingDurationMin >= 10) optsSet.add(bookingDurationMin);
+    return [...optsSet].sort((a, b) => a - b);
+  }
+
+  const formDateTimeMinuteStep = useMemo(() => {
+    const spec = specialistsQuery.data?.find((s) => s.id === specialistId);
+    return datetimeMinuteStepForSpecialist(spec?.slot_duration_min);
+  }, [specialistsQuery.data, specialistId]);
+
   function handleSlotClick(payload: { specialistId: number; directionId: number; dateYmd: string; minuteOfDay: number }) {
     setSpecialistId(payload.specialistId);
     setFilterDate(payload.dateYmd);
@@ -1361,7 +1405,7 @@ export function OnlineBookingPage() {
       toast.error("Неверная дата или время");
       return;
     }
-    const durationMin = timeEditDurationMin >= 55 ? 60 : timeEditDurationMin <= 35 ? 30 : timeEditDurationMin;
+    const durationMin = Math.max(10, Number(timeEditDurationMin) || 30);
     moveAppointmentMutation.mutate(
       {
         appointmentId: apptDetail.id,
@@ -1535,12 +1579,8 @@ export function OnlineBookingPage() {
     if (typeof referredByUserId === "number") {
       payload.referred_by_user_id = referredByUserId;
     }
-    // Длительность вручную — только ЭЭГ (шаблон 10 мин → иногда 1–2 часа).
-    if (
-      isEegDurationOverrideService(selectedDir?.name, serviceTitle) &&
-      Number.isFinite(bookingDurationMin) &&
-      bookingDurationMin >= 10
-    ) {
+    // Длительность: у услуг/экспертов разные пары (10/21, 15/60–120, 30/час…).
+    if (Number.isFinite(bookingDurationMin) && bookingDurationMin >= 10) {
       payload.duration_min = Math.max(10, Number(bookingDurationMin) || 30);
     }
     createMutation.mutate(payload);
@@ -1976,38 +2016,30 @@ export function OnlineBookingPage() {
                     required
                     value={startAt}
                     onChange={setStartAt}
-                    minuteStep={30}
+                    minuteStep={formDateTimeMinuteStep}
                     allowClear={false}
                     className="mt-1"
                     aria-label="Дата и время записи"
                   />
                 </label>
-                {isEegDurationOverrideService(
-                  (directionsQuery.data ?? []).find((d) => d.id === serviceDirectionId)?.name,
-                  serviceTitle,
-                ) ? (
+                {canEditBooking ? (
                   <label className="block text-sm mo-muted">
-                    Длительность ЭЭГ
+                    Длительность
                     <select
                       value={bookingDurationMin}
                       onChange={(e) => setBookingDurationMin(Number(e.target.value))}
                       className="mt-1 w-full mo-input"
-                      aria-label="Длительность ЭЭГ"
+                      aria-label="Длительность приёма"
                     >
                       {(() => {
                         const fromService = resolveBookingDurationMin();
-                        const base = [10, 60, 90, 120];
-                        const opts = [...base, bookingDurationMin, fromService]
-                          .filter((n) => Number.isFinite(n) && n >= 10)
-                          .filter((n, i, arr) => arr.indexOf(n) === i)
-                          .sort((a, b) => a - b);
                         const labelFor = (n: number) => {
                           if (n === 60) return "1 час";
                           if (n === 90) return "1.5 часа";
                           if (n === 120) return "2 часа";
                           return `${n} мин`;
                         };
-                        return opts.map((n) => (
+                        return bookingDurationChoices().map((n) => (
                           <option key={n} value={n}>
                             {labelFor(n)}
                             {n === fromService ? " · по услуге" : ""}
@@ -2016,7 +2048,8 @@ export function OnlineBookingPage() {
                       })()}
                     </select>
                     <span className="mt-1 block text-[11px] mo-muted">
-                      Только для ЭЭГ: обычно 10 мин, длинный мониторинг — 1 или 2 часа.
+                      От услуги и эксперта: 10/15/21, 30/час, для ЭЭГ ещё 1–2 ч. Следующая запись в
+                      часе — сразу после конца этой.
                     </span>
                   </label>
                 ) : null}
@@ -2780,7 +2813,10 @@ export function OnlineBookingPage() {
                   <DateTimeField
                     value={timeEditDraft}
                     onChange={setTimeEditDraft}
-                    minuteStep={30}
+                    minuteStep={datetimeMinuteStepForSpecialist(
+                      specialistsQuery.data?.find((s) => s.id === apptDetail.specialist_id)
+                        ?.slot_duration_min,
+                    )}
                     allowClear={false}
                     aria-label="Новые дата и время записи"
                   />
@@ -2788,11 +2824,17 @@ export function OnlineBookingPage() {
                     Длительность
                     <select
                       className="mo-input mt-1 w-full"
-                      value={timeEditDurationMin >= 55 ? 60 : 30}
+                      value={timeEditDurationMin}
                       onChange={(e) => setTimeEditDurationMin(Number(e.target.value))}
                     >
-                      <option value={30}>30 мин</option>
-                      <option value={60}>1 час</option>
+                      {bookingDurationChoices({
+                        directionId: apptDetail.direction_id,
+                        specialistId: apptDetail.specialist_id,
+                      }).map((n) => (
+                        <option key={n} value={n}>
+                          {n === 60 ? "1 час" : n === 90 ? "1.5 часа" : n === 120 ? "2 часа" : `${n} мин`}
+                        </option>
+                      ))}
                     </select>
                   </label>
                   <div className="flex flex-wrap gap-2 pt-1">

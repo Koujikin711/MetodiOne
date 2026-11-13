@@ -37,6 +37,11 @@ import {
   ymdInBookingTz,
 } from "@/lib/bookingTz";
 import { MAX_BOOKINGS_PER_SPECIALIST_HOUR } from "@/lib/bookingCapacity";
+import {
+  isMinuteCoveredByAppointments,
+  suggestNextMinuteForDay,
+  suggestNextMinuteInHour,
+} from "@/lib/bookingFreeSlots";
 import type { BookingAppointment, BookingSpecialist } from "@/lib/types";
 
 const DEFAULT_WORK_WEEKDAYS = [0, 1, 2, 3, 4];
@@ -107,25 +112,6 @@ function appointmentVisualClass(a: BookingAppointment): string {
   return "booking-appt booking-appt--booked";
 }
 
-function suggestMinuteForDay(spec: BookingSpecialist, dayAppts: BookingAppointment[]): number {
-  const step = Math.max(15, spec.slot_duration_min ?? 30);
-  const startMin = (spec.work_start_hour ?? 9) * 60;
-  const endMin = (spec.work_end_hour ?? 18) * 60;
-  const active = dayAppts.filter((a) => a.status !== "cancelled");
-  if (active.length === 0) return startMin;
-
-  let latestEnd = startMin;
-  for (const a of active) {
-    const { h, min } = utcMsToHourMinuteInBookingTz(new Date(a.end_at).getTime());
-    const endMinute = h * 60 + min;
-    if (endMinute > latestEnd) latestEnd = endMinute;
-  }
-
-  let next = latestEnd;
-  if (next % step !== 0) next = Math.ceil(next / step) * step;
-  if (next >= endMin) return startMin;
-  return next;
-}
 
 function specWorkWeekdays(spec: BookingSpecialist): number[] {
   const w = spec.work_weekdays;
@@ -145,6 +131,11 @@ function formatMinuteLabel(minuteOfDay: number): string {
 
 function appointmentStartMinute(a: BookingAppointment): number {
   const { h, min } = utcMsToHourMinuteInBookingTz(new Date(a.start_at).getTime());
+  return h * 60 + min;
+}
+
+function appointmentEndMinute(a: BookingAppointment): number {
+  const { h, min } = utcMsToHourMinuteInBookingTz(new Date(a.end_at).getTime());
   return h * 60 + min;
 }
 
@@ -197,17 +188,43 @@ function buildDayRows(
     const hourStart = hour * 60;
     if (hourStart < startMin || hourStart >= endMin) continue;
     const left = byBucket.get(hourStart) ?? [];
-    const right = hourStart + 30 < endMin ? (byBucket.get(hourStart + 30) ?? []) : [];
-    if (left.length === 0 && right.length === 0) {
+    const rightBucket = hourStart + 30 < endMin ? (byBucket.get(hourStart + 30) ?? []) : [];
+    const hourEnd = hourStart + 60;
+    const overlapping = dayAppts.filter((a) => {
+      if (a.status === "cancelled") return false;
+      const s = appointmentStartMinute(a);
+      const e = appointmentEndMinute(a);
+      return s < hourEnd && e > hourStart;
+    });
+    // Половина занята стартом в бакете ИЛИ длинной записью, которая её перекрывает.
+    const leftHalfBusy =
+      left.length > 0 || isMinuteCoveredByAppointments(hourStart, dayAppts);
+    const rightHalfBusy =
+      rightBucket.length > 0 || isMinuteCoveredByAppointments(hourStart + 30, dayAppts);
+    if (!leftHalfBusy && !rightHalfBusy) {
       out.push({ kind: "slot", minute: hourStart });
       continue;
     }
-    if (right.length === 0) {
-      // Только час — без второй колонки «:30 свободно».
-      out.push({ kind: "hourOnly", hourStart, appointments: left });
+    if (leftHalfBusy && !rightHalfBusy) {
+      // Запись на полчаса (:00–:30) → справа «:30 свободно», без дырок :10/:20.
+      out.push({
+        kind: "hourSplit",
+        hourStart,
+        left: left.length > 0 ? left : overlapping,
+        right: [],
+      });
       continue;
     }
-    out.push({ kind: "hourSplit", hourStart, left, right });
+    if (rightBucket.length === 0 && rightHalfBusy) {
+      // Весь час перекрыт (час / 1–2ч) — без «свободно» на занятое время.
+      out.push({
+        kind: "hourOnly",
+        hourStart,
+        appointments: left.length > 0 ? left : overlapping,
+      });
+      continue;
+    }
+    out.push({ kind: "hourSplit", hourStart, left, right: rightBucket });
   }
   return out;
 }
@@ -268,7 +285,7 @@ function emitSlotClick(
     specialistId: spec.id,
     directionId: spec.direction_id,
     dateYmd,
-    minuteOfDay: suggestMinuteForDay(spec, dayAppts),
+    minuteOfDay: suggestNextMinuteForDay(spec, dayAppts),
   });
 }
 
@@ -674,7 +691,8 @@ function SortableSpecialistRow({
                     };
 
                     if (row.kind === "hourOnly") {
-                      // Только час: карточки на всю ширину. При перетаскивании — дырки :10/:20… чтобы вернуть назад.
+                      // Час закрыт записью на весь час / длинной услугой: только карточки.
+                      // Свободный полчаса уже в hourSplit; микро-дыры :10/:20 не рисуем.
                       const sorted = [...row.appointments].sort(
                         (a, b) =>
                           appointmentStartMinute(a) - appointmentStartMinute(b) || a.id - b.id,
@@ -687,20 +705,33 @@ function SortableSpecialistRow({
                         else byStart.set(m, [a]);
                       }
                       const showMoveGaps = Boolean(apptMoving && onMoveAppointment);
-                      const gapStep = 10;
+                      const slotDur = Math.max(10, Number(spec.slot_duration_min) || 30);
+                      const gapStep = slotDur >= 30 ? 30 : 10;
                       const nodes: ReactNode[] = [];
                       if (showMoveGaps) {
                         for (let m = row.hourStart; m < row.hourStart + 60; m += gapStep) {
                           const at = byStart.get(m) ?? [];
                           if (at.length > 0) {
                             for (const a of at) nodes.push(renderApptCard(a, m));
-                          } else {
+                          } else if (!isMinuteCoveredByAppointments(m, dayAppts)) {
                             nodes.push(renderHalfFree(m));
                           }
                         }
                       } else {
                         for (const a of sorted) {
                           nodes.push(renderApptCard(a, appointmentStartMinute(a)));
+                        }
+                        const nextMin = suggestNextMinuteInHour(row.hourStart, dayAppts, {
+                          slotDurationMin: slotDur,
+                        });
+                        if (
+                          onSlotClick &&
+                          nextMin != null &&
+                          nextMin > row.hourStart &&
+                          nextMin < row.hourStart + 60 &&
+                          !isMinuteCoveredByAppointments(nextMin, dayAppts)
+                        ) {
+                          nodes.push(renderHalfFree(nextMin));
                         }
                       }
                       return (
@@ -721,7 +752,11 @@ function SortableSpecialistRow({
                       return (
                         <div key={`hour-split-${key}-${row.hourStart}`} className="booking-week-grid__pair">
                           {halves.map(({ minute, appts }) => {
-                            if (appts.length === 0) return renderHalfFree(minute);
+                            if (appts.length === 0) {
+                              // Не показывать «свободно» поверх уже занятого интервала.
+                              if (isMinuteCoveredByAppointments(minute, dayAppts)) return null;
+                              return renderHalfFree(minute);
+                            }
                             return (
                               <div key={`half-${minute}`} className="booking-week-grid__half-stack min-w-0">
                                 {appts.map((a) => renderApptCard(a, minute))}
@@ -733,17 +768,28 @@ function SortableSpecialistRow({
                     }
                     const slotCanAdd = Boolean(onSlotClick && !row.closed);
                     const slotCanDrop = Boolean(onMoveAppointment && !row.closed);
-                    // Пустой час: при перетаскивании — слоты каждые 10 мин, чтобы вернуть на :10/:20…
+                    const emptySlotDur = Math.max(10, Number(spec.slot_duration_min) || 30);
+                    // Пустой час при DnD: :00/:30 (не :10/:20 поверх занятого интервала).
                     if (apptMoving && slotCanDrop && !row.closed) {
+                      const gapStep = emptySlotDur >= 30 ? 30 : 10;
+                      const gapCount = Math.floor(60 / gapStep);
                       return (
                         <div
                           key={`slot-gaps-${key}-${row.minute}`}
                           className="booking-week-grid__half-stack booking-week-grid__half-stack--hour-only min-w-0"
                         >
-                          {Array.from({ length: 6 }, (_, i) => renderHalfFree(row.minute + i * 10))}
+                          {Array.from({ length: gapCount }, (_, i) => {
+                            const m = row.minute + i * gapStep;
+                            if (isMinuteCoveredByAppointments(m, dayAppts)) return null;
+                            return renderHalfFree(m);
+                          })}
                         </div>
                       );
                     }
+                    const suggestedMinute =
+                      suggestNextMinuteInHour(row.minute, dayAppts, {
+                        slotDurationMin: emptySlotDur,
+                      }) ?? row.minute;
                     return (
                       <button
                         key={`slot-${key}-${row.minute}`}
@@ -777,7 +823,7 @@ function SortableSpecialistRow({
                             specialistId: spec.id,
                             directionId: spec.direction_id,
                             dateYmd,
-                            minuteOfDay: row.minute,
+                            minuteOfDay: suggestedMinute,
                           });
                         }}
                         className={[
@@ -790,14 +836,14 @@ function SortableSpecialistRow({
                           row.closed
                             ? `В этот час уже ${MAX_BOOKINGS_PER_SPECIALIST_HOUR} записи`
                             : slotCanAdd
-                              ? `Записать на ${formatMinuteLabel(row.minute)}`
+                              ? `Записать на ${formatMinuteLabel(suggestedMinute)}`
                               : slotCanDrop
                                 ? `Перенести на ${formatMinuteLabel(row.minute)}`
                                 : undefined
                         }
                       >
                         <span className="text-[10px] font-semibold tabular-nums leading-none text-[var(--mo-text-muted)]">
-                          {formatMinuteLabel(row.minute)}
+                          {formatMinuteLabel(suggestedMinute)}
                         </span>
                       </button>
                     );
