@@ -1,6 +1,7 @@
 import { LogOut } from "@/components/icons";
 import { AppBanners } from "@/components/AppBanners";
 import { OwnerExpenseConfirmBanner } from "@/components/OwnerExpenseConfirmBanner";
+import { ServerUnavailableGate } from "@/components/ServerUnavailableGate";
 import { TaskDueBanner } from "@/components/TaskDueBanner";
 import { ShellSidebarNav } from "@/components/ShellSidebarNav";
 import { TariffFeatureOutletGate } from "@/components/TariffFeatureOutletGate";
@@ -318,7 +319,9 @@ export function MainLayout() {
                 : undefined
             }
           >
-            <TariffFeatureOutletGate />
+            <ServerUnavailableGate>
+              <TariffFeatureOutletGate />
+            </ServerUnavailableGate>
           </div>
         </main>
 

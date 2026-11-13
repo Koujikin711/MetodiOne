@@ -30,6 +30,7 @@ import { AccessDenied } from "@/components/AccessDenied";
 import { CrmToolbar } from "@/components/crm/CrmToolbar";
 import { MessageCircle, Phone, Trash2 } from "@/components/icons";
 import { PatientPhone } from "@/components/PatientPhone";
+import { QueryErrorNotice } from "@/components/QueryErrorNotice";
 import { WaitingCallbackModal } from "@/components/WaitingCallbackModal";
 import { apiDownloadBlob, apiFetch, getStoredToken, resolveApiUrl } from "@/lib/api";
 import { isRefusalStageName, leadStageChips } from "@/lib/leadStageChips";
@@ -2931,7 +2932,10 @@ export function CrmPage() {
             </label>
           </div>
           {leadsTableQuery.isError && (
-            <p className="text-sm text-[var(--mo-danger)]">{(leadsTableQuery.error as Error).message}</p>
+            <QueryErrorNotice
+              error={leadsTableQuery.error}
+              onRetry={() => void leadsTableQuery.refetch()}
+            />
           )}
           {leadsTableQuery.isLoading && <p className="crm-list-meta">Загрузка…</p>}
           {leadsTableQuery.data && !leadsTableQuery.isLoading && (
@@ -3018,9 +3022,13 @@ export function CrmPage() {
         <p className="text-sm mo-muted">Загрузка…</p>
       )}
       {crmView === "board" && (stagesQuery.isError || leadsQuery.isError) && (
-        <p className="text-sm text-[var(--mo-danger)]">
-          {(stagesQuery.error as Error)?.message ?? (leadsQuery.error as Error)?.message}
-        </p>
+        <QueryErrorNotice
+          error={stagesQuery.error ?? leadsQuery.error}
+          onRetry={() => {
+            void stagesQuery.refetch();
+            void leadsQuery.refetch();
+          }}
+        />
       )}
 
       {kanbanError && crmView === "board" && (
