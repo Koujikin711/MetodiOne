@@ -1733,7 +1733,7 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 .booking-appt-note-tooltip {
   display: none;
   position: absolute;
-  z-index: 40;
+  z-index: 60;
   top: calc(100% + 4px);
   right: 0;
   width: max-content;
@@ -1757,7 +1757,13 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
 }
 .booking-appt-bitrix:has(.booking-appt-note-wrap:hover),
 .booking-appt-bitrix:has(.booking-appt-note-wrap:focus-within) {
-  z-index: 30;
+  /* Выше соседнего часа и sticky-колонки специалистов (z-40), иначе тултип «уходит под табло» */
+  position: relative;
+  z-index: 50;
+  overflow: visible;
+}
+.booking-week-grid__pair,
+.booking-week-grid__half-stack {
   overflow: visible;
 }
 .booking-appt-card-body {
