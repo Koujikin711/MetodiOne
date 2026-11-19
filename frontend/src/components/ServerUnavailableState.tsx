@@ -13,7 +13,7 @@ export function ServerUnavailableState({ message, onRetry }: Props) {
 
   return (
     <div
-      className="server-down relative mx-auto flex w-full max-w-xl flex-col items-center overflow-hidden px-5 py-12 text-center sm:py-16"
+      className="server-down relative mx-auto flex w-full max-w-xl flex-col items-center overflow-hidden px-5 text-center"
       role="alert"
       aria-live="polite"
     >

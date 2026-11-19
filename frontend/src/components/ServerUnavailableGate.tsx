@@ -38,7 +38,7 @@ export function ServerUnavailableGate({ children }: { children: ReactNode }) {
   if (!down) return <>{children}</>;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="server-down-gate flex min-h-0 flex-1 flex-col">
       <ServerUnavailableState
         message={message}
         onRetry={() => {

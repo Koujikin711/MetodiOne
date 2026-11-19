@@ -7716,12 +7716,24 @@ fieldset.extra-services-field {
   color: var(--mo-text-muted);
 }
 
-/* 503 / API down — робот без белой подложки */
+/* 503 / API down — по центру области контента, чуть ниже середины */
+.server-down-gate {
+  justify-content: center;
+  align-items: center;
+  padding-block: 1.5rem 1rem;
+}
+
+.server-down {
+  /* ниже центра — визуально спокойнее в оболочке со сайдбаром */
+  transform: translateY(11vh);
+  padding-block: 0.5rem 1.25rem;
+}
+
 .server-down__glow {
   pointer-events: none;
   position: absolute;
   left: 50%;
-  top: 2.5rem;
+  top: 1.25rem;
   z-index: 0;
   height: 14rem;
   width: 14rem;
