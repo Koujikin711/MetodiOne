@@ -1,6 +1,6 @@
 """Хайдарзода Мулкия — в общей очереди новых лидов.
 
-До понедельника 16.11.2026 (00:00 Душанбе) новые лиды ей не назначаются.
+До 01.12.2026 (00:00 Душанбе) новые лиды ей не назначаются (весь ноябрь).
 Архивная дневная раздача сюда не входит (её режет accepts_new_leads / квота).
 """
 
@@ -27,7 +27,7 @@ def _norm_name(value: str | None) -> str:
 
 
 # До этой даты (не включая) Мулкия не получает новые лиды (Meta/WA/форма).
-MULKIYA_NO_NEW_LEADS_UNTIL = date(2026, 11, 16)  # понедельник
+MULKIYA_NO_NEW_LEADS_UNTIL = date(2026, 12, 1)  # конец ноября 2026
 
 
 def _dushanbe_tz() -> ZoneInfo:
@@ -35,7 +35,7 @@ def _dushanbe_tz() -> ZoneInfo:
 
 
 def mulkiya_blocked_from_new_leads(now: datetime | None = None) -> bool:
-    """True, пока Мулкии нельзя давать новые лиды (до пн 16.11.2026 00:00 Душанбе)."""
+    """True, пока Мулкии нельзя давать новые лиды (до 01.12.2026 00:00 Душанбе)."""
     clock = now or datetime.now(UTC)
     if clock.tzinfo is None:
         clock = clock.replace(tzinfo=UTC)

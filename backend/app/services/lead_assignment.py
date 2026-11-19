@@ -134,7 +134,7 @@ async def assign_manager_for_new_lead(
         if not user_ids:
             return None
 
-    # Мулкия: до пн 16.11 — без новых лидов (архив не трогаем).
+    # Мулкия: до 01.12.2026 — без новых лидов (архив не трогаем).
     if mulkiya_blocked_from_new_leads():
         mulkiya_id = await mulkiya_manager_id(db, company_id=company_id)
         if mulkiya_id is not None:

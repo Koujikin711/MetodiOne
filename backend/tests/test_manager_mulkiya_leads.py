@@ -1,4 +1,4 @@
-"""Тесты: Мулкия — блок новых лидов до понедельника."""
+"""Тесты: Мулкия — блок новых лидов до конца ноября."""
 
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -21,11 +21,11 @@ def test_mulkiya_name_match():
     assert is_mulkiya_haidarzoda(None) is False
 
 
-def test_mulkiya_blocked_until_monday():
+def test_mulkiya_blocked_until_end_of_november():
     tz = ZoneInfo("Asia/Dushanbe")
-    assert MULKIYA_NO_NEW_LEADS_UNTIL.isoformat() == "2026-11-16"
-    assert mulkiya_blocked_from_new_leads(datetime(2026, 11, 10, 12, 0, tzinfo=tz)) is True
-    assert mulkiya_blocked_from_new_leads(datetime(2026, 11, 15, 23, 59, tzinfo=tz)) is True
-    assert mulkiya_blocked_from_new_leads(datetime(2026, 11, 16, 0, 1, tzinfo=tz)) is False
+    assert MULKIYA_NO_NEW_LEADS_UNTIL.isoformat() == "2026-12-01"
+    assert mulkiya_blocked_from_new_leads(datetime(2026, 11, 19, 12, 0, tzinfo=tz)) is True
+    assert mulkiya_blocked_from_new_leads(datetime(2026, 11, 30, 23, 59, tzinfo=tz)) is True
+    assert mulkiya_blocked_from_new_leads(datetime(2026, 12, 1, 0, 1, tzinfo=tz)) is False
     # alias
-    assert new_leads_only_mulkiya(datetime(2026, 11, 12, 10, 0, tzinfo=tz)) is True
+    assert new_leads_only_mulkiya(datetime(2026, 11, 20, 10, 0, tzinfo=tz)) is True
