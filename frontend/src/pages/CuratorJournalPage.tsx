@@ -1242,6 +1242,17 @@ function SummaryCard({ title, body }: { title: string; body: string }) {
   );
 }
 
+function HistoryStat({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="cj-history-stat">
+      <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--mo-muted)]">
+        {title}
+      </div>
+      <div className="mt-0.5 text-base font-semibold tabular-nums text-[var(--mo-text)]">{body}</div>
+    </div>
+  );
+}
+
 function StatusCell({
   glyph,
   title,
@@ -1943,25 +1954,30 @@ function HistoryModal({
     <Modal title="История участника" onClose={onClose} wide>
       {q.isLoading ? <p className="text-sm">Загрузка…</p> : null}
       {h && m ? (
-        <div className="space-y-3 text-sm">
-          <div>
-            <div className="cj-history-name">{m.display_name}</div>
-            <div className="text-[var(--mo-muted)]">
-              {h.course_name} · Поток №{h.flow_number} · {MONTHS_RU[month - 1]} {year}
-            </div>
-            <ProgramPeriodHint m={m} />
-            {m.program_started_on && m.program_expected_end_on ? (
-              <div className="mt-1 text-xs text-[var(--mo-muted)]">
-                Программа: {formatRuDate(m.program_started_on)} –{" "}
-                {formatRuDate(m.program_expected_end_on)}
-                {m.program_start_source === "purchase" ? " (покупка Курс)" : " (дата вступления)"}
+        <div className="cj-history space-y-4 text-sm">
+          <div className="cj-history-hero">
+            <div className="min-w-0 flex-1">
+              <div className="cj-history-name">{m.display_name}</div>
+              <div className="mt-0.5 text-[13px] text-[var(--mo-muted)]">
+                {h.course_name} · Поток №{h.flow_number} · {MONTHS_RU[month - 1]} {year}
               </div>
-            ) : null}
+              <ProgramPeriodHint m={m} />
+              {m.program_started_on && m.program_expected_end_on ? (
+                <div className="mt-1 text-xs text-[var(--mo-muted)]">
+                  Программа: {formatRuDate(m.program_started_on)} –{" "}
+                  {formatRuDate(m.program_expected_end_on)}
+                  {m.program_start_source === "purchase" ? " (покупка Курс)" : " (дата вступления)"}
+                </div>
+              ) : null}
+              {openPauseComment(m) ? (
+                <p className="mt-2 text-xs text-[var(--mo-muted)]">{openPauseComment(m)}</p>
+              ) : null}
+            </div>
             {m.left_on ? null : (
-              <span className="cj-person-actions">
+              <div className="cj-history-actions">
                 <button
                   type="button"
-                  className="cj-person-action is-accent"
+                  className="btn-secondary px-3 py-1.5 text-xs"
                   onClick={() => {
                     if (m.is_paused) onResume(m.id);
                     else onPause(m);
@@ -1972,43 +1988,29 @@ function HistoryModal({
                 {canRemove ? (
                   <button
                     type="button"
-                    className="cj-person-action is-danger"
+                    className="btn-secondary border-[var(--mo-danger)]/35 px-3 py-1.5 text-xs text-[var(--mo-danger)]"
                     disabled={leavePending}
                     onClick={() => onRemove(m)}
                   >
                     Удалить из списка
                   </button>
                 ) : null}
-              </span>
-            )}
-            {openPauseComment(m) ? (
-              <p className="mt-1 text-xs text-[var(--mo-muted)]">{openPauseComment(m)}</p>
-            ) : null}
-          </div>
-          <div className={["grid gap-2", canRemove && !m.left_on ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"].join(" ")}>
-            <SummaryCard title="Дневник" body={`${h.diary_done}/${h.diary_total_days}`} />
-            <SummaryCard title="Фото" body={`${h.photo_done}/${h.photo_total_days}`} />
-            <SummaryCard title="Дней с жалобами" body={String(h.complaint_days)} />
-            {canRemove && !m.left_on ? (
-              <div className="rounded-xl border border-dashed border-[var(--mo-danger)]/40 bg-[var(--mo-danger)]/5 p-3">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--mo-danger)]">
-                  Удалить из списка
-                </p>
-                <button
-                  type="button"
-                  className="btn-secondary mt-2 w-full border-[var(--mo-danger)]/40 py-2 text-sm text-[var(--mo-danger)]"
-                  disabled={leavePending}
-                  onClick={() => onRemove(m)}
-                >
-                  Удалить
-                </button>
               </div>
-            ) : null}
+            )}
           </div>
+
+          <div className="cj-history-stats">
+            <HistoryStat title="Дневник" body={`${h.diary_done}/${h.diary_total_days}`} />
+            <HistoryStat title="Фото" body={`${h.photo_done}/${h.photo_total_days}`} />
+            <HistoryStat title="Дней с жалобами" body={String(h.complaint_days)} />
+          </div>
+
           {h.recurring.length ? (
             <div>
-              <div className="mb-1 font-medium">Повторяющиеся жалобы</div>
-              <ul className="text-xs text-[var(--mo-muted)]">
+              <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--mo-muted)]">
+                Повторяющиеся жалобы
+              </div>
+              <ul className="space-y-1 text-xs text-[var(--mo-muted)]">
                 {h.recurring.map((r) => (
                   <li key={r.category}>
                     {CATEGORY_LABELS[r.category as ComplaintCategory] || r.category} —{" "}
@@ -2018,23 +2020,28 @@ function HistoryModal({
               </ul>
             </div>
           ) : null}
+
           <div>
-            <div className="mb-1 font-medium">Жалобы</div>
+            <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--mo-muted)]">
+              Жалобы
+            </div>
             <ul className="max-h-64 space-y-2 overflow-y-auto">
               {h.entries
                 .filter((e) => e.complaint_status === "complaint")
                 .map((e) => (
-                  <li key={e.id} className="rounded border border-[var(--mo-border)] p-2">
-                    <div className="font-medium">{formatRuDate(e.entry_date)}</div>
+                  <li key={e.id} className="rounded-lg border border-[var(--mo-border)] bg-[var(--mo-surface)]/40 p-2.5">
+                    <div className="text-xs font-semibold">{formatRuDate(e.entry_date)}</div>
                     {e.complaints.map((c) => (
-                      <div key={c.category} className="text-xs">
+                      <div key={c.category} className="mt-0.5 text-xs text-[var(--mo-muted)]">
                         {complaintLine(c)}
                       </div>
                     ))}
                   </li>
                 ))}
               {!h.entries.some((e) => e.complaint_status === "complaint") ? (
-                <li className="text-[var(--mo-muted)]">Жалоб нет</li>
+                <li className="rounded-lg border border-dashed border-[var(--mo-border)] px-3 py-4 text-center text-[var(--mo-muted)]">
+                  Жалоб нет
+                </li>
               ) : null}
             </ul>
           </div>
