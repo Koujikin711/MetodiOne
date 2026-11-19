@@ -153,15 +153,33 @@ async def _booking_message_manager_name(
     )
 
 
+def _ensure_utc_dt(dt: datetime) -> datetime:
+    """Naive из БД = UTC; иначе приводим к UTC перед конвертацией в booking TZ."""
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
+
+
+def _booking_local_start(appt: BookingAppointment) -> datetime:
+    tz = ZoneInfo(settings.booking_timezone or "Asia/Dushanbe")
+    return _ensure_utc_dt(appt.start_at).astimezone(tz)
+
+
 def _booking_ctx(appt: BookingAppointment, manager_name: str | None) -> dict[str, str]:
-    tz = ZoneInfo(settings.booking_timezone)
-    local_start = appt.start_at.astimezone(tz)
+    local_start = _booking_local_start(appt)
     return {
         "name": (appt.patient_name or "Клиент").strip() or "Клиент",
         "date": local_start.strftime("%d.%m.%Y"),
         "time": local_start.strftime("%H:%M"),
         "manager": (manager_name or "не назначен").strip() or "не назначен",
     }
+
+
+def _appointment_still_upcoming(appt: BookingAppointment, *, grace_minutes: int = 5) -> bool:
+    """Не слать «Вы записаны…» по уже прошедшим слотам (ввод задним числом)."""
+    local_start = _booking_local_start(appt)
+    now_local = datetime.now(UTC).astimezone(local_start.tzinfo)
+    return local_start >= now_local - timedelta(minutes=grace_minutes)
 
 
 async def send_welcome_if_first_incoming(
@@ -223,6 +241,8 @@ async def send_booking_confirmation_if_needed(
 ) -> bool:
     """Отправляет подтверждение записи в WhatsApp. Возвращает True, если сообщение ушло успешно."""
     if appointment.lead_id is None:
+        return False
+    if appointment.start_at is None or not _appointment_still_upcoming(appointment):
         return False
     if await booking_whatsapp_confirmation_sent(db, appointment.id):
         return True
@@ -295,12 +315,13 @@ async def run_whatsapp_reminder_tick(db: AsyncSession) -> int:
     appointments = (await db.execute(q)).scalars().all()
     sent = 0
     for appt in appointments:
+        start_utc = _ensure_utc_dt(appt.start_at)
         action = None
         template_key = None
-        if window_24_from <= appt.start_at <= window_24_to:
+        if window_24_from <= start_utc <= window_24_to:
             action = "whatsapp_reminder_24h_sent"
             template_key = "reminder_24h"
-        elif window_2_from <= appt.start_at <= window_2_to:
+        elif window_2_from <= start_utc <= window_2_to:
             action = "whatsapp_reminder_2h_sent"
             template_key = "reminder_2h"
         if action is None:

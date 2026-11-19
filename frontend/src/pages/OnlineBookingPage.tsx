@@ -1119,7 +1119,9 @@ export function OnlineBookingPage() {
   useEffect(() => {
     if (specialistId !== 0 && specialistsActive.some((s) => s.id === specialistId)) return;
     const first = specialistsActive[0];
-    setSpecialistId(first?.id ?? 0);
+    const id = first?.id ?? 0;
+    setSpecialistId(id);
+    if (id) setBookingDurationMin(resolveBookingDurationMin({ specialistId: id }));
   }, [specialistsActive, specialistId]);
 
   useEffect(() => {
@@ -1269,7 +1271,14 @@ export function OnlineBookingPage() {
         ? (directionsQuery.data ?? []).find((d) => d.id === dirId)
         : undefined;
     const spec = specialistsQuery.data?.find((s) => s.id === specId);
-    return Math.max(10, dir?.duration_min ?? spec?.slot_duration_min ?? 30);
+    const fromService = Math.max(0, Number(dir?.duration_min) || 0);
+    const fromSpec = Math.max(0, Number(spec?.slot_duration_min) || 0);
+    // Замири Ганчина: основной приём — 1 час (30 мин только вручную в селекте).
+    if (isGanchinaSpecialistName(spec?.full_name)) {
+      if (fromService >= 90) return fromService;
+      return 60;
+    }
+    return Math.max(10, fromService || fromSpec || 30);
   }
 
   /** Варианты длительности: услуга + слот эксперта + типичные пары (10/15/21, 30/60, 1–2ч). */
@@ -1286,6 +1295,7 @@ export function OnlineBookingPage() {
     const spec = specialistsQuery.data?.find((s) => s.id === specId);
     const fromService = Math.max(10, Number(dir?.duration_min) || 0);
     const fromSpec = Math.max(10, Number(spec?.slot_duration_min) || 0);
+    const ganchina = isGanchinaSpecialistName(spec?.full_name);
     const optsSet = new Set<number>();
     if (fromService >= 10) optsSet.add(fromService);
     if (fromSpec >= 10) optsSet.add(fromSpec);
@@ -1293,7 +1303,8 @@ export function OnlineBookingPage() {
     const eeg = isEegDurationOverrideService(dir?.name, serviceTitle);
     // Пары как в клинике: 10↔21, 30↔час, 15↔1–2ч (ЭЭГ/мониторинг).
     const hasShort = sample.some((n) => n > 0 && n <= 21);
-    const hasHalfHour = sample.some((n) => n === 30 || n === 60 || (n >= 55 && n < 90));
+    const hasHalfHour =
+      ganchina || sample.some((n) => n === 30 || n === 60 || (n >= 55 && n < 90));
     const hasLong =
       eeg || sample.some((n) => n === 15 || n >= 90);
     if (hasShort) for (const n of [10, 15, 21]) optsSet.add(n);
@@ -2048,8 +2059,9 @@ export function OnlineBookingPage() {
                       })()}
                     </select>
                     <span className="mt-1 block text-[11px] mo-muted">
-                      От услуги и эксперта: 10/15/21, 30/час, для ЭЭГ ещё 1–2 ч. Следующая запись в
-                      часе — сразу после конца этой.
+                      {isGanchinaSpecialistName(selectedSpecialistForForm?.full_name)
+                        ? "У Ганчины по умолчанию 1 час; 30 мин — только для экстренных случаев."
+                        : "От услуги и эксперта: 10/15/21, 30/час, для ЭЭГ ещё 1–2 ч. Следующая запись в часе — сразу после конца этой."}
                     </span>
                   </label>
                 ) : null}
