@@ -37,7 +37,7 @@ class BookingDirectionUpdate(BaseModel):
     pipeline_id: int | None = Field(None, ge=1)
     is_active: bool | None = None
     course_streams_enabled: bool | None = None
-    course_stream_max_days: int | None = Field(None, ge=5, le=90)
+    course_stream_max_days: int | None = Field(None, ge=1, le=90)
     course_stream_min_day_for_next: int | None = Field(None, ge=1, le=60)
     course_stream_gap_days: int | None = Field(None, ge=1, le=60)
 
@@ -57,7 +57,7 @@ class BookingSpecialistRead(BaseModel):
     work_end_hour: int = 18
     work_weekdays: list[int] = Field(default_factory=lambda: [0, 1, 2, 3, 4])
     course_streams_enabled: bool = False
-    course_stream_max_days: int = Field(15, ge=5, le=90, description="Длина потока (дней), затем новый поток")
+    course_stream_max_days: int = Field(15, ge=1, le=90, description="Длина потока (число приёмов), затем новый поток")
     course_stream_min_day_for_next: int = Field(
         10,
         ge=1,
@@ -95,7 +95,7 @@ class BookingSpecialistCreate(BaseModel):
         description="0=Пн … 6=Вс (как datetime.weekday() в Python)",
     )
     course_streams_enabled: bool = False
-    course_stream_max_days: int = Field(15, ge=5, le=90)
+    course_stream_max_days: int = Field(15, ge=1, le=90)
     course_stream_min_day_for_next: int = Field(10, ge=1, le=60)
     course_stream_gap_days: int = Field(10, ge=1, le=60)
 
@@ -130,7 +130,7 @@ class BookingSpecialistUpdate(BaseModel):
     work_end_hour: int | None = Field(None, ge=BOOKING_GRID_START_HOUR + 1, le=BOOKING_GRID_END_HOUR)
     work_weekdays: list[int] | None = None
     course_streams_enabled: bool | None = None
-    course_stream_max_days: int | None = Field(None, ge=5, le=90)
+    course_stream_max_days: int | None = Field(None, ge=1, le=90)
     course_stream_min_day_for_next: int | None = Field(None, ge=1, le=60)
     course_stream_gap_days: int | None = Field(None, ge=1, le=60)
 

@@ -361,7 +361,7 @@ export function SpecialistModal({
                   <span className="block leading-4">День</span>
                   <input
                     type="number"
-                    min={5}
+                    min={1}
                     max={90}
                     value={courseStreamMaxDays}
                     onChange={(e) => setCourseStreamMaxDays(Number(e.target.value))}

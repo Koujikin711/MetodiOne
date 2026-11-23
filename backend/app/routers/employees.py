@@ -86,7 +86,7 @@ class InviteEmployeeBody(BaseModel):
     """Для эксперта: направление онлайн-записи (тип слота / колонка календаря)."""
     booking_direction_id: int | None = Field(default=None, ge=1)
     course_streams_enabled: bool = False
-    course_stream_max_days: int = Field(15, ge=5, le=90)
+    course_stream_max_days: int = Field(15, ge=1, le=90)
     course_stream_min_day_for_next: int = Field(10, ge=1, le=60)
     course_stream_gap_days: int = Field(10, ge=1, le=60)
 

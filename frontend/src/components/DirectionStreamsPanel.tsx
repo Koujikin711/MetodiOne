@@ -84,10 +84,11 @@ export function DirectionStreamsPanel() {
 
       <div className="direction-streams-legend rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)] px-3 py-2 text-[11px] leading-relaxed mo-muted">
         <p>
-          <b className="text-[var(--mo-text)]">День</b> — сколько приёмов в одном потоке (15 → после 1:15 будет 2:1).{" "}
-          <b className="text-[var(--mo-text)]">Мин</b> — длительность сеанса у услуги (10, 15, 21, 30, 60…).{" "}
-          <b className="text-[var(--mo-text)]">Пауза</b> — через сколько дней без визита снова начинать процедуру (
-          <b className="text-[var(--mo-text)]">2:1</b>).
+          <b className="text-[var(--mo-text)]">День</b> — длина потока с меткой «1:15» (для длинных курсов).{" "}
+          <b className="text-[var(--mo-text)]">Курс 15</b> считает просто 1 / 2 / 3 сеанс у всех врачей
+          (Ганчина → Мунира / Азамат) без «1:2».{" "}
+          <b className="text-[var(--mo-text)]">Мин</b> — длительность сеанса.{" "}
+          <b className="text-[var(--mo-text)]">Пауза</b> — через сколько дней без визита начинать новый поток.
         </p>
       </div>
 
@@ -169,7 +170,7 @@ function DirectionRow({
     Number(gapDays) !== (direction.course_stream_gap_days ?? 10);
 
   function handleSave() {
-    const days = Number(maxDays) || 15;
+    const days = Math.max(1, Math.min(90, Number(maxDays) || 15));
     onSave({
       course_streams_enabled: enabled,
       course_stream_max_days: days,
@@ -203,7 +204,7 @@ function DirectionRow({
         <input
           className="mo-input direction-streams-num"
           type="number"
-          min={5}
+          min={1}
           max={90}
           value={maxDays}
           disabled={!enabled}

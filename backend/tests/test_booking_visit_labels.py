@@ -4,6 +4,7 @@ from app.services.booking_visit_labels import (
     CourseStreamSettings,
     _labels_for_client_group,
     compute_course_stream_labels,
+    visit_group_key,
     visit_person_key,
 )
 
@@ -70,3 +71,26 @@ def test_no_show_does_not_advance_stream_only_completed_count():
     assert out[1].visit_label == "1:1"
     assert out[3].visit_label == "1:2"
     assert out[2].visit_label == "1:2"
+
+
+def test_course_direction_chains_across_specialists():
+    """Один пациент, одна услуга: приём у Ганчины, потом у Муниры/Азамата — общий счётчик 1, 2."""
+    person = "lead:42"
+    ganchina = visit_group_key(person, specialist_id=1, direction_id=15, use_direction=True)
+    munira = visit_group_key(person, specialist_id=2, direction_id=15, use_direction=True)
+    azamat = visit_group_key(person, specialist_id=3, direction_id=15, use_direction=True)
+    assert ganchina == munira == azamat
+    # Без услуги — по врачам раздельно
+    assert visit_group_key(person, 1) != visit_group_key(person, 2)
+
+    # Курс 15: простой номер, не поток 1:2
+    out = _labels_for_client_group(
+        [(10, _dt(0))],
+        [(20, _dt(7))],
+        enabled=False,
+        cfg=CourseStreamSettings(),
+    )
+    assert out[10].visit_label == "1"
+    assert out[20].visit_label == "2"
+    assert out[10].visit_number == 1
+    assert out[20].visit_number == 2

@@ -2,6 +2,9 @@
 
 День в потоке — порядковый номер сеанса (1, 2, 3…), а не календарный день с начала курса.
 Цепочка одного человека: карточка лида, если она есть, иначе имя. Общий телефон разных людей не склеивает сеансы.
+Если у записи есть услуга (direction) — цепочка общая по услуге для всех специалистов
+(1-й у Ганчины, 2-й у Муниры/Азамата по «Курс 15» → «2», а не снова «1»).
+Для курс/протокол — всегда простой номер сеанса (1, 2, 3…), без потока «1:2».
 В цепочку засчитываются только записи со статусом completed (клиент получил услугу).
 Записи booked получают плановый номер; no_show и cancelled не увеличивают счётчик.
 """
@@ -13,11 +16,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models import BookingAppointment, BookingDirection, BookingSpecialist
+from app.services.booking_directions import is_course_like_direction_name
 
 
 @dataclass(frozen=True)
@@ -186,7 +190,10 @@ async def visit_labels_for_ids(
         return {}
     targets = (
         await db.execute(
-            select(BookingAppointment.specialist_id).where(
+            select(
+                BookingAppointment.specialist_id,
+                BookingAppointment.direction_id,
+            ).where(
                 BookingAppointment.id.in_(appointment_ids),
                 BookingAppointment.company_id == company_id,
             )
@@ -195,25 +202,39 @@ async def visit_labels_for_ids(
     spec_ids = {int(r[0]) for r in targets}
     if not spec_ids:
         return {}
+    target_dir_ids = {int(r[1]) for r in targets if r[1] is not None}
 
     spec_rows = (
         await db.execute(select(BookingSpecialist).where(BookingSpecialist.id.in_(spec_ids)))
     ).scalars().all()
     spec_cfg = {int(s.id): course_stream_settings_from_specialist(s) for s in spec_rows}
 
-    dir_ids = (
+    # Настройки направлений: и с целевых записей, и со всех направлений этих специалистов
+    # (чтобы знать, где цепочка идёт по услуге, а не по врачу).
+    dir_ids_probe = (
         await db.execute(
             select(BookingAppointment.direction_id).where(
                 BookingAppointment.company_id == company_id,
                 BookingAppointment.specialist_id.in_(spec_ids),
+                BookingAppointment.direction_id.is_not(None),
             )
         )
     ).all()
-    direction_ids = {int(r[0]) for r in dir_ids if r[0] is not None}
+    direction_ids = {int(r[0]) for r in dir_ids_probe if r[0] is not None} | target_dir_ids
     dir_rows = (
         await db.execute(select(BookingDirection).where(BookingDirection.id.in_(direction_ids)))
     ).scalars().all() if direction_ids else []
     dir_cfg = {int(d.id): course_stream_settings_from_direction(d) for d in dir_rows}
+    dir_names = {int(d.id): str(getattr(d, "name", "") or "") for d in dir_rows}
+
+    # Одна услуга (Курс 15 и т.п.) — цепочка пациента общая для всех специалистов.
+    # Иначе в сетке Муниры не виден 1-й приём у Ганчины → снова показывает «1».
+    chain_filter = BookingAppointment.specialist_id.in_(spec_ids)
+    if target_dir_ids:
+        chain_filter = or_(
+            BookingAppointment.specialist_id.in_(spec_ids),
+            BookingAppointment.direction_id.in_(target_dir_ids),
+        )
 
     rows = (
         await db.execute(
@@ -229,12 +250,29 @@ async def visit_labels_for_ids(
             )
             .where(
                 BookingAppointment.company_id == company_id,
-                BookingAppointment.specialist_id.in_(spec_ids),
+                chain_filter,
                 BookingAppointment.status.in_(("completed", "booked")),
             )
             .order_by(BookingAppointment.start_at.asc(), BookingAppointment.id.asc())
         )
     ).all()
+
+    # Подтянуть cfg специалистов, которых нет в targets, но они в цепочке направления
+    extra_spec_ids = {int(r[1]) for r in rows} - spec_ids
+    if extra_spec_ids:
+        extra_specs = (
+            await db.execute(select(BookingSpecialist).where(BookingSpecialist.id.in_(extra_spec_ids)))
+        ).scalars().all()
+        for s in extra_specs:
+            spec_cfg[int(s.id)] = course_stream_settings_from_specialist(s)
+        # и направления из расширенной выборки
+        extra_dirs = {int(r[2]) for r in rows if r[2] is not None} - set(dir_cfg)
+        if extra_dirs:
+            for d in (
+                await db.execute(select(BookingDirection).where(BookingDirection.id.in_(extra_dirs)))
+            ).scalars().all():
+                dir_cfg[int(d.id)] = course_stream_settings_from_direction(d)
+                dir_names[int(d.id)] = str(getattr(d, "name", "") or "")
 
     completed_groups: dict[tuple[str, int], list[tuple[int, datetime]]] = defaultdict(list)
     booked_groups: dict[tuple[str, int], list[tuple[int, datetime]]] = defaultdict(list)
@@ -243,8 +281,22 @@ async def visit_labels_for_ids(
         did_int = int(did) if did is not None else None
         d_cfg = dir_cfg.get(did_int, CourseStreamSettings()) if did_int else CourseStreamSettings()
         s_cfg = spec_cfg.get(int(sid), CourseStreamSettings())
-        use_dir = bool(d_cfg.enabled)
-        cfg = d_cfg if use_dir else s_cfg
+        # Номер сеанса по услуге+пациенту, не по врачу (Ганчина → Мунира/Азамат).
+        use_dir = did_int is not None
+        course_like = bool(did_int and is_course_like_direction_name(dir_names.get(did_int)))
+        if course_like:
+            # Курс 15 / протокол: просто 1, 2, 3… без «1:2»
+            cfg = CourseStreamSettings()
+            stream_on = False
+        elif use_dir and d_cfg.enabled:
+            cfg = d_cfg
+            stream_on = True
+        elif (not use_dir) and s_cfg.enabled:
+            cfg = s_cfg
+            stream_on = True
+        else:
+            cfg = d_cfg if use_dir else s_cfg
+            stream_on = False
         person = visit_person_key(
             lead_id=int(lead_id) if lead_id is not None else None,
             patient_name=patient_name,
@@ -257,7 +309,7 @@ async def visit_labels_for_ids(
             direction_id=did_int,
             use_direction=use_dir,
         )
-        group_meta[key] = (bool(cfg.enabled), cfg)
+        group_meta[key] = (stream_on, cfg)
         entry = (int(aid), start)
         if status == "completed":
             completed_groups[key].append(entry)

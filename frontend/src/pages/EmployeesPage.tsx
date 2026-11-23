@@ -1364,7 +1364,7 @@ export function EmployeesPage() {
                           День
                           <input
                             type="number"
-                            min={5}
+                            min={1}
                             max={90}
                             value={courseStreamMaxDays}
                             onChange={(e) => setCourseStreamMaxDays(Number(e.target.value))}
