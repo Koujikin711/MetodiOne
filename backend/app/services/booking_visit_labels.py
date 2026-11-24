@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -179,6 +179,18 @@ def _labels_for_client_group(
     return out
 
 
+_APPT_LABEL_COLS = (
+    BookingAppointment.id,
+    BookingAppointment.specialist_id,
+    BookingAppointment.direction_id,
+    BookingAppointment.patient_phone,
+    BookingAppointment.patient_name,
+    BookingAppointment.lead_id,
+    BookingAppointment.start_at,
+    BookingAppointment.status,
+)
+
+
 async def visit_labels_for_ids(
     db: AsyncSession,
     *,
@@ -190,89 +202,94 @@ async def visit_labels_for_ids(
         return {}
     targets = (
         await db.execute(
-            select(
-                BookingAppointment.specialist_id,
-                BookingAppointment.direction_id,
-            ).where(
+            select(*_APPT_LABEL_COLS).where(
                 BookingAppointment.id.in_(appointment_ids),
                 BookingAppointment.company_id == company_id,
             )
         )
     ).all()
-    spec_ids = {int(r[0]) for r in targets}
-    if not spec_ids:
+    if not targets:
         return {}
-    target_dir_ids = {int(r[1]) for r in targets if r[1] is not None}
+
+    spec_ids = {int(r[1]) for r in targets}
+    target_dir_ids = {int(r[2]) for r in targets if r[2] is not None}
+    target_lead_ids: set[int] = set()
+    target_names: set[str] = set()
+    for _aid, _sid, _did, phone, patient_name, lead_id, _start, _status in targets:
+        if lead_id is not None:
+            target_lead_ids.add(int(lead_id))
+            continue
+        name = " ".join((patient_name or "").strip().casefold().split())
+        if name:
+            target_names.add(name)
 
     spec_rows = (
         await db.execute(select(BookingSpecialist).where(BookingSpecialist.id.in_(spec_ids)))
     ).scalars().all()
     spec_cfg = {int(s.id): course_stream_settings_from_specialist(s) for s in spec_rows}
 
-    # Настройки направлений: и с целевых записей, и со всех направлений этих специалистов
-    # (чтобы знать, где цепочка идёт по услуге, а не по врачу).
-    dir_ids_probe = (
-        await db.execute(
-            select(BookingAppointment.direction_id).where(
-                BookingAppointment.company_id == company_id,
-                BookingAppointment.specialist_id.in_(spec_ids),
-                BookingAppointment.direction_id.is_not(None),
-            )
-        )
-    ).all()
-    direction_ids = {int(r[0]) for r in dir_ids_probe if r[0] is not None} | target_dir_ids
-    dir_rows = (
-        await db.execute(select(BookingDirection).where(BookingDirection.id.in_(direction_ids)))
-    ).scalars().all() if direction_ids else []
-    dir_cfg = {int(d.id): course_stream_settings_from_direction(d) for d in dir_rows}
-    dir_names = {int(d.id): str(getattr(d, "name", "") or "") for d in dir_rows}
-
-    # Одна услуга (Курс 15 и т.п.) — цепочка пациента общая для всех специалистов.
-    # Иначе в сетке Муниры не виден 1-й приём у Ганчины → снова показывает «1».
-    chain_filter = BookingAppointment.specialist_id.in_(spec_ids)
+    # Только направления из целевых записей — без скана всей истории специалистов.
+    dir_cfg: dict[int, CourseStreamSettings] = {}
+    dir_names: dict[int, str] = {}
     if target_dir_ids:
-        chain_filter = or_(
-            BookingAppointment.specialist_id.in_(spec_ids),
-            BookingAppointment.direction_id.in_(target_dir_ids),
+        for d in (
+            await db.execute(select(BookingDirection).where(BookingDirection.id.in_(target_dir_ids)))
+        ).scalars().all():
+            dir_cfg[int(d.id)] = course_stream_settings_from_direction(d)
+            dir_names[int(d.id)] = str(getattr(d, "name", "") or "")
+
+    course_dir_ids = {
+        did for did in target_dir_ids if is_course_like_direction_name(dir_names.get(did))
+    }
+
+    # База: записи специалистов на экране (как раньше).
+    # Плюс для Курс 15 — чужие врачи, но только пациенты с текущего экрана (не вся БД).
+    chain_parts = [BookingAppointment.specialist_id.in_(spec_ids)]
+    if course_dir_ids and (target_lead_ids or target_names):
+        person_parts = []
+        if target_lead_ids:
+            person_parts.append(BookingAppointment.lead_id.in_(target_lead_ids))
+        if target_names:
+            # Имена уже нормализованы casefold; в SQL — lower(trim).
+            person_parts.append(
+                and_(
+                    BookingAppointment.lead_id.is_(None),
+                    func.lower(func.trim(BookingAppointment.patient_name)).in_(sorted(target_names)),
+                )
+            )
+        chain_parts.append(
+            and_(
+                BookingAppointment.direction_id.in_(course_dir_ids),
+                or_(*person_parts),
+            )
         )
 
     rows = (
         await db.execute(
-            select(
-                BookingAppointment.id,
-                BookingAppointment.specialist_id,
-                BookingAppointment.direction_id,
-                BookingAppointment.patient_phone,
-                BookingAppointment.patient_name,
-                BookingAppointment.lead_id,
-                BookingAppointment.start_at,
-                BookingAppointment.status,
-            )
+            select(*_APPT_LABEL_COLS)
             .where(
                 BookingAppointment.company_id == company_id,
-                chain_filter,
+                or_(*chain_parts),
                 BookingAppointment.status.in_(("completed", "booked")),
             )
             .order_by(BookingAppointment.start_at.asc(), BookingAppointment.id.asc())
         )
     ).all()
 
-    # Подтянуть cfg специалистов, которых нет в targets, но они в цепочке направления
+    # Подтянуть cfg специалистов/направлений из расширенной выборки (другие врачи курса).
     extra_spec_ids = {int(r[1]) for r in rows} - spec_ids
     if extra_spec_ids:
-        extra_specs = (
+        for s in (
             await db.execute(select(BookingSpecialist).where(BookingSpecialist.id.in_(extra_spec_ids)))
-        ).scalars().all()
-        for s in extra_specs:
+        ).scalars().all():
             spec_cfg[int(s.id)] = course_stream_settings_from_specialist(s)
-        # и направления из расширенной выборки
-        extra_dirs = {int(r[2]) for r in rows if r[2] is not None} - set(dir_cfg)
-        if extra_dirs:
-            for d in (
-                await db.execute(select(BookingDirection).where(BookingDirection.id.in_(extra_dirs)))
-            ).scalars().all():
-                dir_cfg[int(d.id)] = course_stream_settings_from_direction(d)
-                dir_names[int(d.id)] = str(getattr(d, "name", "") or "")
+    extra_dirs = {int(r[2]) for r in rows if r[2] is not None} - set(dir_cfg)
+    if extra_dirs:
+        for d in (
+            await db.execute(select(BookingDirection).where(BookingDirection.id.in_(extra_dirs)))
+        ).scalars().all():
+            dir_cfg[int(d.id)] = course_stream_settings_from_direction(d)
+            dir_names[int(d.id)] = str(getattr(d, "name", "") or "")
 
     completed_groups: dict[tuple[str, int], list[tuple[int, datetime]]] = defaultdict(list)
     booked_groups: dict[tuple[str, int], list[tuple[int, datetime]]] = defaultdict(list)
