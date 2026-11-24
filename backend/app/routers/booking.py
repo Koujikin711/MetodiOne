@@ -476,12 +476,18 @@ async def _booking_appointment_read(
     visit_stream: int | None = None,
     visit_stream_day: int | None = None,
     whatsapp_confirmation_sent: bool = False,
+    referred_by_name_override: str | None = None,
+    can_manage_journal_override: bool | None = None,
+    skip_whatsapp_lookup: bool = False,
 ) -> BookingAppointmentRead:
-    can = False
-    if viewer is not None:
+    if can_manage_journal_override is not None:
+        can = can_manage_journal_override
+    elif viewer is not None:
         can = await compute_can_manage_journal(db, a, viewer)
+    else:
+        can = False
     st = (a.service_title or "").strip() or None
-    if not whatsapp_confirmation_sent:
+    if not whatsapp_confirmation_sent and not skip_whatsapp_lookup:
         from app.services.whatsapp_automation import booking_whatsapp_confirmation_sent
 
         whatsapp_confirmation_sent = await booking_whatsapp_confirmation_sent(db, int(a.id))
@@ -496,6 +502,10 @@ async def _booking_appointment_read(
         if viewer is not None
         else (phone_raw, phone_raw, True)
     )
+    if referred_by_name_override is not None or getattr(a, "referred_by_user_id", None) is None:
+        ref_name = referred_by_name_override
+    else:
+        ref_name = await _referrer_name(db, getattr(a, "referred_by_user_id", None))
     return BookingAppointmentRead(
         id=a.id,
         lead_id=a.lead_id,
@@ -518,7 +528,7 @@ async def _booking_appointment_read(
         specialist_name=specialist_name,
         comment=a.comment,
         referred_by_user_id=getattr(a, "referred_by_user_id", None),
-        referred_by_name=await _referrer_name(db, getattr(a, "referred_by_user_id", None)),
+        referred_by_name=ref_name,
         can_manage_journal=can,
         visit_number=visit_number,
         visit_label=visit_label,
@@ -1839,11 +1849,43 @@ async def list_appointments(
     rows = result.all()
     all_ids = [int(r[0].id) for r in rows]
     labels_all = await _visit_labels_for_ids(db, company_id=company_id, appointment_ids=all_ids)
-    from app.services.whatsapp_automation import booking_whatsapp_confirmation_sent
+    from app.services.whatsapp_automation import booking_whatsapp_confirmation_sent_ids
+
+    # Батч: иначе N× (WA + реферер + journal) на неделю → таймаут 20 с на фронте.
+    wa_sent_ids = await booking_whatsapp_confirmation_sent_ids(db, all_ids)
+    referrer_ids = {
+        int(a.referred_by_user_id)
+        for a, *_ in rows
+        if getattr(a, "referred_by_user_id", None) is not None
+    }
+    referrer_names: dict[int, str] = {}
+    if referrer_ids:
+        for uid, fname in (
+            await db.execute(select(User.id, User.full_name).where(User.id.in_(referrer_ids)))
+        ).all():
+            name = (fname or "").strip()
+            if name:
+                referrer_names[int(uid)] = name
+
+    can_manage_default: bool | None = None
+    if current_user.role in (
+        UserRole.owner,
+        UserRole.super_owner,
+        UserRole.administrator,
+        UserRole.curator,
+        UserRole.accountant,
+    ):
+        can_manage_default = True
 
     out: list[BookingAppointmentRead] = []
     for a, dname, _dir_pid, sname in rows:
         li = labels_all.get(int(a.id))
+        rid = getattr(a, "referred_by_user_id", None)
+        ref_name = referrer_names.get(int(rid)) if rid is not None else None
+        if can_manage_default is not None:
+            can_journal = can_manage_default
+        else:
+            can_journal = await compute_can_manage_journal(db, a, current_user)
         out.append(
             await _booking_appointment_read(
                 db,
@@ -1855,7 +1897,10 @@ async def list_appointments(
                 visit_label=li.visit_label if li else None,
                 visit_stream=li.visit_stream if li else None,
                 visit_stream_day=li.visit_stream_day if li else None,
-                whatsapp_confirmation_sent=await booking_whatsapp_confirmation_sent(db, int(a.id)),
+                whatsapp_confirmation_sent=int(a.id) in wa_sent_ids,
+                referred_by_name_override=ref_name,
+                can_manage_journal_override=can_journal,
+                skip_whatsapp_lookup=True,
             ),
         )
     return out

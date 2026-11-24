@@ -234,6 +234,26 @@ async def booking_whatsapp_confirmation_sent(db: AsyncSession, appointment_id: i
     )
 
 
+async def booking_whatsapp_confirmation_sent_ids(
+    db: AsyncSession,
+    appointment_ids: list[int],
+) -> set[int]:
+    """Какие записи уже получили WA-подтверждение — одним запросом."""
+    ids = [int(x) for x in appointment_ids if x is not None]
+    if not ids:
+        return set()
+    rows = (
+        await db.execute(
+            select(SystemAuditEvent.entity_id).where(
+                SystemAuditEvent.entity_type == "booking_appointment",
+                SystemAuditEvent.action == "whatsapp_confirm_sent",
+                SystemAuditEvent.entity_id.in_(ids),
+            )
+        )
+    ).all()
+    return {int(r[0]) for r in rows if r[0] is not None}
+
+
 async def send_booking_confirmation_if_needed(
     db: AsyncSession,
     *,
