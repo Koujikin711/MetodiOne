@@ -31,8 +31,7 @@ export function ServerUnavailableState({ message, onRetry }: Props) {
       <p className="server-down__eyebrow">503 · нет связи</p>
       <h2 className="server-down__title">Сервер клиники сейчас отдыхает</h2>
       <p className="server-down__text">
-        {message?.trim() ||
-          "Связь с API временно пропала. Подождите немного и обновите — обычно это проходит само."}
+        {message?.trim() || "Связь временно пропала. Подождите немного и повторите."}
       </p>
       <button type="button" className="btn-primary server-down__cta" onClick={retry}>
         {label}

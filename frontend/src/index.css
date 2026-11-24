@@ -7820,6 +7820,62 @@ fieldset.extra-services-field {
   }
 }
 
+/* Телефон: компактный 503 — робот меньше, текст ближе, кнопка сразу под */
+@media (max-width: 639px) {
+  .server-down-gate {
+    padding-block: 0.75rem 0.5rem;
+  }
+
+  .server-down {
+    transform: translateY(3vh);
+    padding-block: 0.15rem 0.5rem;
+    padding-inline: 0.85rem;
+    max-width: 20rem;
+  }
+
+  .server-down__glow {
+    top: 0.35rem;
+    height: 8.5rem;
+    width: 8.5rem;
+    opacity: 0.85;
+  }
+
+  .server-down__figure {
+    width: min(9.75rem, 42vw);
+  }
+
+  .server-down__robot {
+    filter: drop-shadow(0 10px 16px color-mix(in srgb, #000 35%, transparent));
+  }
+
+  .server-down__eyebrow {
+    margin-top: 0.55rem;
+    font-size: 0.62rem;
+    letter-spacing: 0.12em;
+  }
+
+  .server-down__title {
+    margin-top: 0.3rem;
+    max-width: 16.5rem;
+    font-size: 1.05rem;
+    line-height: 1.28;
+  }
+
+  .server-down__text {
+    margin-top: 0.35rem;
+    max-width: 16.5rem;
+    font-size: 0.78rem;
+    line-height: 1.4;
+  }
+
+  .server-down__cta {
+    margin-top: 0.85rem;
+    min-height: 2.35rem;
+    padding-inline: 1.15rem;
+    font-size: 0.875rem;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .server-down__glow {
     animation: none;

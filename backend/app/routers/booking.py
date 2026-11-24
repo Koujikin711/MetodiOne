@@ -1597,6 +1597,17 @@ def _norm_patient_name(name: str) -> str:
     return " ".join((name or "").strip().lower().split())
 
 
+def _lead_name_compatible_with_patient(lead_name: str | None, patient_name: str | None) -> bool:
+    """Тот же человек? Пустое/«Клиент» на карточке можно заполнить; другое ФИО — другая карта."""
+    lead_key = _norm_patient_name(lead_name or "")
+    patient_key = _norm_patient_name(patient_name or "")
+    if not patient_key:
+        return True
+    if not lead_key or lead_key in {"клиент", "client"}:
+        return True
+    return lead_key == patient_key
+
+
 def booking_birth_date_required(role: UserRole) -> bool:
     """Менеджер может записать без даты рождения. Админ — нет."""
     return role != UserRole.manager
@@ -1720,12 +1731,24 @@ async def _upsert_lead_for_appointment(
     lead_pipeline_id: int | None,
     lead_stage_id: int | None,
 ) -> int | None:
+    """Карточка пациента = lead.id. Телефон не уникален: мама/ребёнок на один номер — две карты."""
     phone_digits = _norm_phone(patient_phone) or ""
     found: Lead | None = None
     if phone_digits:
         found = await _find_lead_by_phone_for_booking(db, company_id=company_id, phone_digits=phone_digits)
+        # Тот же номер, другое ФИО → не прилипать к чужой карточке/менеджеру.
+        if found is not None and not _lead_name_compatible_with_patient(found.name, patient_name):
+            found = None
     if found is None and patient_name.strip():
         found = await _find_lead_by_name_for_booking(db, company_id=company_id, patient_name=patient_name)
+        # Имя совпало, но телефон другой и у найденной карты уже другой номер — не склеивать.
+        if (
+            found is not None
+            and phone_digits
+            and _norm_phone(found.phone)
+            and _norm_phone(found.phone) != phone_digits
+        ):
+            found = None
 
     if found is not None:
         name_s = patient_name.strip()
@@ -2438,21 +2461,26 @@ async def create_appointment(
         lead = await db.get(Lead, lead_id)
         if lead is None or lead.company_id != company_id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Лид не найден")
-        await db.refresh(lead, ["stage"])
-        appointment_pipeline_id = lead.stage.pipeline_id if lead.stage else None
-        if explicit_choice is not None:
-            resolved_manager_id = explicit_choice
-            if lead.manager_id is None:
-                lead.manager_id = explicit_choice
-        elif chooser:
-            # Карточка остаётся у своего менеджера. Оплата записи ему не идёт.
-            resolved_manager_id = None
-        elif lead.manager_id is not None:
-            resolved_manager_id = lead.manager_id
-        elif current_user.role == UserRole.manager:
-            resolved_manager_id = current_user.id
-            lead.manager_id = current_user.id
-    else:
+        # Подсказка по телефону могла подставить чужую карточку (другое ФИО на тот же номер).
+        if not _lead_name_compatible_with_patient(lead.name, body.patient_name):
+            lead_id = None
+            lead = None
+        else:
+            await db.refresh(lead, ["stage"])
+            appointment_pipeline_id = lead.stage.pipeline_id if lead.stage else None
+            if explicit_choice is not None:
+                resolved_manager_id = explicit_choice
+                if lead.manager_id is None:
+                    lead.manager_id = explicit_choice
+            elif chooser:
+                # Карточка остаётся у своего менеджера. Оплата записи ему не идёт.
+                resolved_manager_id = None
+            elif lead.manager_id is not None:
+                resolved_manager_id = lead.manager_id
+            elif current_user.role == UserRole.manager:
+                resolved_manager_id = current_user.id
+                lead.manager_id = current_user.id
+    if lead_id is None:
         upsert_responsible = explicit_choice if explicit_choice is not None else (
             None if chooser else body.responsible_manager_id
         )

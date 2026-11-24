@@ -1529,7 +1529,8 @@ async def _service_earning_detail(
                 BookingAppointment.start_at >= start,
                 BookingAppointment.start_at < end,
                 BookingAppointment.paid_amount > 0,
-                BookingAppointment.status.notin_(tuple(BOOKING_EXCLUDED_FROM_KPI_STATUSES)),
+                # Отменённые не берём. Неявка с оплатой — в список (как другие неполные), в Привёл нет.
+                BookingAppointment.status != "cancelled",
                 or_(
                     BookingAppointment.pipeline_id == pipeline_id,
                     PipelineStage.pipeline_id == pipeline_id,
@@ -1566,11 +1567,15 @@ async def _service_earning_detail(
             price = Decimal(str(appt.service_amount or 0)).quantize(Decimal("0.01"))
             paid = Decimal(str(appt.paid_amount or 0)).quantize(Decimal("0.01"))
             is_new = True  # визит месяца с оплатой = «Новых» по записи
+            is_no_show = str(appt.status or "") == "no_show"
             if is_main_course_product(item.name):
                 brought_amt = course_brought_from_gross(price, paid)
             else:
                 # Курс 15 / протокол / прочее: в Привёл только полная оплата
                 brought_amt = paid if is_full_payment(price, paid) else Decimal("0.00")
+            # Неявка с деньгами — строка есть, в зачёт Привёл не идёт.
+            if is_no_show:
+                brought_amt = Decimal("0.00")
             # Неполная видна в списке (серым), в Привёл / % не входит.
             if brought_amt > 0:
                 note = str(dname or "запись")
