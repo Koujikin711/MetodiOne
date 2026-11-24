@@ -1472,11 +1472,9 @@ async def _service_earning_detail(
                 if brought_amt > 0:
                     note = "открыт в месяце"
                 elif is_main_course_product(item.name):
-                    note = "ниже мин. — показано, не в оплату"
-                elif protocol_brought_waits_for_full_price(item.name):
-                    note = "неполная — показано, не в оплату"
+                    note = "ниже мин."
                 else:
-                    note = "неполная — показано, не в оплату"
+                    note = "неполный"
             elif brought_amt > 0 and protocol_brought_waits_for_full_price(item.name) and brought_amt > month_paid_amt:
                 note = "закрытие цены · вся накопленная сумма"
             elif brought_amt > 0:
@@ -1484,13 +1482,9 @@ async def _service_earning_detail(
             elif force_for_me and force is not None and force[1] <= 0:
                 note = "не в оплату · не в зачёт"
             elif protocol_brought_waits_for_full_price(item.name) or is_main_course_product(item.name):
-                note = (
-                    "ниже мин. — показано, не в оплату"
-                    if is_main_course_product(item.name)
-                    else "неполная — показано, не в оплату"
-                )
+                note = "ниже мин." if is_main_course_product(item.name) else "неполный"
             else:
-                note = "показано, не в оплату менеджеру"
+                note = "неполный"
             rows.append(
                 SalesKpiEarningDetailRow(
                     source="kpi",
@@ -1581,9 +1575,9 @@ async def _service_earning_detail(
             if brought_amt > 0:
                 note = str(dname or "запись")
             elif is_main_course_product(item.name):
-                note = "ниже мин. — показано, не в оплату"
+                note = "ниже мин."
             else:
-                note = "неполная — показано, не в оплату"
+                note = "неполный"
             rows.append(
                 SalesKpiEarningDetailRow(
                     source="booking",
