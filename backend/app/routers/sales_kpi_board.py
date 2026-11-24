@@ -1600,6 +1600,36 @@ async def _service_earning_detail(
                 ),
             )
 
+    # Курс 15 / протокол / Курс: перенос часто = 2–3 записи с одними 300.
+    # Неполные по одному человеку — одна строка (свежая); если уже есть полная — неполные скрыть.
+    if is_main_course_product(item.name) or protocol_brought_waits_for_full_price(item.name):
+        credited_fios = {
+            fk
+            for r in rows
+            if r.in_brought and (fk := fio_key(str(r.client_name or "")))
+        }
+        brought_rows = [r for r in rows if r.in_brought]
+        incomplete = [r for r in rows if not r.in_brought]
+        incomplete.sort(
+            key=lambda r: (
+                r.sold_at is None,
+                -(r.sold_at.timestamp() if r.sold_at else 0),
+                -int(r.source_id or 0),
+            ),
+        )
+        seen_incomplete: set[str] = set()
+        kept_incomplete: list[SalesKpiEarningDetailRow] = []
+        for r in incomplete:
+            fk = fio_key(str(r.client_name or ""))
+            if fk and fk in credited_fios:
+                continue
+            if fk and fk in seen_incomplete:
+                continue
+            if fk:
+                seen_incomplete.add(fk)
+            kept_incomplete.append(r)
+        rows = brought_rows + kept_incomplete
+
     # Сначала зачтённые в Привёл, потом неполные «не в оплату»; внутри — по дате.
     rows.sort(
         key=lambda r: (
