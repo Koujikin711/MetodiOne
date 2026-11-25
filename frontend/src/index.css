@@ -3231,36 +3231,51 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 0.25rem;
   min-width: 0;
-  align-items: stretch;
+  /* Не растягивать одну карточку на высоту столбика соседей */
+  align-items: start;
 }
 
 .booking-week-grid__pair > .booking-appt-bitrix,
 .booking-week-grid__pair > .booking-week-grid__half-stack,
+.booking-week-grid__pair > .booking-week-grid__continuation,
 .booking-week-grid__pair > .booking-week-grid__empty-slot,
 .booking-week-grid__pair > .booking-week-grid__half-free {
   min-width: 0;
-  min-height: 100%;
-  height: 100%;
+  height: auto;
+  min-height: 0;
 }
 
-/* В паре :00|:30 обе карточки одной высоты (имя длиннее — не «ломает» соседа). */
 .booking-week-grid__pair .booking-appt-bitrix {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: auto;
   box-sizing: border-box;
 }
 
 .booking-week-grid__pair .booking-appt-card-body {
   display: flex;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   flex-direction: column;
   min-height: 0;
-  height: 100%;
+  height: auto;
 }
 
 .booking-week-grid__pair .booking-appt-foot {
-  margin-top: auto;
+  margin-top: 0.2rem;
+}
+
+/* Продолжение длинной услуги в следующем часе — тонкая полоска, без второй карточки */
+.booking-week-grid__continuation {
+  min-height: 0.55rem;
+  border-radius: 0.35rem;
+  background: repeating-linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--mo-border) 55%, transparent),
+    color-mix(in srgb, var(--mo-border) 55%, transparent) 3px,
+    transparent 3px,
+    transparent 7px
+  );
+  opacity: 0.55;
 }
 
 .booking-hour {
@@ -3390,20 +3405,21 @@ nav[aria-label="Основная навигация"] .shell-nav-link.is-active 
   min-height: 1.35rem;
 }
 
-/* Ряд часа: слева :00, справа :30. Несколько записей в одной половине — столбиком. */
+/* Несколько записей в половине — столбиком (читаемо в узкой колонке) */
 .booking-week-grid__half-stack {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
   min-width: 0;
-  height: 100%;
+  height: auto;
 }
 
 .booking-week-grid__half-stack > .booking-appt-bitrix {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
+  height: auto;
 }
 
-/* Только час (:00 без :30) — компактные карточки как у полчаса, без пустой высоты */
+/* Только час — компактные карточки, без пустой высоты */
 .booking-week-grid__half-stack--hour-only {
   height: auto;
 }

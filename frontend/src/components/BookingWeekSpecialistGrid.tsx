@@ -189,14 +189,9 @@ function buildDayRows(
     if (hourStart < startMin || hourStart >= endMin) continue;
     const left = byBucket.get(hourStart) ?? [];
     const rightBucket = hourStart + 30 < endMin ? (byBucket.get(hourStart + 30) ?? []) : [];
-    const hourEnd = hourStart + 60;
-    const overlapping = dayAppts.filter((a) => {
-      if (a.status === "cancelled") return false;
-      const s = appointmentStartMinute(a);
-      const e = appointmentEndMinute(a);
-      return s < hourEnd && e > hourStart;
-    });
     // Половина занята стартом в бакете ИЛИ длинной записью, которая её перекрывает.
+    // Карточки рисуем только там, где запись НАЧИНАЕТСЯ — иначе длинная услуга
+    // дублируется в каждом следующем часе и раздувает столбец.
     const leftHalfBusy =
       left.length > 0 || isMinuteCoveredByAppointments(hourStart, dayAppts);
     const rightHalfBusy =
@@ -210,17 +205,18 @@ function buildDayRows(
       out.push({
         kind: "hourSplit",
         hourStart,
-        left: left.length > 0 ? left : overlapping,
+        left,
         right: [],
       });
       continue;
     }
     if (rightBucket.length === 0 && rightHalfBusy) {
       // Весь час перекрыт (час / 1–2ч) — без «свободно» на занятое время.
+      // Пустой left = продолжение длинной записи с прошлого часа (без повторной карточки).
       out.push({
         kind: "hourOnly",
         hourStart,
-        appointments: left.length > 0 ? left : overlapping,
+        appointments: left,
       });
       continue;
     }
@@ -744,6 +740,16 @@ function SortableSpecialistRow({
                           nodes.push(renderHalfFree(nextMin));
                         }
                       }
+                      if (nodes.length === 0) {
+                        // Час занят длинной записью с прошлого слота — без дырки «свободно».
+                        return (
+                          <div
+                            key={`hour-only-${key}-${row.hourStart}`}
+                            className="booking-week-grid__continuation min-w-0"
+                            aria-hidden
+                          />
+                        );
+                      }
                       return (
                         <div
                           key={`hour-only-${key}-${row.hourStart}`}
@@ -764,7 +770,15 @@ function SortableSpecialistRow({
                           {halves.map(({ minute, appts }) => {
                             if (appts.length === 0) {
                               // Не показывать «свободно» поверх уже занятого интервала.
-                              if (isMinuteCoveredByAppointments(minute, dayAppts)) return null;
+                              if (isMinuteCoveredByAppointments(minute, dayAppts)) {
+                                return (
+                                  <div
+                                    key={`half-cont-${minute}`}
+                                    className="booking-week-grid__continuation min-w-0"
+                                    aria-hidden
+                                  />
+                                );
+                              }
                               return renderHalfFree(minute);
                             }
                             return (
