@@ -2771,8 +2771,13 @@ async def move_appointment(
         current_spec = await db.get(BookingSpecialist, appt.specialist_id)
         if current_spec is not None:
             await _assert_expert_specialist_access(db, current_user, current_spec)
-    if appt.status != "booked":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Перенос доступен только для активных записей")
+    # Активная запись или неявка: та же карточка, оплата не трогаем — только дата/время (/врач).
+    if appt.status not in ("booked", "no_show"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Перенос доступен для активных записей и неявок",
+        )
+    was_no_show = appt.status == "no_show"
 
     specialist = await db.get(BookingSpecialist, body.specialist_id)
     if specialist is None or specialist.company_id != company_id or not specialist.is_active:
@@ -2813,6 +2818,9 @@ async def move_appointment(
     appt.direction_id = move_direction_id
     appt.start_at = start_at
     appt.end_at = end_at
+    if was_no_show:
+        # Снова «записан» на новое время; paid_amount / цена без изменений.
+        appt.status = "booked"
     appt.updated_at = datetime.now(UTC)
     await db.flush()
     await write_audit_event(
@@ -2821,8 +2829,15 @@ async def move_appointment(
         entity_id=appt.id,
         action="appointment_moved",
         current_user=current_user,
-        details=f"specialist_id={appt.specialist_id}, start_at={appt.start_at.isoformat()}",
+        details=(
+            f"specialist_id={appt.specialist_id}, start_at={appt.start_at.isoformat()}"
+            + (", from_no_show=1" if was_no_show else "")
+        ),
     )
+    if was_no_show and appt.lead_id is not None:
+        await _sync_lead_after_booking_event(
+            db, company_id=company_id, lead_id=int(appt.lead_id), event="booked",
+        )
 
     return await _booking_appointment_read(
         db,

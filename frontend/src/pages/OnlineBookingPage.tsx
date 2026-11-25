@@ -36,6 +36,11 @@ import {
   isHiddenBookingDirectionName,
 } from "@/lib/bookingDirectionKinds";
 import { formatMoney } from "@/lib/money";
+import {
+  canPrintPrihodnyKo1,
+  printPrihodnyKo1,
+  toDateIso,
+} from "@/lib/printPrihodnyKo1";
 import { isReferralService } from "@/lib/referralService";
 import { visitDisplayValue } from "@/lib/bookingVisitDisplay";
 import { datetimeMinuteStepForSpecialist } from "@/lib/bookingFreeSlots";
@@ -1401,8 +1406,8 @@ export function OnlineBookingPage() {
 
   function submitTimeEdit() {
     if (!apptDetail) return;
-    if (apptDetail.status !== "booked") {
-      toast.error("Перенос только для активных записей");
+    if (apptDetail.status !== "booked" && apptDetail.status !== "no_show") {
+      toast.error("Перенос только для активных записей и неявок");
       return;
     }
     if (!timeEditDraft.trim()) {
@@ -2819,9 +2824,15 @@ export function OnlineBookingPage() {
                   ) : null}
                 </div>
               )}
-              {timeEditOpen && canEditBooking && apptDetail.status === "booked" ? (
+              {timeEditOpen &&
+              canEditBooking &&
+              (apptDetail.status === "booked" || apptDetail.status === "no_show") ? (
                 <div className="mt-3 space-y-2 rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface)]/60 p-3">
-                  <p className="text-xs font-semibold mo-muted">Дата, время и длительность</p>
+                  <p className="text-xs font-semibold mo-muted">
+                    {apptDetail.status === "no_show"
+                      ? "Перенос неявки — новая дата и время (оплата без изменений)"
+                      : "Дата, время и длительность"}
+                  </p>
                   <DateTimeField
                     value={timeEditDraft}
                     onChange={setTimeEditDraft}
@@ -2856,7 +2867,11 @@ export function OnlineBookingPage() {
                       disabled={moveAppointmentMutation.isPending || !timeEditDraft.trim()}
                       onClick={submitTimeEdit}
                     >
-                      {moveAppointmentMutation.isPending ? "Сохраняем…" : "Сохранить время"}
+                      {moveAppointmentMutation.isPending
+                        ? "Сохраняем…"
+                        : apptDetail.status === "no_show"
+                          ? "Перенести"
+                          : "Сохранить время"}
                     </button>
                     <button
                       type="button"
@@ -2871,13 +2886,14 @@ export function OnlineBookingPage() {
               ) : (
                 <div className="booking-appt-detail-modal__meta-row mt-2">
                   <span>{formatDt(apptDetail.start_at)}</span>
-                  {canEditBooking && apptDetail.status === "booked" ? (
+                  {canEditBooking &&
+                  (apptDetail.status === "booked" || apptDetail.status === "no_show") ? (
                     <button
                       type="button"
                       className="shrink-0 text-xs underline"
                       onClick={() => openTimeEdit(apptDetail)}
                     >
-                      Изменить время
+                      {apptDetail.status === "no_show" ? "Перенос" : "Изменить время"}
                     </button>
                   ) : null}
                   {(apptDetail.service_title || "").trim() ? (
@@ -2968,6 +2984,23 @@ export function OnlineBookingPage() {
                     Карточка в CRM
                   </button>
                 </>
+              ) : null}
+              {canPrintPrihodnyKo1(apptDetail) ? (
+                <button
+                  type="button"
+                  className="btn-secondary px-3 py-1.5 text-xs"
+                  onClick={() =>
+                    printPrihodnyKo1({
+                      patientName: apptDetail.patient_name,
+                      amount: Number(apptDetail.paid_amount ?? 0),
+                      dateIso: toDateIso(apptDetail.start_at),
+                      serviceTitle: apptDetail.service_title || apptDetail.direction_name,
+                      contractNo: apptDetail.lead_id ?? apptDetail.id,
+                    })
+                  }
+                >
+                  Приходный ордер
+                </button>
               ) : null}
               {canRefundBooking && Number(apptDetail.paid_amount ?? 0) > 0 ? (
                 <button

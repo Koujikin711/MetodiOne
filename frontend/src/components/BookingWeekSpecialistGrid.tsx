@@ -517,13 +517,18 @@ function SortableSpecialistRow({
                       const durMin = appointmentDurationMinutes(a);
                       const isShortSlot = durMin > 0 && durMin <= 21;
                       const canShrinkToHalf =
-                        Boolean(onMoveAppointment) && a.status === "booked" && durMin >= 55;
+                        Boolean(onMoveAppointment) &&
+                        (a.status === "booked" || a.status === "no_show") &&
+                        durMin >= 55;
                       return (
                         <div
                           key={a.id}
                           role="button"
                           tabIndex={0}
-                          draggable={Boolean(onMoveAppointment) && a.status === "booked"}
+                          draggable={
+                            Boolean(onMoveAppointment) &&
+                            (a.status === "booked" || a.status === "no_show")
+                          }
                           onDragStart={(e: ReactDragEvent) => {
                             e.stopPropagation();
                             const idStr = String(a.id);
@@ -569,7 +574,8 @@ function SortableSpecialistRow({
                           className={[
                             "booking-appt-bitrix relative w-full min-w-0 overflow-hidden rounded-md px-1.5 py-1 text-left",
                             isShortSlot ? "booking-appt-bitrix--short" : "",
-                            onMoveAppointment && a.status === "booked"
+                            onMoveAppointment &&
+                            (a.status === "booked" || a.status === "no_show")
                               ? "cursor-grab active:cursor-grabbing"
                               : "",
                             appointmentVisualClass(a),

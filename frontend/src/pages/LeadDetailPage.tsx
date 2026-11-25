@@ -12,6 +12,11 @@ import { isReferralService } from "@/lib/referralService";
 import { canAccessRop } from "@/lib/clinicRoles";
 import { formatMoney } from "@/lib/money";
 import {
+  canPrintPrihodnyKo1,
+  printPrihodnyKo1,
+  toDateIso,
+} from "@/lib/printPrihodnyKo1";
+import {
   BOOKING_TIME_ZONE,
   addCalendarDaysInBookingTz,
   datetimeLocalBookingToIsoUtc,
@@ -925,6 +930,25 @@ export function LeadDetailPage() {
                                   });
                                 }}
                               />
+                            </div>
+                          ) : null}
+                          {canPrintPrihodnyKo1(a) ? (
+                            <div className="mt-2">
+                              <button
+                                type="button"
+                                className="rounded-xl border border-[var(--mo-border)] bg-[var(--mo-surface-elevated)] px-3 py-2 text-xs font-semibold text-[var(--mo-text)] transition hover:bg-[var(--mo-accent-soft)]"
+                                onClick={() =>
+                                  printPrihodnyKo1({
+                                    patientName: a.patient_name || query.data?.name || "",
+                                    amount: Number(a.paid_amount ?? 0),
+                                    dateIso: toDateIso(a.start_at),
+                                    serviceTitle: a.service_title || a.direction_name,
+                                    contractNo: a.lead_id ?? a.id,
+                                  })
+                                }
+                              >
+                                Приходный ордер
+                              </button>
                             </div>
                           ) : null}
                         </div>
