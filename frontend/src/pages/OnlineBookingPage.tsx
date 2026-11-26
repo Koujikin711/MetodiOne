@@ -2995,7 +2995,7 @@ export function OnlineBookingPage() {
                       amount: Number(apptDetail.paid_amount ?? 0),
                       dateIso: toDateIso(apptDetail.start_at),
                       serviceTitle: apptDetail.service_title || apptDetail.direction_name,
-                      contractNo: apptDetail.lead_id ?? apptDetail.id,
+                      appointmentId: apptDetail.id,
                     })
                   }
                 >

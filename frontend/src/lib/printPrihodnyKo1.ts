@@ -7,8 +7,13 @@ export type PrihodnyKo1Input = {
   dateIso: string;
   /** Текст услуги / основания (без «Шартномаи») */
   serviceTitle?: string | null;
-  /** Номер шартнома / договора; по умолчанию id записи */
+  /**
+   * Явный № шартнома. Если не задан — авто: свой номер на каждую запись
+   * (повторная печать той же записи даёт тот же №).
+   */
   contractNo?: number | string | null;
+  /** Id записи — для стабильного авто-номера шартнома */
+  appointmentId?: number | null;
   /** Порядковый № ордера; по умолчанию из localStorage за день */
   docSeq?: number | null;
   orgName?: string;
@@ -165,6 +170,9 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+const CONTRACT_SEQ_KEY = "prihodny-ko1-contract-seq";
+const CONTRACT_MAP_KEY = "prihodny-ko1-contract-by-appt";
+
 function nextDocSeq(iso: string): number {
   try {
     const key = `prihodny-ko1-seq:${iso}`;
@@ -174,6 +182,36 @@ function nextDocSeq(iso: string): number {
     return next;
   } catch {
     return 1;
+  }
+}
+
+function bumpContractSeq(): number {
+  try {
+    const prev = Number(localStorage.getItem(CONTRACT_SEQ_KEY) || "0") || 0;
+    const next = prev + 1;
+    localStorage.setItem(CONTRACT_SEQ_KEY, String(next));
+    return next;
+  } catch {
+    return 1;
+  }
+}
+
+/** Свой № шартнома на каждую запись; повторная печать — тот же номер. */
+function allocateContractNo(appointmentId?: number | null): number {
+  if (appointmentId == null || !Number.isFinite(appointmentId)) {
+    return bumpContractSeq();
+  }
+  try {
+    const raw = localStorage.getItem(CONTRACT_MAP_KEY);
+    const map = raw ? (JSON.parse(raw) as Record<string, number>) : {};
+    const key = String(appointmentId);
+    if (map[key] != null && Number(map[key]) > 0) return Number(map[key]);
+    const next = bumpContractSeq();
+    map[key] = next;
+    localStorage.setItem(CONTRACT_MAP_KEY, JSON.stringify(map));
+    return next;
+  } catch {
+    return bumpContractSeq();
   }
 }
 
@@ -305,9 +343,10 @@ function buildHtml(input: PrihodnyKo1Input): string {
   const dateIso = toDateIso(input.dateIso);
   const seq = input.docSeq != null ? Number(input.docSeq) : nextDocSeq(dateIso);
   const docNo = makeDocNo(dateIso, seq);
-  const contract = input.contractNo != null && String(input.contractNo).trim() !== ""
-    ? String(input.contractNo).trim()
-    : String(seq);
+  const contract =
+    input.contractNo != null && String(input.contractNo).trim() !== ""
+      ? String(input.contractNo).trim()
+      : String(allocateContractNo(input.appointmentId));
   const service = (input.serviceTitle || "").trim();
   const basis = service ? `Шартномаи №${contract} ${service}` : `Шартномаи №${contract}`;
   const [o1, o2, o3, o4] = basisLines(basis, 28, 36);

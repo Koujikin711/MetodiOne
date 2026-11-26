@@ -943,7 +943,7 @@ export function LeadDetailPage() {
                                     amount: Number(a.paid_amount ?? 0),
                                     dateIso: toDateIso(a.start_at),
                                     serviceTitle: a.service_title || a.direction_name,
-                                    contractNo: a.lead_id ?? a.id,
+                                    appointmentId: a.id,
                                   })
                                 }
                               >
