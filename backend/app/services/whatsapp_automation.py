@@ -21,6 +21,7 @@ from app.models import (
 from app.services.audit import write_audit_event
 from app.services.chat_thread_state import touch_thread_on_message
 from app.services.green_api_send import send_green_text
+from app.services.phone_match import whatsapp_e164_digits
 
 _DEFAULT_TEMPLATES = {
     "greeting": "Здравствуйте, {name}! Спасибо за сообщение.",
@@ -55,12 +56,27 @@ def _render_template(text: str, ctx: dict[str, str]) -> str:
 
 
 def _chat_id_from_thread_or_phone(thread: ChatThread | None, phone: str | None) -> str | None:
-    if thread and thread.external_chat_id:
-        return thread.external_chat_id
-    if not phone:
-        return None
-    digits = "".join(ch for ch in phone if ch.isdigit())
+    """chatId для Green API: всегда E.164 с кодом 992 для локальных TJ-номеров."""
+    if thread and (thread.external_chat_id or "").strip():
+        ext = thread.external_chat_id.strip()
+        local = ext.split("@", 1)[0]
+        digits = whatsapp_e164_digits(local)
+        if digits:
+            return f"{digits}@c.us"
+        return ext
+    digits = whatsapp_e164_digits(phone)
     return f"{digits}@c.us" if digits else None
+
+
+def _booking_notify_phone(lead: Lead | None, appointment: BookingAppointment) -> str | None:
+    """Номер для оповещения: телефон карточки, иначе телефон в записи."""
+    for raw in (
+        (lead.phone if lead else None),
+        getattr(appointment, "patient_phone", None),
+    ):
+        if raw and str(raw).strip():
+            return str(raw).strip()
+    return None
 
 
 async def _has_event(db: AsyncSession, *, entity_type: str, entity_id: int | None, action: str) -> bool:
@@ -282,8 +298,17 @@ async def send_booking_confirmation_if_needed(
     ).strip()
     if not text:
         return False
-    chat_id = _chat_id_from_thread_or_phone(thread, lead.phone)
+    phone = _booking_notify_phone(lead, appointment)
+    chat_id = _chat_id_from_thread_or_phone(thread, phone)
     if not chat_id:
+        await write_audit_event(
+            db,
+            entity_type="booking_appointment",
+            entity_id=appointment.id,
+            action="whatsapp_confirm_failed",
+            current_user=None,
+            details="send_failed=no_phone_or_chat_id",
+        )
         return False
     ok, err, provider_id = send_green_text(integ.config or {}, chat_id, text)
     if thread is not None:
@@ -363,8 +388,6 @@ async def run_whatsapp_reminder_tick(db: AsyncSession) -> int:
         if integ is None:
             continue
         thread = await _thread_for_lead_green(db, lead)
-        if thread is None:
-            continue
         manager_name = await _booking_message_manager_name(db, appt, lead)
         text = _render_template(
             _templates_from_integration_config(integ.config).get(template_key, _DEFAULT_TEMPLATES[template_key]),
@@ -372,24 +395,45 @@ async def run_whatsapp_reminder_tick(db: AsyncSession) -> int:
         ).strip()
         if not text:
             continue
-        chat_id = _chat_id_from_thread_or_phone(thread, lead.phone)
+        phone = _booking_notify_phone(lead, appt)
+        chat_id = _chat_id_from_thread_or_phone(thread, phone)
         if not chat_id:
+            # Не пишем *_sent — иначе окно напоминания «сгорит» без доставки.
+            await write_audit_event(
+                db,
+                entity_type="booking_appointment",
+                entity_id=appt.id,
+                action="whatsapp_reminder_failed",
+                current_user=None,
+                details=f"{action}:no_phone_or_chat_id",
+            )
             continue
         ok, err, provider_id = send_green_text(integ.config or {}, chat_id, text)
-        await _log_outgoing_message(
-            db,
-            thread=thread,
-            text=text,
-            delivery_status=("sent" if ok else "failed"),
-            provider_message_id=provider_id,
-        )
+        if thread is not None:
+            await _log_outgoing_message(
+                db,
+                thread=thread,
+                text=text,
+                delivery_status=("sent" if ok else "failed"),
+                provider_message_id=provider_id,
+            )
+        if not ok:
+            await write_audit_event(
+                db,
+                entity_type="booking_appointment",
+                entity_id=appt.id,
+                action="whatsapp_reminder_failed",
+                current_user=None,
+                details=f"{action}:{err}",
+            )
+            continue
         await write_audit_event(
             db,
             entity_type="booking_appointment",
             entity_id=appt.id,
             action=action,
             current_user=None,
-            details=None if ok else f"send_failed={err}",
+            details=None,
         )
         sent += 1
     return sent

@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from app.services.whatsapp_automation import (
     _appointment_still_upcoming,
     _booking_ctx,
+    _chat_id_from_thread_or_phone,
     booking_message_manager_name,
 )
 
@@ -38,3 +39,16 @@ def test_past_appointment_does_not_count_as_upcoming_for_confirm():
     future = SimpleNamespace(start_at=datetime.now(UTC) + timedelta(hours=2))
     assert _appointment_still_upcoming(past) is False
     assert _appointment_still_upcoming(future) is True
+
+
+def test_chat_id_adds_tj_country_code_for_local_mobile():
+    # Как у Сатторовой / Мунзиры: без 992 раньше уходило 9xxxxxxxxx@c.us
+    assert _chat_id_from_thread_or_phone(None, "938552493") == "992938552493@c.us"
+    assert _chat_id_from_thread_or_phone(None, "+992 93 855 2493") == "992938552493@c.us"
+    assert _chat_id_from_thread_or_phone(None, "992888335405") == "992888335405@c.us"
+    assert _chat_id_from_thread_or_phone(None, "888335405") == "992888335405@c.us"
+
+
+def test_chat_id_normalizes_thread_external_id_without_cc():
+    thread = SimpleNamespace(external_chat_id="938552493@c.us")
+    assert _chat_id_from_thread_or_phone(thread, None) == "992938552493@c.us"
