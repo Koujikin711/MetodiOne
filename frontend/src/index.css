@@ -6667,6 +6667,135 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   }
 }
 
+.expenses-analytics {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.expenses-analytics__kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+@media (max-width: 720px) {
+  .expenses-analytics__kpis {
+    grid-template-columns: 1fr;
+  }
+}
+
+.expenses-analytics__kpi {
+  border: 1px solid var(--mo-border);
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, var(--mo-surface-elevated) 88%, transparent);
+  padding: 0.85rem 1rem;
+}
+
+.expenses-analytics__kpi-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--mo-text-muted);
+}
+
+.expenses-analytics__kpi-value {
+  margin-top: 0.35rem;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--mo-text);
+}
+
+.expenses-analytics__kpi-value.is-up {
+  color: #ef4444;
+}
+
+.expenses-analytics__kpi-value.is-down {
+  color: #22c55e;
+}
+
+.expenses-analytics__kpi-unit {
+  margin-left: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--mo-text-muted);
+}
+
+.expenses-analytics__kpi-sub {
+  margin-top: 0.25rem;
+  font-size: 0.78rem;
+}
+
+.expenses-analytics__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+@media (max-width: 900px) {
+  .expenses-analytics__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.expenses-analytics__card {
+  border: 1px solid var(--mo-border);
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, var(--mo-surface) 92%, transparent);
+  padding: 0.9rem 1rem 1rem;
+  min-width: 0;
+}
+
+.expenses-analytics__card--chart {
+  padding-bottom: 0.5rem;
+}
+
+.expenses-analytics__card-title {
+  margin: 0 0 0.75rem;
+  font-size: 0.92rem;
+  font-weight: 650;
+  color: var(--mo-text);
+}
+
+.expenses-analytics__chart {
+  width: 100%;
+  min-height: 220px;
+}
+
+.expenses-analytics__bars {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.expenses-analytics__bar-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.82rem;
+  margin-bottom: 0.25rem;
+}
+
+.expenses-analytics__bar-track {
+  height: 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mo-surface-elevated) 80%, var(--mo-border));
+  overflow: hidden;
+}
+
+.expenses-analytics__bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  min-width: 0;
+}
+
 .expenses-form__actions {
   margin-top: 0.75rem;
   padding-top: 0.65rem;
@@ -7895,6 +8024,370 @@ fieldset.extra-services-field {
 @media (prefers-reduced-motion: reduce) {
   .server-down__glow {
     animation: none;
+  }
+}
+
+/* Экран обновления программы (как Bitrix «Обновление», в стиле MetodiOne) */
+.app-updating-gate {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100dvh;
+  padding: 2rem 1rem;
+  background:
+    radial-gradient(
+      ellipse 65% 48% at 50% 36%,
+      color-mix(in srgb, var(--mo-accent) 16%, transparent),
+      transparent 64%
+    ),
+    radial-gradient(ellipse 40% 30% at 78% 18%, color-mix(in srgb, #fbbf24 8%, transparent), transparent 70%),
+    var(--mo-bg);
+  color: var(--mo-text);
+}
+
+.app-updating {
+  position: relative;
+  padding-block: 0.75rem 1.75rem;
+}
+
+.app-updating__glow {
+  pointer-events: none;
+  position: absolute;
+  left: 50%;
+  top: 0.25rem;
+  z-index: 0;
+  height: 12rem;
+  width: 12rem;
+  translate: -50% 0;
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--mo-accent) 32%, transparent) 0%,
+    transparent 72%
+  );
+  filter: blur(3px);
+  animation: app-updating-pulse 4s ease-in-out infinite;
+}
+
+.app-updating__glow--soft {
+  top: 4.5rem;
+  height: 8rem;
+  width: 16rem;
+  opacity: 0.55;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--mo-accent) 18%, transparent) 0%,
+    transparent 75%
+  );
+  animation-duration: 5.2s;
+  animation-delay: -1.2s;
+}
+
+.app-updating__scene {
+  position: relative;
+  z-index: 1;
+  width: min(21rem, 90vw);
+  color: var(--mo-accent);
+}
+
+.app-updating__art {
+  display: block;
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(0 16px 26px color-mix(in srgb, #000 26%, transparent));
+}
+
+.app-updating__sun {
+  fill: color-mix(in srgb, var(--mo-accent) 35%, #fbbf24);
+  opacity: 0.28;
+  transform-origin: 300px 28px;
+  animation: app-updating-sun 6s ease-in-out infinite;
+}
+
+.app-updating__sun-core {
+  fill: color-mix(in srgb, var(--mo-accent) 25%, #fde68a);
+  opacity: 0.45;
+  transform-origin: 300px 28px;
+  animation: app-updating-sun 6s ease-in-out infinite;
+}
+
+.app-updating__haze {
+  fill: color-mix(in srgb, var(--mo-accent) 22%, transparent);
+  opacity: 0.32;
+}
+
+.app-updating__haze--a {
+  animation: app-updating-drift 7s ease-in-out infinite;
+}
+
+.app-updating__haze--b {
+  animation: app-updating-drift 8.5s ease-in-out infinite reverse;
+  animation-delay: -1.5s;
+}
+
+.app-updating__haze--c {
+  animation: app-updating-drift 9s ease-in-out infinite;
+  animation-delay: -3s;
+}
+
+.app-updating__orbit-ring {
+  fill: none;
+  stroke: color-mix(in srgb, var(--mo-accent) 18%, transparent);
+  stroke-width: 1;
+}
+
+.app-updating__orbit-dash {
+  fill: none;
+  stroke: color-mix(in srgb, var(--mo-accent) 55%, transparent);
+  stroke-width: 1.75;
+  stroke-dasharray: 12 18;
+  stroke-linecap: round;
+  transform-origin: 0 0;
+  animation: app-updating-spin 10s linear infinite;
+}
+
+.app-updating__orbit-core {
+  stroke: color-mix(in srgb, var(--mo-accent) 40%, transparent);
+  stroke-width: 1.5;
+}
+
+.app-updating__orbit-dot {
+  fill: var(--mo-accent);
+  transform-origin: 0 0;
+  animation: app-updating-dot 2.4s ease-in-out infinite;
+}
+
+.app-updating__orbit-spin {
+  transform-origin: 0 0;
+  animation: app-updating-spin 3.2s linear infinite;
+}
+
+.app-updating__orbit-spin--alt {
+  animation-direction: reverse;
+  animation-duration: 4.6s;
+}
+
+.app-updating__orbit-bead {
+  fill: color-mix(in srgb, var(--mo-accent) 35%, #fff);
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--mo-accent) 55%, transparent));
+}
+
+.app-updating__orbit-bead--alt {
+  opacity: 0.7;
+}
+
+.app-updating__bar {
+  margin-top: -0.15rem;
+  padding-inline: 0.35rem;
+}
+
+.app-updating__track {
+  position: relative;
+  overflow: hidden;
+  height: 0.7rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--mo-surface-elevated) 78%, var(--mo-border));
+  box-shadow: inset 0 1px 2px color-mix(in srgb, #000 28%, transparent);
+}
+
+.app-updating__fill {
+  position: relative;
+  overflow: hidden;
+  height: 100%;
+  width: 42%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--mo-accent) 75%, #6366f1),
+    var(--mo-accent),
+    color-mix(in srgb, var(--mo-accent) 55%, #fff)
+  );
+  box-shadow: 0 0 16px color-mix(in srgb, var(--mo-accent) 35%, transparent);
+}
+
+.app-updating__fill--indeterminate {
+  animation: app-updating-progress 5.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.app-updating__shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 35%,
+    color-mix(in srgb, #fff 38%, transparent) 50%,
+    transparent 65%
+  );
+  background-size: 220% 100%;
+  animation: app-updating-shimmer 2.1s ease-in-out infinite;
+}
+
+.app-updating__brand {
+  position: relative;
+  z-index: 1;
+  margin-top: 0.35rem;
+  font-family: var(--mo-font-display, inherit);
+  font-size: clamp(1.7rem, 4.2vw, 2.15rem);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  color: var(--mo-text);
+}
+
+.app-updating__title {
+  position: relative;
+  z-index: 1;
+  margin-top: 0.7rem;
+  font-size: clamp(1.05rem, 2.2vw, 1.2rem);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: color-mix(in srgb, var(--mo-text) 88%, var(--mo-accent));
+}
+
+.app-updating__text,
+.app-updating__wait {
+  position: relative;
+  z-index: 1;
+  margin-top: 0.75rem;
+  max-width: 21rem;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--mo-text-muted);
+}
+
+.app-updating__wait {
+  margin-top: 0.4rem;
+  color: color-mix(in srgb, var(--mo-text-muted) 88%, var(--mo-text));
+}
+
+.app-updating__pct {
+  position: relative;
+  z-index: 1;
+  margin-top: 1rem;
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  color: var(--mo-accent);
+}
+
+@keyframes app-updating-pulse {
+  0%,
+  100% {
+    opacity: 0.65;
+    transform: translate(-50%, 0) scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1.04);
+  }
+}
+
+@keyframes app-updating-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes app-updating-dot {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scale(1.18);
+    opacity: 1;
+  }
+}
+
+@keyframes app-updating-sun {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.28;
+  }
+  50% {
+    transform: scale(1.06);
+    opacity: 0.4;
+  }
+}
+
+@keyframes app-updating-drift {
+  0%,
+  100% {
+    transform: translateX(0);
+    opacity: 0.28;
+  }
+  50% {
+    transform: translateX(10px);
+    opacity: 0.42;
+  }
+}
+
+/* Медленно наполняется вперёд — как у длинного обновления, без «туда-сюда» */
+@keyframes app-updating-progress {
+  0% {
+    width: 8%;
+  }
+  12% {
+    width: 18%;
+  }
+  45% {
+    width: 58%;
+  }
+  72% {
+    width: 86%;
+  }
+  88% {
+    width: 92%;
+  }
+  100% {
+    width: 8%;
+  }
+}
+
+@keyframes app-updating-shimmer {
+  0% {
+    background-position: 120% 0;
+  }
+  100% {
+    background-position: -120% 0;
+  }
+}
+
+@media (max-width: 639px) {
+  .app-updating-gate {
+    padding: 1.25rem 0.85rem;
+  }
+  .app-updating__brand {
+    font-size: 1.45rem;
+  }
+  .app-updating__title {
+    margin-top: 0.55rem;
+  }
+  .app-updating__text,
+  .app-updating__wait {
+    font-size: 0.84rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-updating__glow,
+  .app-updating__orbit-spin,
+  .app-updating__orbit-dash,
+  .app-updating__orbit-dot,
+  .app-updating__sun,
+  .app-updating__sun-core,
+  .app-updating__haze,
+  .app-updating__fill--indeterminate,
+  .app-updating__shimmer {
+    animation: none;
+  }
+  .app-updating__fill--indeterminate {
+    width: 55%;
   }
 }
 

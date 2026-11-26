@@ -28,6 +28,7 @@ import { APP_CURRENCY } from "@/lib/money";
 import { DateField } from "@/components/DateField";
 import { Printer } from "@/components/icons";
 import { MonthYearPicker } from "@/components/MonthYearPicker";
+import { ExpensesAnalyticsPanel } from "@/components/ExpensesAnalyticsPanel";
 
 type StaffCard = {
   id: number;
@@ -618,7 +619,7 @@ export function ExpensesPage() {
     return /^\d{4}-\d{2}$/.test(ym) ? ym : defaultYearMonth();
   });
   const [search, setSearch] = useState("");
-  const [view, setView] = useState<"journal" | "payroll">("journal");
+  const [view, setView] = useState<"journal" | "payroll" | "analytics">("journal");
   const [employeeId, setEmployeeId] = useState("");
   const [payrollAddOpen, setPayrollAddOpen] = useState(false);
   const [payrollName, setPayrollName] = useState("");
@@ -982,9 +983,18 @@ export function ExpensesPage() {
             >
               Ведомость
             </button>
+            <button
+              type="button"
+              className={["debtor-chip", view === "analytics" ? "is-on" : ""].filter(Boolean).join(" ")}
+              onClick={() => setView("analytics")}
+            >
+              Аналитика
+            </button>
           </div>
           <p className="mo-page-sub hidden sm:block">
-            Банк, статья, товар. «Кому» — получатель (ЗП), «Через кого» — кто передал; это разные роли.
+            {view === "analytics"
+              ? "Сравнение с прошлым месяцем, разбивка по статьям и банку, динамика за 6 месяцев."
+              : "Банк, статья, товар. «Кому» — получатель (ЗП), «Через кого» — кто передал; это разные роли."}
           </p>
           {isOwner && pendingCount > 0 ? (
             <>
@@ -1065,36 +1075,39 @@ export function ExpensesPage() {
       </div>
 
       <div className="mo-fill-page-scroll expenses-page__body">
+        {view === "analytics" ? <ExpensesAnalyticsPanel yearMonth={yearMonth} /> : null}
+
+        {view === "journal" || view === "payroll" ? (
         <form onSubmit={onSubmit} className="expenses-form">
           <div className="expenses-form__grid">
             <label className="expenses-field">
               <span className="expenses-field__label">Дата</span>
               <DateField
                 className="expenses-field__control"
-                value={txnDate}
+            value={txnDate}
                 onChange={setTxnDate}
-                required
+            required
                 aria-label="Дата расхода"
-              />
-            </label>
+          />
+        </label>
             <label className="expenses-field">
               <span className="expenses-field__label">Сумма ({APP_CURRENCY})</span>
-              <input
-                type="number"
+          <input
+            type="number"
                 inputMode="decimal"
-                min={0}
-                step="0.01"
+            min={0}
+            step="0.01"
                 className="mo-input expenses-field__control tabular-nums"
-                value={expense}
-                onChange={(e) => setExpense(e.target.value)}
-                required
-              />
+            value={expense}
+            onChange={(e) => setExpense(e.target.value)}
+            required
+          />
               {Number(expense) > 500 && !isOwner ? (
                 <span className="mt-1 block text-[11px] text-[var(--mo-text-muted)]">
                   Больше 500 сомони попадёт в журнал после подтверждения владельца.
                 </span>
               ) : null}
-            </label>
+        </label>
             {selectOrCustom(bank, [...catalog.banks], setBank, "Банк")}
             {selectOrCustom(article, [...catalog.articles], setArticle, "Статья")}
             {selectOrCustom(brief, [...catalog.brief_categories], setBrief, "Кратко")}
@@ -1108,7 +1121,7 @@ export function ExpensesPage() {
                 value={basis}
                 onChange={(e) => setBasis(e.target.value)}
               />
-            </label>
+        </label>
             <label className="expenses-field">
               <span className="expenses-field__label">Кому (получатель)</span>
               {fot ? (
@@ -1136,10 +1149,10 @@ export function ExpensesPage() {
                   ))}
                 </select>
               ) : (
-                <input
+          <input
                   className="mo-input expenses-field__control"
-                  value={counterparty}
-                  onChange={(e) => setCounterparty(e.target.value)}
+            value={counterparty}
+            onChange={(e) => setCounterparty(e.target.value)}
                   placeholder="Например: Шакармамадова Мадина"
                 />
               )}
@@ -1148,7 +1161,7 @@ export function ExpensesPage() {
                   ? "Телефон и банк подставляются из карточки, если они там есть"
                   : "Кому ушли деньги (ЗП, оплата услуги)"}
               </span>
-            </label>
+        </label>
             <label className="expenses-field">
               <span className="expenses-field__label">Телефон</span>
               <input
@@ -1158,29 +1171,30 @@ export function ExpensesPage() {
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
               />
-            </label>
+        </label>
             <label className="expenses-field">
               <span className="expenses-field__label">Через кого (передал)</span>
-              <input
+          <input
                 className="mo-input expenses-field__control"
-                value={viaPerson}
-                onChange={(e) => setViaPerson(e.target.value)}
+            value={viaPerson}
+            onChange={(e) => setViaPerson(e.target.value)}
                 placeholder="Например: Искандаров"
-              />
+          />
               <span className="expenses-field__hint">Кто передал. Даже если это тот же человек — пишите отдельно</span>
-            </label>
+        </label>
             </div>
           </div>
           <div className="expenses-form__actions">
-            <button
-              type="submit"
-              disabled={createMutation.isPending}
+          <button
+            type="submit"
+            disabled={createMutation.isPending}
               className="btn-primary expenses-form__submit"
-            >
-              {createMutation.isPending ? "Сохранение…" : "Добавить расход"}
-            </button>
-          </div>
-        </form>
+          >
+            {createMutation.isPending ? "Сохранение…" : "Добавить расход"}
+          </button>
+        </div>
+      </form>
+        ) : null}
 
         {view === "payroll" ? (
           <section className="expenses-month">
@@ -1379,8 +1393,8 @@ export function ExpensesPage() {
                   ? `Найдено ${filtered.length} · ${money(total)} ${APP_CURRENCY}`
                   : `Итого: ${money(total)} ${APP_CURRENCY}`}
             </span>
-          </div>
-          {listQuery.isLoading ? (
+        </div>
+        {listQuery.isLoading ? (
             <p className="expenses-month__empty">Загрузка списка…</p>
           ) : listQuery.isError ? (
             <div className="expenses-month__empty space-y-2">
@@ -1395,7 +1409,7 @@ export function ExpensesPage() {
                 Повторить
               </button>
             </div>
-          ) : rows.length === 0 ? (
+        ) : rows.length === 0 ? (
             <p className="expenses-month__empty">Пока нет расходов за этот месяц.</p>
           ) : filtered.length === 0 ? (
             <p className="expenses-month__empty">Ничего не найдено.</p>
@@ -1508,9 +1522,9 @@ export function ExpensesPage() {
                       <th>Подробно</th>
                       <th>Кратко</th>
                       <th>Подтверждение</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                </tr>
+              </thead>
+              <tbody>
                     {filtered.map((r) => (
                       <Fragment key={r.id}>
                       <tr
@@ -1537,7 +1551,7 @@ export function ExpensesPage() {
                             onEdit={() => openEdit(r)}
                           />
                         </td>
-                      </tr>
+                  </tr>
                       {editId === r.id && editDraft ? (
                         <tr>
                           <td colSpan={12}>
@@ -1556,8 +1570,8 @@ export function ExpensesPage() {
                         </tr>
                       ) : null}
                       </Fragment>
-                    ))}
-                  </tbody>
+                ))}
+              </tbody>
                   <tfoot>
                     <tr>
                       <td>Итого</td>
@@ -1567,15 +1581,15 @@ export function ExpensesPage() {
                       <td colSpan={10} />
                     </tr>
                   </tfoot>
-                </table>
-              </div>
+            </table>
+          </div>
             </>
-          )}
+        )}
           {!listQuery.isLoading && !listQuery.isError && filtered.length === 0 ? (
             <p className="expenses-print-empty">За этот месяц записей нет.</p>
           ) : null}
           <ExpensesPrintSign />
-        </section>
+      </section>
         ) : null}
       </div>
     </div>

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="refresh" content="120" />
+  <title>Обновление · MetodiOne</title>
+  <style>
+    :root {
+      --mo-bg: #0b1220;
+      --mo-text: #e8eef9;
+      --mo-muted: #94a3b8;
+      --mo-accent: #8b97f8;
+      --mo-surface: #121a2b;
+      --mo-elev: #1a2438;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem 1rem;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      color: var(--mo-text);
+      background:
+        radial-gradient(ellipse 65% 48% at 50% 36%, color-mix(in srgb, var(--mo-accent) 16%, transparent), transparent 64%),
+        radial-gradient(ellipse 40% 30% at 78% 18%, color-mix(in srgb, #fbbf24 8%, transparent), transparent 70%),
+        var(--mo-bg);
+    }
+    .wrap { width: min(26rem, 100%); text-align: center; position: relative; }
+    .glow {
+      position: absolute; left: 50%; top: 0.2rem; width: 12rem; height: 12rem;
+      translate: -50% 0; border-radius: 9999px; pointer-events: none; z-index: 0;
+      background: radial-gradient(circle, color-mix(in srgb, var(--mo-accent) 32%, transparent), transparent 72%);
+      filter: blur(3px); animation: pulse 4s ease-in-out infinite;
+    }
+    .glow2 {
+      position: absolute; left: 50%; top: 4.5rem; width: 16rem; height: 8rem;
+      translate: -50% 0; border-radius: 9999px; pointer-events: none; z-index: 0; opacity: 0.55;
+      background: radial-gradient(circle, color-mix(in srgb, var(--mo-accent) 18%, transparent), transparent 75%);
+      filter: blur(3px); animation: pulse 5.2s ease-in-out infinite -1.2s;
+    }
+    .scene { position: relative; z-index: 1; width: min(21rem, 90vw); margin: 0 auto; }
+    svg {
+      display: block; width: 100%; height: auto;
+      filter: drop-shadow(0 16px 26px rgba(0,0,0,0.26));
+    }
+    .dash { transform-origin: 180px 66px; animation: spin 10s linear infinite; }
+    .spin { transform-origin: 180px 66px; animation: spin 3.2s linear infinite; }
+    .spin-alt { animation-direction: reverse; animation-duration: 4.6s; }
+    .dot { transform-origin: 180px 66px; animation: dot 2.4s ease-in-out infinite; }
+    .haze-a { animation: drift 7s ease-in-out infinite; }
+    .haze-b { animation: drift 8.5s ease-in-out infinite reverse; animation-delay: -1.5s; }
+    .haze-c { animation: drift 9s ease-in-out infinite; animation-delay: -3s; }
+    .sun { transform-origin: 300px 28px; animation: sun 6s ease-in-out infinite; }
+    .bar { margin-top: -0.1rem; padding: 0 0.35rem; }
+    .track {
+      height: 0.7rem; border-radius: 999px; overflow: hidden;
+      background: color-mix(in srgb, var(--mo-elev) 78%, #64748b);
+      box-shadow: inset 0 1px 2px rgba(0,0,0,0.28);
+    }
+    .fill {
+      position: relative; overflow: hidden; height: 100%; width: 8%; border-radius: inherit;
+      background: linear-gradient(90deg, #6b74e8, #8b97f8, #c4caff);
+      box-shadow: 0 0 16px color-mix(in srgb, var(--mo-accent) 35%, transparent);
+      animation: progress 5.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    }
+    .shimmer {
+      position: absolute; inset: 0;
+      background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.38) 50%, transparent 65%);
+      background-size: 220% 100%;
+      animation: shimmer 2.1s ease-in-out infinite;
+    }
+    .brand {
+      position: relative; z-index: 1; margin: 0.85rem 0 0;
+      font-size: clamp(1.7rem, 4.2vw, 2.15rem); font-weight: 700; letter-spacing: -0.035em;
+    }
+    .title {
+      margin: 0.7rem 0 0; font-size: 1.15rem; font-weight: 600;
+      color: color-mix(in srgb, var(--mo-text) 88%, var(--mo-accent));
+    }
+    .text, .wait {
+      margin: 0.75rem auto 0; max-width: 21rem; font-size: 0.9rem; line-height: 1.6; color: var(--mo-muted);
+    }
+    .wait { margin-top: 0.4rem; }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.65; transform: translate(-50%, 0) scale(1); }
+      50% { opacity: 1; transform: translate(-50%, 0) scale(1.04); }
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes dot {
+      0%, 100% { transform: scale(1); opacity: 0.9; }
+      50% { transform: scale(1.18); opacity: 1; }
+    }
+    @keyframes sun {
+      0%, 100% { transform: scale(1); opacity: 0.28; }
+      50% { transform: scale(1.06); opacity: 0.4; }
+    }
+    @keyframes drift {
+      0%, 100% { transform: translateX(0); opacity: 0.28; }
+      50% { transform: translateX(10px); opacity: 0.42; }
+    }
+    @keyframes progress {
+      0% { width: 8%; }
+      12% { width: 18%; }
+      45% { width: 58%; }
+      72% { width: 86%; }
+      88% { width: 92%; }
+      100% { width: 8%; }
+    }
+    @keyframes shimmer {
+      0% { background-position: 120% 0; }
+      100% { background-position: -120% 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .glow, .glow2, .dash, .spin, .spin-alt, .dot, .haze-a, .haze-b, .haze-c, .sun, .fill, .shimmer { animation: none; }
+      .fill { width: 55%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap" role="status" aria-live="polite">
+    <div class="glow" aria-hidden="true"></div>
+    <div class="glow2" aria-hidden="true"></div>
+    <div class="scene">
+      <svg viewBox="0 0 360 132" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <linearGradient id="au-core" x1="0" y1="0" x2="1" y2="1">
+            <stop stop-color="#3a4570"/><stop offset="1" stop-color="#1a2438"/>
+          </linearGradient>
+        </defs>
+        <circle class="sun" cx="300" cy="28" r="28" fill="#c9a84a" opacity="0.28"/>
+        <circle class="sun" cx="300" cy="28" r="16" fill="#fde68a" opacity="0.4"/>
+        <ellipse class="haze-a" cx="70" cy="36" rx="26" ry="9" fill="#8b97f8" opacity="0.2"/>
+        <ellipse class="haze-b" cx="128" cy="24" rx="20" ry="7" fill="#8b97f8" opacity="0.16"/>
+        <ellipse class="haze-c" cx="238" cy="42" rx="22" ry="8" fill="#8b97f8" opacity="0.16"/>
+        <g transform="translate(180 66)">
+          <circle r="44" fill="none" stroke="#8b97f8" stroke-width="1" opacity="0.2"/>
+          <circle class="dash" r="44" fill="none" stroke="#8b97f8" stroke-width="1.75" stroke-dasharray="12 18" stroke-linecap="round" opacity="0.55"/>
+          <circle r="24" fill="url(#au-core)" stroke="#8b97f8" stroke-width="1.5" opacity="0.9"/>
+          <circle class="dot" r="7" fill="#8b97f8"/>
+          <g class="spin"><circle cx="0" cy="-44" r="4" fill="#d7dbff"/></g>
+          <g class="spin spin-alt"><circle cx="0" cy="44" r="3" fill="#b4bffc" opacity="0.7"/></g>
+        </g>
+      </svg>
+      <div class="bar"><div class="track"><div class="fill"><span class="shimmer"></span></div></div></div>
+    </div>
+    <p class="brand">MetodiOne</p>
+    <h1 class="title">Обновление</h1>
+    <p class="text">Мы стараемся, чтобы MetodiOne стал ещё лучше. В данный момент идёт обновление.</p>
+    <p class="wait">Подождите, пожалуйста, скоро всё заработает.</p>
+  </div>
+</body>
+</html>
